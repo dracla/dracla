@@ -30,9 +30,10 @@ made and MUST NOT be silently resolved during implementation.
 2. Agreement text and every acceptance are tied to an immutable version and
    content digest.
 3. Evidence is append-only. Revocation or correction does not erase history.
-4. Sensitive signer data is private by default.
+4. Signer data is private by default.
 5. Public status surfaces disclose only what contributors need.
-6. Projects retain control of their agreements, records, access, and keys.
+6. Projects retain control of their agreements, records, and access, and can
+   self-host DraCLA when they require independent control of operational keys.
 7. The core workflow MUST work for organizations using GitHub Free.
 8. DraCLA MUST remain generic and MUST NOT contain Hydra-specific policy or
    agreement text.
@@ -92,8 +93,10 @@ Published versions MUST NOT be modified in place.
 ### REQ-AGR-2: Version transitions
 
 When a project activates a new agreement version, DraCLA MUST preserve all
-earlier versions and their acceptances. Project policy MUST determine whether
-an earlier acceptance remains current or the contributor must re-sign.
+earlier versions and their acceptances. An acceptance of an earlier version
+MUST NOT provide current coverage for a merge decision made after activation.
+The contributor MUST accept the active version before new contributions can
+land.
 
 ### REQ-AGR-3: Presentation before acceptance
 
@@ -140,8 +143,11 @@ An acceptance record MUST include at least:
 ### REQ-SIGN-5: Idempotency
 
 Repeated delivery of the same acceptance request MUST NOT create conflicting
-records. Legitimate re-signing MUST create a new event linked to the earlier
-acceptance.
+records. Correcting signer-submitted fields MUST require the signer to complete
+the signing flow again with fresh explicit assent. The resulting acceptance
+MUST be a new event linked to the earlier acceptance and MUST supersede it for
+current-state reporting without modifying it. An administrator MUST NOT edit or
+replace signer-submitted acceptance data.
 
 ## 8. Revocation and re-signing
 
@@ -290,9 +296,9 @@ read records and report checks. Cross-repository access MUST be explicit.
 
 ### REQ-REC-3: Append-only history
 
-Signatures, revocations, agreement publications, entity authorizations, and
-administrative corrections MUST be represented as append-only events. A
-correction MUST reference the event it corrects and preserve the original.
+Signatures, revocations, agreement publications, and entity authorizations MUST
+be represented as append-only events. Signer corrections MUST follow
+`REQ-SIGN-5` and preserve the original acceptance.
 
 The canonical records branch MUST contain one logical event per commit. Each
 event commit MUST have the current branch head as its single parent, and
@@ -341,11 +347,15 @@ DraCLA MUST collect only fields required by the selected agreement and project
 policy. It MUST NOT collect an IP address merely because a signing workflow can
 observe it.
 
-### REQ-SEC-2: Private signer information
+### REQ-SEC-2: Private signer records
 
 Legal names, email addresses, form responses, entity evidence, and raw audit
-events MUST NOT appear in public dashboards, badges, comments, checks, logs, or
-workflow artifacts.
+events are private project records and MUST NOT appear in public dashboards,
+badges, comments, checks, logs, or workflow artifacts. For the initial release,
+the private records repository is a sufficient access boundary. DraCLA MUST NOT
+require application-layer encryption of signer fields. A hosted serverless
+endpoint MAY process signer data transiently but MUST NOT retain it outside the
+project's records repository.
 
 ### REQ-SEC-3: Project privacy policy
 
@@ -357,7 +367,7 @@ acceptance.
 The web flow MUST protect signing, revocation, and administrative actions
 against forged requests, replay, and cross-site request forgery. GitHub tokens
 and application secrets MUST NOT be stored in records repositories or exposed
-to browser code unnecessarily.
+to browser code.
 
 ### REQ-SEC-5: Webhook security
 
@@ -396,7 +406,10 @@ value in the JSON export.
 
 Each project MUST have a stable contributor-facing page. After GitHub login it
 MUST show the viewer's exact Individual CLA status and offer the applicable
-Sign, Re-sign, or Revoke action.
+Sign, Re-sign, or Revoke action. Signing MUST use a conventional agreement
+review and acceptance flow. Contributors MUST NOT be required to interact with
+GitHub issues, pull requests, workflow controls, or repository files to manage
+their CLA.
 
 ### REQ-PORTAL-2: CONTRIBUTING badge
 
@@ -417,6 +430,15 @@ Status text and actions MUST be understandable without relying on badge color.
 Contributor-facing language SHOULD be factual, concise, and should avoid
 implying that signing transfers copyright when the configured agreement grants
 only a license.
+
+### REQ-PORTAL-5: No public signer lookup
+
+DraCLA MUST NOT provide an unauthenticated endpoint or directory for querying a
+specific GitHub user's CLA status. Public status MUST remain contextual to a
+configured pull request and use the generic states defined by `REQ-CHECK-1`.
+This restriction MUST NOT prevent an authenticated contributor from viewing
+their own exact status or an authorized records reader from using the private
+dashboard.
 
 ## 14. Maintainer dashboard
 
@@ -447,7 +469,7 @@ be used, but private data MUST NOT be embedded in public static assets.
 
 The dashboard SHOULD consume a generated, private index optimized for filtering
 rather than loading every evidence record. The index MUST be reproducible and
-MUST contain no more sensitive data than the dashboard requires.
+MUST contain no more private data than the dashboard requires.
 
 ### REQ-DASH-5: Live updates
 
@@ -459,15 +481,23 @@ required.
 
 ### REQ-OPS-1: Self-hosting
 
-DraCLA MUST be deployable by an open source project without dependence on a
-DraCLA-operated multi-tenant service.
+DraCLA SHOULD provide a shared DraCLA-operated deployment as the default
+adoption path. It MUST also be deployable by an open source project without
+dependence on that shared service.
 
 ### REQ-OPS-2: No records database
 
 The initial architecture MUST use the project's GitHub records repository as
-durable storage. A stateless web or authentication component MAY be used, but a
-separate persistent application database MUST NOT be required for core signing,
-revocation, checks, or dashboard reconstruction.
+durable storage. A static frontend and stateless serverless endpoints MUST
+provide GitHub authentication, signing, re-signing, revocation, and status. The
+serverless component MAY use short-lived signed or encrypted session state and
+provider-managed secret storage, but a separate persistent application database
+MUST NOT be required for core signing, revocation, checks, or dashboard
+reconstruction.
+
+Background validation, index generation, exports, and pull request enforcement
+SHOULD run in GitHub Actions. The serverless component MUST remain replaceable
+and MUST NOT make its hosting provider a durable system of record.
 
 ### REQ-OPS-3: GitHub Free baseline
 
@@ -485,6 +515,11 @@ Strong final enforcement in the baseline MUST use a required merge queue and a
 required DraCLA merge-group check. Core operation MUST NOT require a durable
 job queue, reverse pull request index, or global pull request rescan.
 
+The documented initial deployment MUST identify a serverless option that, at
+release time, fits within the provider's published free tier for a stated
+capacity envelope. Documentation MUST state the request and compute assumptions,
+the applicable provider limits, and the behavior when those limits are reached.
+
 ### REQ-OPS-4: Generic installation
 
 Installation MUST be driven by project configuration and documented so that a
@@ -494,6 +529,18 @@ project unrelated to Hydra can deploy DraCLA without editing source code.
 
 Operational logs MUST identify failed events and correlation identifiers while
 excluding signer PII and credentials.
+
+### REQ-OPS-6: Shared hosted deployment
+
+One shared stateless serverless deployment MUST be able to serve multiple
+projects without requiring a worker or function per project. Each project's
+agreements and canonical records MUST remain in repositories controlled by that
+project. Project routing, GitHub App installations, authorization, and record
+access MUST be isolated so that one project cannot access or modify another
+project's private records.
+
+Projects MUST be able to revoke the shared GitHub App and migrate to a
+self-hosted deployment without converting their canonical records.
 
 ## 16. Initial release scope
 
@@ -534,6 +581,11 @@ The initial release verification MUST include at least:
 - spreadsheet-formula payloads in CSV exports while JSON retains the canonical
   value;
 - loss of a viewer's or administrator's GitHub authorization;
+- a shared hosted deployment serving at least two projects, including denied
+  attempts to read or write records through the wrong project route or GitHub
+  App installation;
+- migration from the shared hosted deployment to a self-hosted deployment using
+  the existing canonical records without conversion;
 - backup restoration followed by a complete rebuild of current status, JSON and
   CSV exports, and the dashboard index; and
 - a clean installation in the documented GitHub Free baseline using a public
@@ -552,6 +604,7 @@ The initial release does not need to provide:
   signer fields;
 - GitLab, Gerrit, or non-GitHub forge integration;
 - a public directory of signer PII;
+- importing historical records from CLA Assistant or other CLA systems;
 - a mobile application;
 - billing, subscriptions, or hosted-service account management; or
 - a generalized electronic-signature platform for documents unrelated to
@@ -559,22 +612,7 @@ The initial release does not need to provide:
 
 ## 18. Open decisions
 
-The following decisions require explicit resolution before implementation that
-depends on them:
-
-1. **Agreement transition policy:** the supported rules for deciding when an
-   older acceptance remains current.
-2. **Sensitive-record protection:** whether signer fields are encrypted inside
-   the private records repository, and the corresponding key-management and
-   recovery design.
-3. **Administrative corrections:** the exact approval rules for correcting
-   mistaken records without rewriting history.
-4. **Web runtime:** the minimum stateless hosting model needed for GitHub OAuth,
-   contributor actions, and the private dashboard.
-5. **Public status exposure:** whether projects may publish individual status
-   endpoints beyond pull request-specific checks and badges.
-6. **Historical import:** whether the initial release must import records from
-   hosted CLA Assistant or other CLA systems.
+No open decisions remain for the initial release.
 
 ## 19. Acceptance of this requirements document
 
