@@ -21,7 +21,7 @@ deviates from or defers.
 | D4 | Both repositories live in the **adopting project's** org, auto-provisioned at install | `REQ-CONFIG-1`, `REQ-OPS-6`, principle 6 require project custody. Auto-provisioning removes the setup friction that made central hosting attractive. |
 | D5 | Coverage state is materialized into the projection repo synchronously by the signing path; Actions replays canonical to verify it | Gives O(1) coverage lookup with no Actions latency on the hot path, while keeping the projection strictly derived (`REQ-REC-6`). |
 | D6 | Staleness is detected via a pending-pointer inside the coverage repo | The enforcer has no canonical access, so it cannot compare against canonical head directly. See §5.4. |
-| D7 | One records repo per `(agreement, legal recipient)`, not per GitHub repo | A contributor signs once for a scope spanning many repos and orgs (`REQ-CONFIG-3`). |
+| D7 | One repo pair per **legal recipient**, not per GitHub repo and not per project | A contributor signs once for a scope spanning many repos and orgs (`REQ-CONFIG-3`). An org with a single recipient needs exactly one pair. See §5.5. |
 | D8 | Python core owns the event model, replay, exports, and CLI; Cloudflare Workers in TypeScript host the thin serverless tier | `REQ` §1 implies a Python package. Python Workers run on Pyodide with cold-start and package limits unsuited to webhook latency. Keeping the edge thin makes the split cheap and reversible. |
 | D9 | Coverage is stored in packed shards, not one file per user | Workers cap outbound subrequests per invocation; a per-subject read approaches that cap on a many-author PR. One shard read replaces N reads. |
 | D10 | An agreement version declares whether it invalidates prior acceptances | A typo fix and a new patent grant are not the same event. `REQ-AGR-4` forbids inferring legal meaning from agreement text, so DraCLA must not assume every version bump is substantive. Amends `REQ-AGR-2`. |
@@ -234,6 +234,62 @@ Actions reconciler repairs the projection. This is the only mechanism that lets
 the merge-group result honestly be called authoritative.
 
 ---
+
+### 5.5 How many repo pairs a project needs
+
+A *project* in DraCLA is a `(recipient, agreements, scope)` tuple, not a GitHub
+repository. One pair therefore covers every repository in its scope, and a
+contributor who signs once is covered across all of them.
+
+**The boundary is the legal recipient.** A second pair is required only when
+the entity receiving the granted rights differs (`REQ-CONFIG-2`), because that
+entity holds the rights and because read access to the records repo decides who
+sees the signer data. Two recipients sharing a repository would let one
+entity's administrators read the other's CLA evidence.
+
+```
+one recipient, many repos          ->  one pair
+  acme/acme-cla-records
+    recipient: Acme Foundation
+    scope:     acme/*, acme-labs/widget
+    agreements/icla/…                    several agreement ids are fine;
+                                         coverage keys on (user_id, agreement_id)
+
+two recipients in one org          ->  two pairs
+  foundation/projX-cla-records         recipient: Project X Inc
+  foundation/projY-cla-records         recipient: Y Foundation
+```
+
+`REQ-CONFIG-1` forbids *requiring* unrelated projects to share a repository; it
+does not prevent related projects from sharing one deliberately.
+
+**The recipient is chosen at install and is immutable thereafter.**
+`REQ-CONFIG-2` makes it a required configuration input, and the install flow
+prompts for it. It cannot later be edited: past acceptances granted rights to a
+specific legal entity, and those grants cannot be retroactively reassigned.
+Changing recipient is therefore a **new project with a new pair** — the
+contributors sign the new agreement, and the existing records remain as
+evidence of what was granted to the original entity. Editing it in place would
+leave grants to two different legal entities in one repository, the exact
+mixing this section exists to prevent.
+
+**Repository naming keys on the project slug**, not the org, so a second
+recipient in the same org does not collide. The slug defaults to the org name
+for the first project:
+
+```
+acme/acme-cla-records     first project, slug defaults to org name
+acme/projx-cla-records    second recipient in the same org
+```
+
+Costs of combining, both accepted for a single-recipient org:
+
+- Read access to the pair exposes signer data across everything it covers.
+- A substantive version activation applies to the whole scope at once. The
+  `supersedes_coverage` flag (D10) confines this to genuinely substantive
+  changes, but within a pair it is all-or-nothing.
+- A later spin-out to a different recipient means splitting records, which is
+  harder than transferring a repository.
 
 ## 6. Key flows
 
@@ -519,9 +575,20 @@ so GitHub retries delivery and the check remains `queued` rather than
 disappearing, as `REQ-CHECK-5` requires.
 
 **Default adoption path.** Shared DraCLA-operated serverless deployment
-(`REQ-OPS-1`), with records in the adopter's own org (`REQ-OPS-6`). Install
-flow auto-provisions both private repos, seeds config and the reconcile
-workflow, and writes the registry entry — one click, adopter custody.
+(`REQ-OPS-1`), with records in the adopter's own org (`REQ-OPS-6`).
+
+```
+admin installs dracla-records on their org
+  -> prompt: legal recipient, agreement, scope, project slug
+  -> provision <slug>-cla-records and <slug>-cla-coverage (both private)
+  -> seed config, agreement, reconcile workflow, coverage deploy key
+  -> install dracla-enforcer on the repos in scope
+  -> write registry entry (last, so a half-provisioned project is
+     never routable — R5)
+```
+
+Adding a second legal recipient later re-runs the same flow, producing an
+additional pair (§5.5). The recipient itself is immutable once chosen.
 
 **`dracla` org holds software and service only — two repositories:**
 
