@@ -1346,6 +1346,13 @@ How the design sits against them:
   Earlier drafts called CPU the binding constraint on Free; that was wrong.
   KV token caching is still worth doing to spare GitHub's rate limits, but it is
   not load-bearing for CPU: cold minting costs about 0.4 ms.
+
+  Read those figures as an estimate with a known bias: workerd is the production
+  runtime, but it ran on a development machine, not Cloudflare's edge hardware,
+  and they exclude isolate startup and Cloudflare's own CPU accounting. A
+  pessimistic 2.5x correction for slower edge silicon still lands near 3.2 ms.
+  The conclusion holds because the headroom is an order of magnitude, not
+  because the figure is precise.
 - **Requests — a ceiling shared across all tenants** in the hosted deployment.
   At roughly 4–8 webhook deliveries per pull request, 100,000/day admits on the
   order of 10⁴ pull requests per day across all adopters combined (risk R7).
@@ -1628,8 +1635,11 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
   workerd, not estimated — 0.26 ms for a typical pull request and 1.26 ms worst
   case against a 10 ms limit (§9, `api/bench/README.md`). Both limits have
   roughly an order of magnitude of headroom, so the Free-tier claim holds on
-  compute. The remaining Free-tier exposure is the shared **daily request
-  ceiling**, which is a volume question for A3, not a per-request one.
+  compute even under a pessimistic correction for edge hardware
+  (`api/bench/README.md`). Two things remain: a **confirming measurement on a
+  real Cloudflare account**, reading CPU-time percentiles from Workers analytics
+  rather than a development machine, and the shared **daily request ceiling**,
+  which is a volume question for A3 rather than a per-request one.
 - **A3 — Capacity envelope.** Provider limits, their per-account scope, and
   fail-closed behavior on exhaustion are now stated (§9), and the free-tier
   claim is pinned to the self-hosted single-project configuration. Still

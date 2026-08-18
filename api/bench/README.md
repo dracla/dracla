@@ -26,6 +26,35 @@ measurement.
 Node measured 1.54 ms for the worst case, so the two runtimes agree closely and
 workerd is marginally faster.
 
+## What these numbers are not
+
+They are **workerd on a development machine**, not a measurement taken on
+Cloudflare. Read them as an estimate with a known bias.
+
+Carried over faithfully: workerd is the production runtime, so V8, the JIT, and
+the BoringSSL crypto implementation are the real ones, and the relative costs
+and algorithmic shape hold.
+
+Not carried over:
+
+- **Edge hardware is slower per core.** These ran on an i7-13700K boosting to
+  ~5.4 GHz. Cloudflare runs server-grade silicon, plausibly 1.5–2.5x slower
+  single-threaded.
+- **Multi-tenant contention** on a busy edge node.
+- **Cloudflare's CPU accounting**, which is their meter rather than a
+  wall-clock loop with no I/O.
+- **Isolate startup and script evaluation**, which count toward the first
+  request into a fresh isolate and are absent here entirely.
+
+Applying a pessimistic 2.5x correction puts the worst case near 3.2 ms — still
+under a third of the budget. The conclusion is robust because the headroom is an
+order of magnitude, not because the number is precise. At 7 ms this would be
+unresolved rather than closed.
+
+**A definitive number requires deploying to a real Cloudflare account** and
+reading CPU-time percentiles from Workers analytics under actual traffic. That
+remains open.
+
 ## What this changes
 
 The design previously called CPU "the binding constraint on Free". It is not:
