@@ -22,7 +22,7 @@ matrix is filled in as each milestone lands — not reconstructed at the end.
 - [x] GitHub client, verified against the live API
 - [x] A2 (edge CPU), A3 (capacity), A4 (merge queue on Free)
 - [x] Apache-2.0, public repository
-- [ ] **Domain / origin** — one origin for shell and API (§9)
+- [x] **Domain / origin** — `dracla.yadan.net`, one origin for shell and API (§9)
 - [ ] **Cloudflare account** — Workers, Pages, Secrets, KV
 - [ ] **Two GitHub Apps** created per `docs/github-apps.md` (needs the domain
       first, for callback and Setup URLs)
@@ -137,11 +137,18 @@ domain -> Cloudflare account -> 2 GitHub Apps -> M3 -> M4 -> M5 ─┐
 M1 -> M2 ────────────────────────────────────────────────────────┘
 ```
 
-Track A is unblocked today. Track B waits on one decision — the domain — which
-gates the Apps, because their callback and Setup URLs embed it.
+Track A is unblocked today, and needs no domain at all: the CLI provisions with
+the administrator's own credentials and never touches the portal origin.
+
+Track B waits on a Cloudflare account and the two Apps. The origin is settled
+as `dracla.yadan.net`; `cli.dev` is assigned but its transfer is pending and may
+take months, so nothing is planned around it. Moving later costs two App config
+edits plus a permanent redirect — see `docs/github-apps.md`.
 
 ## Parked
 
 - Confirming CPU measurement on a real Cloudflare account (A2). The workerd
   figures have an order of magnitude of headroom, so this is confirmation
   rather than a risk.
+- Migrating the origin to `dracla.cli.dev` once that transfer completes. Cheap
+  before adopters exist, and a single redirect rule afterwards.
