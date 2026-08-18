@@ -1490,6 +1490,14 @@ Therefore:
 records and coverage repos, required merge queue with the DraCLA merge-group
 check required. No durable job queue, reverse PR index, or global rescan.
 
+This split is not a preference — it is forced, and now measured (A4, §11).
+Rulesets carrying `merge_queue` and `required_status_checks` are available on a
+**public** repository in a Free organization; the identical ruleset on a
+**private** repository is refused with *"Upgrade to GitHub Pro or make this
+repository public"*. So enforcement must live where the contributing code is
+public, and the records must live where they are private — which is exactly the
+two-repository shape D2 arrived at for unrelated reasons.
+
 ### 9.1 Backup and recovery (`REQ-REC-7`, `REQ-REC-4`)
 
 `REQ-REC-7` requires a documented backup and recovery procedure for the records
@@ -1589,13 +1597,13 @@ that requires acknowledgement:
 | `REQ-PORTAL-5` | **Residual risk, not met in spirit** — the public check is an arbitrary-target coverage oracle by construction (§6.3). Rate-limited and documented, not closed. |
 | `REQ-CONFIG-1` | **Limitation acknowledged** — two recipients in one org share an installation, so their separation is software-only in the hosted model (§7) |
 
-### 10.4 Pending verification
+### 10.4 Verification resolved — no amendment needed
 
-`REQ-OPS-3`'s merge-queue clause: if merge queue proves unavailable for public
-repos on Free, lines 514–515 must change from "strong final enforcement in the
-baseline MUST use a required merge queue" to "strong enforcement requires a plan
-supporting merge queue." This is **not** a proposal — a conditional amendment
-can be neither approved nor rejected. Run A4, then make it firm or drop it.
+`REQ-OPS-3`'s merge-queue clause stands as written. A4 verified on 18 August
+2026 that merge queue and required status checks are available for public
+repositories on GitHub Free, and that the same enforcement on a private
+repository requires a paid plan (§11). The conditional amendment previously
+noted here is withdrawn: the condition did not occur.
 
 ### 10.5 Baseline status
 
@@ -1624,12 +1632,24 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
   missing, and required by `REQ-OPS-3`: per-project request assumptions
   (webhook deliveries per pull request, portal and dashboard traffic) and the
   index-proxy bandwidth model. **Partially met.**
-- **A4 — Merge queue availability** for public repos on GitHub Free must be
-  verified before `REQ-CHECK-3` can be called satisfied in the baseline.
-  Verification is cheap: create a public repo in a Free org and add a ruleset
-  requiring merge queue. If unavailable, the `REQ-OPS-3` amendment in §10 is
-  required and the Free baseline degrades to early feedback plus post-merge
-  detection (§6.4).
+- **A4 — Merge queue on GitHub Free. CLOSED, verified 18 August 2026.**
+  Tested empirically against a throwaway public repository in a Free-plan
+  organization (`plan: free`, 1 seat):
+
+  - A ruleset combining `merge_queue`, `required_status_checks`, and
+    `pull_request` was created with `enforcement: active` and read back as
+    effective on the default branch. Merge queue **is** available for public
+    repositories on Free, so `REQ-CHECK-3`'s strong-enforcement baseline holds
+    and no `REQ-OPS-3` amendment is needed.
+  - Flipping the same repository to **private** immediately returned
+    `403 Upgrade to GitHub Pro or make this repository public to enable this
+    feature` on the rulesets API — confirming the other half of
+    `REQ-OPS-3`'s baseline: ruleset and branch-protection enforcement on a
+    private contributing repository requires a paid plan.
+
+  Both halves of the documented Free baseline — public contributing repository
+  with enforcement, private records repository without — are therefore verified
+  rather than assumed.
 
 ---
 
