@@ -430,14 +430,24 @@ publication and activation, overrides, exemptions, and administrator commits all
 open and close a marker. A guard that only one code path maintains is a liveness
 signal for that path, not a freshness proof for canonical.
 
-**Recovery has a driver.** An entry orphaned by a crash would otherwise wedge
-its subjects indefinitely, and `REQ-OPS-3` forbids a durable job queue. The
-reconciler therefore runs both on push to canonical **and** on an Actions
-`schedule:` trigger — a scheduled workflow, not a job queue — and on each run
-resolves orphaned entries, repairs the projection, and re-requests checks left
-`in_progress` on affected open pull requests. That re-drive is a recovery
-optimization; per `REQ-CHECK-4` core correctness does not depend on it, because
-the guard fails closed without it.
+**Recovery has two drivers.** An entry orphaned by a crash would otherwise
+wedge its subjects indefinitely, and `REQ-OPS-3` forbids a durable job queue.
+
+*Opportunistic, in the Worker.* On any later request touching a subject with an
+open marker, the Worker checks whether that operation's event actually landed in
+canonical. If it did, the Worker completes the materialization and closes the
+marker itself. This costs nothing and clears most orphans promptly.
+
+*Scheduled, in Actions.* The reconciler runs on push to canonical **and** on an
+Actions `schedule:` trigger — a scheduled workflow, not a job queue — resolving
+whatever the opportunistic path did not reach, repairing the projection, and
+re-requesting checks left `in_progress`. The schedule is **six-hourly**, set by
+Actions-minute cost rather than by preference; §9.2 shows why hourly is
+unaffordable on an adopter's Free allowance and what the six-hour worst-case
+latency actually delays.
+
+That re-drive is a recovery optimization; per `REQ-CHECK-4` core correctness
+does not depend on either driver, because the guard fails closed without them.
 
 **Retry exhaustion is explicit.** If §5.2's bounded retries are exhausted the
 operation may or may not have committed. The marker stays open, the subject
@@ -1507,6 +1517,89 @@ repository public"*. So enforcement must live where the contributing code is
 public, and the records must live where they are private — which is exactly the
 two-repository shape D2 arrived at for unrelated reasons.
 
+### 9.2 Capacity envelope (`REQ-OPS-3`)
+
+`REQ-OPS-3` requires the documented deployment to state its request and compute
+assumptions, the applicable provider limits, and the behaviour on reaching them.
+The model is `core/capacity.py`, parameterised so it answers for any adopter
+count rather than depending on one guessed number. Re-run it when an assumption
+changes.
+
+**Assumptions**, per project per day unless noted. Each is an input, not a fact:
+
+| | Value | Where it came from |
+|---|---|---|
+| Pull requests | 5 | assumed |
+| Webhook deliveries per pull request | 8 | sampled from live repos: median 3.5 (`astral-sh/uv`) to 10.5 (`cli/cli`) |
+| Signings | 2 | assumed |
+| Requests per signing | 8 | OAuth start and callback, agreement fetch, POST, status |
+| Dashboard views | 5 × 3 requests | shell, authorization probe, index |
+| Badge requests | 0 | badges are static Pages assets (§6.7) |
+| CPU per check | 1.26 ms | measured, `api/bench/` |
+
+**Deliveries are driven by pull request *activity*, not pull request count.**
+GitHub App webhook subscriptions are per event **type**, not per action, so
+DraCLA receives all 23 `pull_request` actions and acts on 4. The other 19 —
+labelling, assignment, review requests — are discarded on arrival but still cost
+a Workers request.
+
+**Result**
+
+| Projects | Requests/day | % of Free | % of Paid | CPU s/day |
+|---|---|---|---|---|
+| 10 | 710 | 0.7% | 0.2% | 0.9 |
+| 50 | 3,550 | 3.5% | 1.1% | 4.5 |
+| 100 | 7,100 | 7.1% | 2.1% | 8.9 |
+| 250 | 17,750 | 17.8% | 5.3% | 22.4 |
+
+Cloudflare Free saturates at roughly **1,400 projects**; 520 if every adopter is
+as busy as `cli/cli`, and 158 under a deliberately pessimistic combination. The
+request ceiling is therefore not a capacity constraint at any plausible adoption
+level.
+
+That reframes two risks. **R7** — one busy adopter consuming the shared ceiling
+— is unlikely on these numbers. **R9** — an outsider deliberately exhausting it,
+which needs no adopters at all — is the real exposure, and is addressed by WAF
+rate limiting and the route split (§9), not by capacity.
+
+**The binding constraint is GitHub Actions minutes, not Cloudflare.**
+
+The reconciler runs inside each project's **private** canonical repository, where
+GitHub Free meters 2,000 minutes per month against the org's whole private-repo
+allowance — not a DraCLA-specific budget. Jobs bill whole minutes, so schedule
+frequency dominates:
+
+| Schedule | At 1 min/run | At 2 min/run |
+|---|---|---|
+| Every 15 min | 2,940 min — **147%, over Free** | over Free |
+| Hourly | 780 min — 39% | 1,560 min — 78% |
+| Every 6 h | 180 min — 9% | 360 min — 18% |
+
+**Decision: every 6 hours by default.** Hourly would consume between 39% and 78%
+of an adopter's entire private-repo CI allowance for a component that is not
+their product, which is an unreasonable adoption cost. Six-hourly costs under a
+fifth of that even pessimistically.
+
+What that schedule delays, and why it is tolerable: the reconciler is not on the
+signing critical path (§5.4), so it handles only orphaned in-flight markers and
+due activations. Activation `effective_at` is set in days, so six-hourly
+granularity is immaterial. An orphaned marker leaves its subjects
+`in_progress` — failing closed — for up to six hours, which is the one real
+cost.
+
+**Opportunistic orphan clearing** removes most of that latency without spending
+minutes: on any later request touching a subject with an open marker, the Worker
+checks whether that operation's event actually landed in canonical, and if so
+completes the materialization and closes the marker itself. The scheduled pass
+then only catches subjects nobody touches again.
+
+**Behaviour on reaching a limit** (`REQ-OPS-3` requires this stated): Cloudflare
+routes are fail-closed, so checks stop being written rather than passing
+unevaluated, and the reconciler — running in Actions, unaffected by the Worker
+budget — creates the *temporarily unavailable* check (§9). Exhausting Actions
+minutes stops reconciliation only; signing, revocation, and checks continue,
+because none of them depend on it.
+
 ### 9.1 Backup and recovery (`REQ-REC-7`, `REQ-REC-4`)
 
 `REQ-REC-7` requires a documented backup and recovery procedure for the records
@@ -1640,12 +1733,15 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
   real Cloudflare account**, reading CPU-time percentiles from Workers analytics
   rather than a development machine, and the shared **daily request ceiling**,
   which is a volume question for A3 rather than a per-request one.
-- **A3 — Capacity envelope.** Provider limits, their per-account scope, and
-  fail-closed behavior on exhaustion are now stated (§9), and the free-tier
-  claim is pinned to the self-hosted single-project configuration. Still
-  missing, and required by `REQ-OPS-3`: per-project request assumptions
-  (webhook deliveries per pull request, portal and dashboard traffic) and the
-  index-proxy bandwidth model. **Partially met.**
+- **A3 — Capacity envelope. CLOSED, modelled 18 August 2026.** §9.2 states the
+  assumptions, their provenance, the resulting envelope, and the behaviour on
+  reaching each limit, as `REQ-OPS-3` requires. The model is `core/capacity.py`
+  and is parameterised, so it answers for any adopter count.
+
+  Two conclusions worth carrying: the Cloudflare request ceiling is **not** a
+  capacity constraint (Free saturates near 1,400 projects), and the actual
+  binding constraint is **GitHub Actions minutes** in each adopter's private
+  canonical repository, which set the reconciler schedule at six-hourly.
 - **A4 — Merge queue on GitHub Free. CLOSED, verified 18 August 2026.**
   Tested empirically against a throwaway public repository in a Free-plan
   organization (`plan: free`, 1 seat):
@@ -1677,11 +1773,11 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
 | R4 | Index proxy carries all dashboard traffic through the serverless tier | Bound index size; cache with short TTL; include in A3 envelope |
 | R5 | Two-repo, two-App provisioning failure leaves a half-installed project | Provisioning is idempotent and re-runnable; registry entry written last |
 | R6 | ~~10 ms Free-tier CPU exceeded on a large pull request~~ **Closed** by measurement: 1.26 ms worst case, 13% of budget (§9, A2) | Residual: a pathological pull request with very long commit messages parses in proportion to bytes; the 250-commit API ceiling bounds it |
-| R7 | Cloudflare limits are per account, so on Free one busy adopter consumes the shared hosted ceiling for everyone | Run the hosted deployment on Paid (10M req/mo, ~333k/day); per-project rate accounting; A3 must state behavior on reaching the limit |
+| R7 | ~~One busy adopter consumes the shared hosted ceiling~~ **Downgraded** by the A3 model: Free saturates near 1,400 projects, 520 if all are as busy as `cli/cli` (§9.2) | Per-project rate accounting retained as a guard; Paid raises the ceiling 3.3x |
 | R8 | Daily limit exceeded silently drops webhooks if routes fail open | Configure routes fail closed (`REQ-CHECK-5`, §9); reconciler creates the *temporarily unavailable* check the dead Worker could not |
 | R9 | `dracla-enforcer` is a public App, so an outsider can exhaust the shared per-account budget and halt checks, signing, and revocation for every adopter | WAF and rate limiting ahead of the routes; signature verification at the edge; three-Worker route split so the webhook surface cannot take the portal down (§9) |
 | R10 | ~~Revocation-as-griefing via co-authoring~~ **Closed** by `REQ-CHECK-2` rev 2 — an injected trailer cannot block (§6.3.1) | Residual: a griefer who authors commits under their own identity can still revoke, but only affects pull requests containing their own authored work |
-| R11 | Reconciler consumes metered private-repo Actions minutes on the Free baseline | Incremental reconciliation on the ordinary path; full replay only on the scheduled pass and on repair; size in A3 |
+| R11 | Reconciler consumes an adopter's private-repo Actions allowance — **the binding capacity constraint**, not Cloudflare (§9.2) | Six-hourly schedule (9–18% of the 2,000 min/month allowance); opportunistic orphan clearing in the Worker; incremental reconciliation on the ordinary path |
 
 ---
 
