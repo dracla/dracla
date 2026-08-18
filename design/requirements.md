@@ -1,14 +1,16 @@
 # DraCLA Requirements
 
 Status: Locked
-Date: 18 August 2026
-Revision: 2 — amends `REQ-AGR-2` and `REQ-CHECK-2`; see section 20.
+Date: 20 August 2026
+Revision: 3 — adds `REQ-CONFIG-5` and `REQ-SEC-9`; amends `REQ-PORTAL-5`,
+`REQ-REC-3`, and `REQ-REC-2`; see section 20.
 
 ## 1. Purpose
 
 DraCLA is a project-neutral, GitHub-native system for managing Contributor
 License Agreements (CLAs). It provides authenticated signing, durable records,
-pull request enforcement, revocation, entity coverage, exports, and a searchable
+pull request enforcement, revocation, entity coverage (post-initial release,
+section 9), exports, and a searchable
 dashboard without requiring each open source project to operate a conventional
 signature database.
 
@@ -48,8 +50,8 @@ made and MUST NOT be silently resolved during implementation.
   administer project records and policy.
 - **Records reader:** A maintainer permitted to view the project's private CLA
   records and dashboard.
-- **DraCLA GitHub App:** The application that authenticates users, processes
-  GitHub events, and reports pull request status.
+- **DraCLA GitHub App(s):** The application or applications that authenticate
+  users, process GitHub events, and report pull request status.
 
 ## 5. Project configuration
 
@@ -75,6 +77,14 @@ agreement covers. The effective scope MUST be captured with every acceptance.
 The initial release MUST support an Individual CLA signed electronically by a
 contributor. Entity CLA support is a post-initial-release requirement and, when
 introduced, MUST be configurable without changing DraCLA source code.
+
+### REQ-CONFIG-5: Scope authorization
+
+A repository or organization MUST NOT enter a project's effective scope without
+the consent of a person authorized to administer that repository's owner.
+Consent MUST be verified when scope is first bound and again whenever it is
+widened, and MUST be recorded attributably. Installing a DraCLA App MUST NOT by
+itself constitute consent to any specific project's agreement.
 
 ## 6. Agreement management
 
@@ -332,8 +342,9 @@ CLA record store. Core operation MUST NOT require a paid GitHub plan.
 
 ### REQ-REC-2: Repository boundary
 
-The GitHub App MUST receive only the repository permissions needed to append and
-read records and report checks. Cross-repository access MUST be explicit.
+Each GitHub App MUST receive only the repository permissions its function
+requires; appending and reading records and reporting checks MAY be split
+across applications. Cross-repository access MUST be explicit.
 
 ### REQ-REC-3: Append-only history
 
@@ -341,7 +352,11 @@ Signatures, revocations, agreement publications, and entity authorizations MUST
 be represented as append-only events. Signer corrections MUST follow
 `REQ-SIGN-5` and preserve the original acceptance.
 
-The canonical records branch MUST contain one logical event per commit. Each
+The canonical records branch MUST contain one logical event per commit. This
+governs event commits: a commit that carries an event MUST carry exactly one.
+The branch MAY begin with bootstrap commits that precede the first event and
+carry none; consumers MUST identify events by their recorded paths and MUST NOT
+assume every commit carries an event. Each
 event commit MUST have the current branch head as its single parent, and
 DraCLA MUST update the branch only by fast-forward. Commit ancestry is the
 authoritative event order; author, committer, and event timestamps MUST NOT
@@ -441,6 +456,14 @@ CSV exports MUST prevent cells derived from untrusted input from being
 interpreted as spreadsheet formulas while preserving the unmodified canonical
 value in the JSON export.
 
+### REQ-SEC-9: Credential lifecycle
+
+Every long-lived credential DraCLA provisions or requires — deploy keys, App
+private keys, webhook secrets — MUST have a documented rotation procedure and a
+documented response to administrator or maintainer departure. Documentation
+MUST state what each credential can reach and what a holder could forge or read
+with it.
+
 ## 13. Contributor portal and badges
 
 ### REQ-PORTAL-1: Project page
@@ -477,17 +500,18 @@ only a license.
 DraCLA MUST NOT provide an unauthenticated endpoint or directory for querying a
 specific GitHub user's CLA status. Public status MUST remain contextual to a
 configured pull request and use the generic states defined by `REQ-CHECK-1`.
-This restriction MUST NOT prevent an authenticated contributor from viewing
-their own exact status or an authorized records reader from using the private
-dashboard.
+Derived artifacts that map users to coverage MUST NOT be publicly readable or
+enumerable, in aggregate or in bulk, whether or not they contain names or
+addresses. This restriction MUST NOT prevent an authenticated contributor from
+viewing their own exact status or an authorized records reader from using the
+private dashboard.
 
 ## 14. Maintainer dashboard
 
 ### REQ-DASH-1: Dynamic private dashboard
 
-DraCLA MUST provide a private, dynamic dashboard comparable to Backlog Atlas in
-interaction style. Filtering and sorting SHOULD happen immediately in the
-browser after loading a generated index.
+DraCLA MUST provide a private, dynamic dashboard. Filtering and sorting SHOULD
+happen immediately in the browser after loading a generated index.
 
 ### REQ-DASH-2: Filters
 
@@ -589,7 +613,9 @@ The first usable release MUST demonstrate all of the following:
 
 1. Register one project and publish a versioned Individual CLA.
 2. Authenticate a GitHub user and record explicit acceptance.
-3. Evaluate the opener and every GitHub-resolved commit author and co-author.
+3. Evaluate the opener and every GitHub-resolved commit author; surface
+   trailer-declared co-authors, with coverage status, to authorized viewers
+   (`REQ-CHECK-2`).
 4. Report a passing early check when every subject is covered and a non-passing
    check when a subject is uncovered or unresolved.
 5. Re-evaluate the originating pull request after signing from its flow.
@@ -669,6 +695,61 @@ after the revised baseline is approved. Editorial corrections that do not alter
 meaning MAY be made through normal review.
 
 ## 20. Revision history
+
+### Revision 3 — 20 August 2026
+
+Five changes: two new requirements and three amendments, proposed from the
+review trail of this document and the accepted high-level design, and approved.
+Recorded here as section 19 requires.
+
+**`REQ-CONFIG-5` — scope authorization (new).** A repository or organization
+enters a project's scope only with the verified, attributable consent of
+someone who administers its owner; App installation alone is not consent.
+
+*Rationale.* The design's §7 closes a look-alike attack in which an unclaimed
+repository could be bound into a stranger's project and its contributors
+steered to sign the wrong agreement at a genuine portal. That control existed
+only in the design; a requirement now demands it of any implementation.
+*Affected:* new. Interacts with `REQ-CONFIG-3` (scope remains definable) and
+`REQ-OPS-6` (isolation).
+
+**`REQ-SEC-9` — credential lifecycle (new).** Long-lived credentials require
+documented rotation and departure procedures, and documentation of what each
+can reach.
+
+*Rationale.* The coverage deploy key never expires, is reachable by anyone
+with write access to the records repository, and confers the ability to forge
+enforcement decisions. No requirement answered to that exposure.
+*Affected:* new. Interacts with `REQ-SEC-4` (storage) and `REQ-REC-7` (keys in
+backup).
+
+**`REQ-PORTAL-5` — enumerability.** Derived artifacts mapping users to
+coverage must not be publicly readable or enumerable, with or without names.
+
+*Rationale.* The endpoint ban alone left bulk disclosure of derived coverage
+data unaddressed; per-subject coverage is already public through check runs,
+and what privacy protects is the aggregate.
+*Affected:* `REQ-PORTAL-5`. Interacts with `REQ-SEC-2` and `REQ-DASH-4`.
+
+**`REQ-REC-3` — event commits.** The one-logical-event-per-commit rule is
+pinned to its intended reading: it governs commits that carry events;
+pre-event bootstrap commits are permitted; consumers identify events by
+recorded path, never by commit position.
+
+*Rationale.* The sentence admitted a stricter reading under which the
+branch-bootstrap sequence the design requires would be non-conformant, and the
+design carried a declared interpretation as a bridge. The requirement now says
+what it meant.
+*Affected:* `REQ-REC-3`.
+
+**`REQ-REC-2` — per-application permissions.** Rephrased for one or more
+GitHub Apps, each holding only what its function requires; splitting records
+access from check reporting is explicitly permitted.
+
+*Rationale.* The accepted design splits two Apps precisely so no credential
+spans records and enforcement; the previous singular phrasing predated that
+and read as prescribing one App holding both.
+*Affected:* `REQ-REC-2`, section 4 actor list. Interacts with D3 in the design.
 
 ### Revision 2 — 18 August 2026
 
