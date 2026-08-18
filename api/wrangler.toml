@@ -1,0 +1,3 @@
+name = "dracla-a2-bench"
+main = "bench/worker.mjs"
+compatibility_date = "2026-08-18"

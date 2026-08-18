@@ -1338,12 +1338,14 @@ How the design sits against them:
   commit listing (1–3) + coverage shard reads (1–2) + check run write (1),
   roughly 6–8 against a cap of 50. This is what packed shards (D9) bought; one
   read per subject would have approached the cap on a many-author pull request.
-- **CPU — the binding constraint on Free.** Workers bill CPU rather than I/O
-  wait, so awaiting GitHub is free, but 10 ms is tight for RS256 installation
-  token signing plus `JSON.parse` of a large commit listing. Mitigations:
-  cache installation tokens in Workers KV so the RSA signature is amortized
-  across their one-hour lifetime, request minimal fields, and bound page size.
-  **Must be measured before Free can be claimed** (A2).
+- **CPU — comfortable, measured.** Workers bill CPU rather than I/O wait, so
+  awaiting GitHub is free. The check path was measured in workerd on 18 August
+  2026 (`api/bench/`): a typical 10-commit pull request costs **0.26 ms**, a
+  100-commit one **0.50 ms**, and the worst case — 250 commits, the GitHub
+  pagination ceiling, with a cold key — **1.26 ms**, or 13% of the budget.
+  Earlier drafts called CPU the binding constraint on Free; that was wrong.
+  KV token caching is still worth doing to spare GitHub's rate limits, but it is
+  not load-bearing for CPU: cold minting costs about 0.4 ms.
 - **Requests — a ceiling shared across all tenants** in the hosted deployment.
   At roughly 4–8 webhook deliveries per pull request, 100,000/day admits on the
   order of 10⁴ pull requests per day across all adopters combined (risk R7).
@@ -1621,11 +1623,13 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
 
 - **A1 — Edge platform. CLOSED.** Cloudflare Workers and Pages, TypeScript at
   the edge, Python core in Actions (D8, §9).
-- **A2 — Workers CPU on Free.** Subrequests are **resolved**: 6–8 per check
-  against a cap of 50 (§9, D9). The open item is the **10 ms CPU limit** —
-  RS256 token signing plus commit-listing parse must be measured on a
-  many-author pull request with KV token caching in place. Paid ($5/mo total)
-  removes the constraint, so this gates only the Free-tier claim.
+- **A2 — Workers limits on Free. CLOSED, measured 18 August 2026.**
+  Subrequests: 6–8 per check against a cap of 50 (§9, D9). CPU: measured in
+  workerd, not estimated — 0.26 ms for a typical pull request and 1.26 ms worst
+  case against a 10 ms limit (§9, `api/bench/README.md`). Both limits have
+  roughly an order of magnitude of headroom, so the Free-tier claim holds on
+  compute. The remaining Free-tier exposure is the shared **daily request
+  ceiling**, which is a volume question for A3, not a per-request one.
 - **A3 — Capacity envelope.** Provider limits, their per-account scope, and
   fail-closed behavior on exhaustion are now stated (§9), and the free-tier
   claim is pinned to the self-hosted single-project configuration. Still
@@ -1662,7 +1666,7 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
 | R3 | Non-atomic write across two repos (§5.4 steps 1–3) | Pending-pointer forces fail-closed; Actions reconciler repairs |
 | R4 | Index proxy carries all dashboard traffic through the serverless tier | Bound index size; cache with short TTL; include in A3 envelope |
 | R5 | Two-repo, two-App provisioning failure leaves a half-installed project | Provisioning is idempotent and re-runnable; registry entry written last |
-| R6 | 10 ms Free-tier CPU exceeded on a large pull request (RS256 signing plus commit-listing parse) | Cache installation tokens in KV; request minimal fields; bound page size; run the hosted deployment on Paid, where the limit is 30 s |
+| R6 | ~~10 ms Free-tier CPU exceeded on a large pull request~~ **Closed** by measurement: 1.26 ms worst case, 13% of budget (§9, A2) | Residual: a pathological pull request with very long commit messages parses in proportion to bytes; the 250-commit API ceiling bounds it |
 | R7 | Cloudflare limits are per account, so on Free one busy adopter consumes the shared hosted ceiling for everyone | Run the hosted deployment on Paid (10M req/mo, ~333k/day); per-project rate accounting; A3 must state behavior on reaching the limit |
 | R8 | Daily limit exceeded silently drops webhooks if routes fail open | Configure routes fail closed (`REQ-CHECK-5`, §9); reconciler creates the *temporarily unavailable* check the dead Worker could not |
 | R9 | `dracla-enforcer` is a public App, so an outsider can exhaust the shared per-account budget and halt checks, signing, and revocation for every adopter | WAF and rate limiting ahead of the routes; signature verification at the edge; three-Worker route split so the webhook surface cannot take the portal down (§9) |
