@@ -440,3 +440,114 @@ class TestScopeEvaluation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestClientRetry(unittest.TestCase):
+    """Transient-fault handling in the live client, exercised without network.
+
+    Retrying is only safe because the protocol above is idempotent; these check
+    that the client retries what it should and never retries a protocol signal.
+    """
+
+    def _host(self):
+        from dracla.github import GitHubHost
+        h = GitHubHost(repo="o/r", token="t")
+        h.sleep = lambda _d: None          # no real waiting in tests
+        return h
+
+    def test_transient_network_error_is_retried_then_succeeds(self):
+        import urllib.error
+        from dracla import github as G
+        h = self._host()
+        calls = {"n": 0}
+
+        class FakeResp:
+            def read(self): return b'{"ok": true}'
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def urlopen(req, timeout=None):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise urllib.error.URLError("connection timed out")
+            return FakeResp()
+
+        orig = G.urllib.request.urlopen
+        G.urllib.request.urlopen = urlopen
+        try:
+            self.assertEqual(h._req("GET", "/x"), {"ok": True})
+        finally:
+            G.urllib.request.urlopen = orig
+        self.assertEqual(calls["n"], 3, "should have retried twice")
+
+    def test_protocol_signals_are_never_retried(self):
+        import io as _io
+        import urllib.error
+        from dracla import github as G
+        from dracla.githost import BlobConflict, NotFastForward, NotFound
+
+        for code, body, exc in [
+            (404, "not found", NotFound),
+            (409, "conflict", BlobConflict),
+            (422, "Update is not a fast forward", NotFastForward),
+        ]:
+            h = self._host()
+            calls = {"n": 0}
+
+            def urlopen(req, timeout=None, code=code, body=body):
+                calls["n"] += 1
+                raise urllib.error.HTTPError(
+                    "u", code, body, {}, _io.BytesIO(body.encode()))
+
+            orig = G.urllib.request.urlopen
+            G.urllib.request.urlopen = urlopen
+            try:
+                with self.assertRaises(exc):
+                    h._req("GET", "/x")
+            finally:
+                G.urllib.request.urlopen = orig
+            self.assertEqual(calls["n"], 1,
+                             f"{code} is a protocol signal, not a fault")
+
+    def test_gives_up_after_max_attempts(self):
+        import urllib.error
+        from dracla import github as G
+        from dracla.github import GitHubError
+        h = self._host()
+        calls = {"n": 0}
+
+        def urlopen(req, timeout=None):
+            calls["n"] += 1
+            raise urllib.error.URLError("down")
+
+        orig = G.urllib.request.urlopen
+        G.urllib.request.urlopen = urlopen
+        try:
+            with self.assertRaises(GitHubError):
+                h._req("GET", "/x")
+        finally:
+            G.urllib.request.urlopen = orig
+        self.assertEqual(calls["n"], h.max_attempts)
+
+    def test_socket_timeout_is_set(self):
+        """No timeout means a wedged socket hangs a Worker or a CI job."""
+        from dracla import github as G
+        h = self._host()
+        seen = {}
+
+        class FakeResp:
+            def read(self): return b"{}"
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def urlopen(req, timeout=None):
+            seen["timeout"] = timeout
+            return FakeResp()
+
+        orig = G.urllib.request.urlopen
+        G.urllib.request.urlopen = urlopen
+        try:
+            h._req("GET", "/x")
+        finally:
+            G.urllib.request.urlopen = orig
+        self.assertEqual(seen["timeout"], h.timeout)

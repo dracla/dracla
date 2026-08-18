@@ -21,6 +21,45 @@ Run:
 
 No third-party dependencies, by design — stdlib only.
 
+## Integration tests against live GitHub
+
+The fake encodes a *model* of GitHub. If the model is wrong, every unit test
+passes and production still loses events, so the same behaviours are also run
+against the real API:
+
+    export DRACLA_ITEST_REPO=owner/name
+    export GITHUB_TOKEN=$(gh auth token)
+    python3 -m unittest core.tests.test_github_integration -v
+
+Opt-in — skipped unless both variables are set. Each test creates its own ref
+under `dracla-itest/` and deletes it in teardown; no existing branch is touched.
+A run takes a few minutes because every assertion is real API round trips.
+
+Last run: 9/9 against `dracla/dracla`, 18 August 2026, no leftover refs.
+
+What it confirms on the live API:
+
+- a non-fast-forward `update_ref` is rejected with 422, ref unmoved
+- a **descendant whose tree drops a file** is accepted — DR-006's premise, so
+  the retry really must rebuild on the reloaded head's base tree
+- `commit()` builds on the parent's tree, closing that path
+- `PUT contents` with a stale blob sha is a genuine compare-and-swap (409)
+- `append_event` is idempotent on replay, and recovers both events after a real
+  422 forced mid-append
+
+## Client robustness
+
+`github.py` sets a socket timeout and retries transient faults with backoff,
+honouring `Retry-After`. This was not speculative hardening: an integration run
+lost two tests to connection timeouts, which is the same fault that would
+otherwise surface as a failed signature.
+
+Retrying is safe only because the layer above is idempotent — section 5.2 probes
+for the event path before writing and `put()` carries a blob-sha precondition, so
+a duplicated request cannot double-apply. Protocol signals (404, 409, 422
+non-fast-forward) are raised immediately and never retried; retrying a 422 would
+mask a lost race rather than recover from it.
+
 ## Is the fake faithful?
 
 The fake is only useful if its model of GitHub is right — if `update_ref` with
