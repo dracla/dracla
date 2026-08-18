@@ -999,11 +999,35 @@ editing source, which is exactly what `install` and `config` are.
 reproduce the integrity check on their own machine rather than trusting a
 workflow's word for it.
 
-**Config composition.** A single administrator may manage several repo pairs —
-one per legal recipient (§5.5) — which share almost everything and differ in
-recipient, agreement, and scope. The CLI composes those configurations with
+**One workspace, many projects.** A maintainer often runs several projects, and
+a single organization may hold several repo pairs — one per legal recipient
+(§5.5). The CLI works across all of them from one place:
+
+```
+dracla status --all              coverage across every project in the workspace
+dracla export --all              one export per project, or a merged view
+dracla verify --all              replay and check every projection
+dracla publish icla@v4 --recipients acme-foundation
+                                 roll an agreement across the projects that
+                                 share a recipient
+```
+
+The workspace is a local file listing the projects the maintainer administers.
+It grants nothing: every command runs with their own credentials against
+repositories they already control, so a cross-project view adds no trust
+surface and no DraCLA service is in the path. `REQ-CONFIG-1`'s rule that each
+project owns its own configuration and records is untouched — the workspace
+*references* projects, it does not consolidate them.
+
+Note the asymmetry with the dashboard: a federated **local** view is fine
+because the maintainer holds credentials for each project, whereas a federated
+hosted view would mean one surface aggregating several projects' signer PII.
+
+**Config composition.** Those projects share almost everything and differ in
+recipient, agreement, and scope. The CLI composes their configurations with
 [Hydra](https://hydra.cc), so a base configuration is defined once and each
-recipient is an override rather than a copy.
+recipient is an override rather than a copy — which is where composition starts
+paying for itself rather than being ceremony over a single file.
 
 **Composition stays on the client.** The administrator authors YAML and Hydra
 composes it locally; `dracla config` then writes the **resolved** result to
