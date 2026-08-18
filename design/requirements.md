@@ -589,7 +589,9 @@ The first usable release MUST demonstrate all of the following:
 
 1. Register one project and publish a versioned Individual CLA.
 2. Authenticate a GitHub user and record explicit acceptance.
-3. Evaluate the opener and every GitHub-resolved commit author and co-author.
+3. Evaluate the opener and every GitHub-resolved commit author; surface
+   trailer-declared co-authors, with coverage status, to authorized viewers
+   (`REQ-CHECK-2`).
 4. Report a passing early check when every subject is covered and a non-passing
    check when a subject is uncovered or unresolved.
 5. Re-evaluate the originating pull request after signing from its flow.
