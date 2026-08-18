@@ -42,29 +42,38 @@ class ShardRetriesExhausted(Exception):
     pass
 
 
+class MarkerNotOwned(Exception):
+    """A writer tried to close an in-flight entry it did not open (DR-014)."""
+
+
 def shard_path(user_id: int) -> str:
     return f"users/{user_id % SHARD_COUNT:02x}.json"
 
 
 def _read_json(host: FakeGitHost, path: str, default):
+    """Return (doc, blob_sha). blob_sha is None when the file does not exist.
+
+    `default` is the document to use when absent — not a (doc, blob) pair. An
+    earlier version took a tuple here, which made this return a nested tuple and
+    forced every caller to guard with isinstance(). That guard was hiding the
+    bug rather than handling a case.
+    """
     try:
         content, blob = host.read(COVERAGE_REF, path)
         return json.loads(content), blob
     except NotFound:
-        return default, None
+        return default(), None
 
 
 # --- in-flight marker -----------------------------------------------------
 
 def open_marker(host: FakeGitHost, idem_key: str, subjects: list[int],
-                *, started_at: str = "t") -> None:
+                *, started_at: str = "t", owner: str = "worker") -> None:
     """Record an operation as in flight. MUST happen before the canonical commit."""
     for _ in range(10):
-        doc, blob = _read_json(host, INFLIGHT, ({"ops": {}}, None))
-        if blob is None and doc == ({"ops": {}}, None):
-            doc = {"ops": {}}
+        doc, blob = _read_json(host, INFLIGHT, lambda: {"ops": {}})
         doc.setdefault("ops", {})[idem_key] = {
-            "subjects": subjects, "started_at": started_at,
+            "subjects": subjects, "started_at": started_at, "owner": owner,
         }
         try:
             host.put(COVERAGE_REF, INFLIGHT, json.dumps(doc, sort_keys=True),
@@ -75,12 +84,23 @@ def open_marker(host: FakeGitHost, idem_key: str, subjects: list[int],
     raise ShardRetriesExhausted(INFLIGHT)
 
 
-def close_marker(host: FakeGitHost, idem_key: str) -> None:
-    """Clear an operation. Only the writer that opened it may do this (§5.4)."""
+def close_marker(host: FakeGitHost, idem_key: str, *, owner: str) -> None:
+    """Clear an operation.
+
+    §5.4 (DR-014): only the writer that opened an entry may remove it. The
+    reconciler may clear one only after replaying canonical and confirming the
+    operation's true outcome, and it passes owner="reconciler" to say so. Without
+    this rule a reconciler regenerating state from its own replay head can drop a
+    newer marker and make a stale projection look fresh.
+    """
     for _ in range(10):
-        doc, blob = _read_json(host, INFLIGHT, ({"ops": {}}, None))
-        if isinstance(doc, tuple):
-            doc = {"ops": {}}
+        doc, blob = _read_json(host, INFLIGHT, lambda: {"ops": {}})
+        entry = doc.get("ops", {}).get(idem_key)
+        if entry is None:
+            return                                  # already closed; idempotent
+        if entry.get("owner") not in (owner, None) and owner != "reconciler":
+            raise MarkerNotOwned(
+                f"{idem_key[:12]} opened by {entry.get('owner')}, not {owner}")
         doc.setdefault("ops", {}).pop(idem_key, None)
         try:
             host.put(COVERAGE_REF, INFLIGHT, json.dumps(doc, sort_keys=True),
@@ -92,9 +112,7 @@ def close_marker(host: FakeGitHost, idem_key: str) -> None:
 
 
 def inflight_subjects(host: FakeGitHost) -> set[int]:
-    doc, _ = _read_json(host, INFLIGHT, ({"ops": {}}, None))
-    if isinstance(doc, tuple):
-        return set()
+    doc, _ = _read_json(host, INFLIGHT, lambda: {"ops": {}})
     out: set[int] = set()
     for op in doc.get("ops", {}).values():
         out.update(op.get("subjects", []))
@@ -122,9 +140,7 @@ def write_row(host: FakeGitHost, user_id: int, agreement_id: str, row: Row,
     """
     path = shard_path(user_id)
     for _ in range(max_attempts):
-        doc, blob = _read_json(host, path, ({}, None))
-        if isinstance(doc, tuple):
-            doc = {}
+        doc, blob = _read_json(host, path, dict)
         doc.setdefault(str(user_id), {})[agreement_id] = {
             "decision": row.decision, "version": row.version,
             "digest": row.digest, "scope": row.scope,
@@ -140,15 +156,13 @@ def write_row(host: FakeGitHost, user_id: int, agreement_id: str, row: Row,
 
 
 def read_row(host: FakeGitHost, user_id: int, agreement_id: str) -> dict | None:
-    doc, _ = _read_json(host, shard_path(user_id), ({}, None))
-    if isinstance(doc, tuple):
-        return None
+    doc, _ = _read_json(host, shard_path(user_id), dict)
     return doc.get(str(user_id), {}).get(agreement_id)
 
 
 def set_source(host: FakeGitHost, canonical_sha: str | None) -> None:
     for _ in range(10):
-        _, blob = _read_json(host, SOURCE, (None, None))
+        _, blob = _read_json(host, SOURCE, lambda: None)
         try:
             host.put(COVERAGE_REF, SOURCE,
                      json.dumps({"canonical_sha": canonical_sha}, sort_keys=True),

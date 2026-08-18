@@ -20,3 +20,27 @@ Run:
     python3 -m unittest discover -s core/tests -t . -v
 
 No third-party dependencies, by design — stdlib only.
+
+## Is the fake faithful?
+
+The fake is only useful if its model of GitHub is right — if `update_ref` with
+`force=false` behaves differently in reality, every test here passes and
+production still loses events. Both semantics the protocol depends on were
+therefore checked against the live API (`dracla/dracla`, throwaway ref,
+18 August 2026):
+
+| Probe | Result |
+|---|---|
+| Update ref to a **sibling** commit, `force=false` | `422 Update is not a fast forward` — ref unmoved |
+| Update ref to a **descendant** whose tree **drops** a file already at HEAD, `force=false` | **Accepted.** Ref advanced, ancestry stayed linear, single parent, and the dropped file was simply gone from HEAD |
+
+The second row is DR-006 confirmed against real GitHub rather than argued from
+documentation. Nothing rejects it, nothing warns, and history looks correct —
+which is exactly why `append.py` must rebuild the tree on the reloaded head's
+base tree rather than re-parent an already-built one.
+
+The probe ref was deleted; `main` was untouched.
+
+Still unverified: the rest of the client surface (blob/tree/commit creation,
+pagination, error taxonomy beyond 422). Those are ordinary integration
+concerns, not protocol correctness.

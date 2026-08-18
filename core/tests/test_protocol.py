@@ -20,7 +20,9 @@ from dracla.append import (                                       # noqa: E402
     EVENTS_REF, OperationSuperseded, RetriesExhausted, append_event,
     read_chain_head,
 )
-from dracla.githost import FakeGitHost, NotFastForward            # noqa: E402
+from dracla.githost import (                                      # noqa: E402
+    BlobConflict, FakeGitHost, NotFastForward,
+)
 from dracla import projection as P                                # noqa: E402
 
 CONFIG = {
@@ -285,13 +287,56 @@ class TestShardConcurrency(unittest.TestCase):
         self.assertIsNotNone(P.read_row(host, a, "icla"), "row A lost")
         self.assertIsNotNone(P.read_row(host, b, "icla"), "row B lost")
 
-    def test_a_lost_revocation_would_keep_a_contributor_passing(self):
-        """Why DR-005 matters, stated as behaviour rather than mechanism."""
+    def test_unguarded_write_loses_a_revocation(self):
+        """The DR-005 defect itself: read-modify-write with no precondition.
+
+        Two users share a shard. A revocation for one is overwritten by a
+        concurrent acceptance for the other, and the revoked contributor keeps
+        passing checks. This is what the blob-sha precondition prevents.
+        """
         host = FakeGitHost()
-        P.write_row(host, 1, "icla", P.Row(P.COVERED, "v1", "d", SCOPE, "t"))
-        P.write_row(host, 1, "icla", P.Row(P.UNCOVERED, "v1", "d", SCOPE, "t"))
+        a, b = 1, 1 + P.SHARD_COUNT
+        path = P.shard_path(a)
+        P.write_row(host, a, "icla", P.Row(P.COVERED, "v1", "d", SCOPE, "t"))
+
+        # Both writers read the same shard state...
+        doc_a, blob = P._read_json(host, path, dict)
+        doc_b = json.loads(json.dumps(doc_a))
+
+        # ...A revokes...
+        doc_a[str(a)]["icla"]["decision"] = P.UNCOVERED
+        host.put(P.COVERAGE_REF, path, json.dumps(doc_a, sort_keys=True),
+                 base_blob_sha=blob)
+
+        # ...and B writes back its stale copy without a precondition (force).
+        doc_b[str(b)] = {"icla": {"decision": P.COVERED, "version": "v1",
+                                  "digest": "d", "scope": SCOPE,
+                                  "since": "t", "reason": ""}}
+        _, current = host.read(P.COVERAGE_REF, path)
+        host.put(P.COVERAGE_REF, path, json.dumps(doc_b, sort_keys=True),
+                 base_blob_sha=current)
+
         self.assertEqual(
-            P.evaluate(host, [1], "icla", "acme/widget")[0], "action_required")
+            P.evaluate(host, [a], "icla", "acme/widget")[0], "success",
+            "defect reproduced: the revocation was silently lost")
+
+    def test_guarded_write_refuses_the_stale_update(self):
+        """The same sequence through write_row: the precondition rejects it."""
+        host = FakeGitHost()
+        a, b = 1, 1 + P.SHARD_COUNT
+        path = P.shard_path(a)
+        P.write_row(host, a, "icla", P.Row(P.COVERED, "v1", "d", SCOPE, "t"))
+
+        _, stale_blob = host.read(P.COVERAGE_REF, path)
+        P.write_row(host, a, "icla", P.Row(P.UNCOVERED, "v1", "d", SCOPE, "t"))
+
+        with self.assertRaises(BlobConflict):
+            host.put(P.COVERAGE_REF, path, json.dumps({}), base_blob_sha=stale_blob)
+
+        # And the normal path re-reads, so B's row lands without clobbering A's.
+        P.write_row(host, b, "icla", P.Row(P.COVERED, "v1", "d", SCOPE, "t"))
+        self.assertEqual(P.read_row(host, a, "icla")["decision"], P.UNCOVERED)
+        self.assertEqual(P.read_row(host, b, "icla")["decision"], P.COVERED)
 
 
 class TestInflightMarker(unittest.TestCase):
@@ -324,9 +369,30 @@ class TestInflightMarker(unittest.TestCase):
         P.open_marker(host, "op1", [1])
         P.open_marker(host, "op2", [2])
         self.assertEqual(P.inflight_subjects(host), {1, 2})
-        P.close_marker(host, "op1")
+        P.close_marker(host, "op1", owner="worker")
         self.assertEqual(P.inflight_subjects(host), {2},
                          "closing one operation must not clear the other")
+
+    def test_only_the_opener_may_close_a_marker(self):
+        """DR-014: without this the reconciler can drop a newer marker."""
+        host = FakeGitHost()
+        P.open_marker(host, "op1", [1], owner="worker-a")
+        with self.assertRaises(P.MarkerNotOwned):
+            P.close_marker(host, "op1", owner="worker-b")
+        self.assertEqual(P.inflight_subjects(host), {1}, "must still be in flight")
+        P.close_marker(host, "op1", owner="worker-a")
+        self.assertEqual(P.inflight_subjects(host), set())
+
+    def test_reconciler_may_close_after_confirming_outcome(self):
+        """The one licensed exception, and it is explicit at the call site."""
+        host = FakeGitHost()
+        P.open_marker(host, "orphan", [1], owner="worker-a")
+        P.close_marker(host, "orphan", owner="reconciler")
+        self.assertEqual(P.inflight_subjects(host), set())
+
+    def test_closing_an_absent_marker_is_idempotent(self):
+        host = FakeGitHost()
+        P.close_marker(host, "never-opened", owner="worker")
 
     def test_full_write_path_ends_clean(self):
         host = FakeGitHost()
@@ -336,7 +402,7 @@ class TestInflightMarker(unittest.TestCase):
         res = append_event(host, ev)                              # 2.
         P.write_row(host, 1, "icla", P.Row(P.COVERED, "v1", "d", SCOPE, "t"))  # 3.
         P.set_source(host, res.sha)
-        P.close_marker(host, ev.idempotency_key)                  # 4.
+        P.close_marker(host, ev.idempotency_key, owner="worker")                  # 4.
         self.assertEqual(P.inflight_subjects(host), set())
         self.assertEqual(P.evaluate(host, [1], "icla", "acme/widget")[0], "success")
 
