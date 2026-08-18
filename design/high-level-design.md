@@ -1579,17 +1579,34 @@ additional pair (§5.5). The recipient itself is immutable once chosen.
 **`dracla` org holds software and service only — two repositories:**
 
 ```
-dracla/dracla            monorepo
-  core/                  Python: event model, replay, validation, index, exports
-  cli/                   dracla command (uvx-runnable; install, config,
-                         status, export, verify, audit — §6.9)
-  api/                   Cloudflare Workers (TypeScript)
-  dashboard/             static shell + badge assets (Pages)
-  registry/              project routing
-  docs/
+dracla/dracla              PUBLIC   monorepo
+  core/                    Python: event model, replay, validation, exports
+  cli/                     dracla command (uvx-runnable — §6.9)
+  api/                     Cloudflare Workers (TypeScript)
+  dashboard/               static shell + badge assets (Pages)
+  design/  docs/
 
-dracla/dracla-example    sample adopter (release scope item 11)
+dracla/dracla-registry     PRIVATE  project routing (§7)
+dracla/dracla-example      PUBLIC   sample adopter — a contributing repo
+dracla/dracla-example-two  PUBLIC   second sample (release scope item 11)
+
+created by `dracla install`, not by hand — they are adopter repos where
+DraCLA happens to be the adopter:
+  dracla/<sample>-cla-records    PRIVATE
+  dracla/<sample>-cla-coverage   PRIVATE
 ```
+
+Two samples with **different legal recipients**, so release item 11 also
+exercises the multi-recipient case of §5.5 and the workspace composition of
+§6.9 rather than testing them as an afterthought.
+
+**DraCLA's own contribution terms are a DCO, not a CLA.** Apache-2.0 §5 already
+makes contributions inbound-equals-outbound and carries §3's patent grant, so a
+CLA would add only relicensing ability and consolidated enforcement standing —
+neither of which this project needs. A tool that recommended CLAs
+indiscriminately would be self-serving; dogfooding happens in the sample
+projects, which are real installations, rather than by imposing signing friction
+on people fixing typos.
 
 Workers and Pages both deploy from subdirectories, so a monorepo costs nothing
 and keeps the Python core and the edge handlers versioned together.
