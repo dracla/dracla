@@ -24,9 +24,15 @@ What exists:
 | [`design/review-findings.md`](design/review-findings.md) | 81 findings from four independent adversarial reviews, all resolved |
 | [`core/`](core/) | Event model, append-only commit protocol, coverage projection — 43 unit tests, 9 integration tests against live GitHub |
 | [`api/bench/`](api/bench/) | CPU measurements for the edge tier |
+| [`design/cli-review-findings.md`](design/cli-review-findings.md) | 28 findings from reviewing a first CLI attempt, kept as input to its design |
 
 What does not exist: the Workers, the portal, the dashboard, the CLI, the
 badges. See §16 of the requirements for the release scope.
+
+A first CLI implementation was written, reviewed, and removed rather than
+patched — it had been built without a design, and several of its 28 findings
+were decisions nobody had made rather than bugs. The findings are kept as input
+to the design that should have come first.
 
 ## How it works
 
