@@ -2,7 +2,7 @@
 
 Status: Draft
 Date: 17 August 2026
-Requirements baseline: `design/requirements.md` (Locked, 17 August 2026)
+Requirements baseline: `design/requirements.md` (Locked, revision 2, 18 August 2026)
 
 This document proposes an implementation architecture for the locked
 requirements baseline. Per `REQ` acceptance section 19, it maps major
@@ -327,7 +327,10 @@ users/<shard>.json   packed, keyed (user_id, agreement_id):
                            pending_version, pending_effective_at } } }
 agreements/active.json
 overrides/<key>.json
-exemptions.json
+exemptions.json     { "<user_id>": { kind: "bot" | "human",
+                                     basis, instrument_ref,
+                                     asserted_by, asserted_at,
+                                     event_id } }
 ```
 
 Contains no legal name, email, confirmation text, or entity evidence.
@@ -557,8 +560,8 @@ pull_request opened / synchronize
   -> resolve subjects:
         PR opener
         every commit author        (GitHub-resolved user ID)
-        every Co-authored-by:      trailer
      dedupe by numeric user ID
+     Co-authored-by: trailers are collected but NOT subjects  (§6.3.1)
   -> commit listing incomplete (pagination bound or >250)  -> action_required
   -> any subject unresolved to a user ID                   -> action_required
   -> any subject in inflight.ops                           -> in_progress  (§5.4)
@@ -629,10 +632,48 @@ contributor to sign, or issue an override) without learning any specific
 person's CLA status. Naming subjects requires the same authorization as the
 dashboard, because it is the same disclosure.
 
-**Co-author resolution limit.** GitHub offers no reliable email-to-user lookup.
-`<id>+<login>@users.noreply.github.com` addresses parse directly to a user ID;
-other addresses generally cannot be resolved and yield *action required* by
-`REQ-CHECK-2`. See risk R1.
+#### 6.3.1 Co-authored-by trailers do not block
+
+A `Co-authored-by:` trailer is unauthenticated commit-message text that any
+commit author can write. Treating it as a blocking public subject produced three
+defects at once, and `REQ-CHECK-2` revision 2 removes the cause rather than
+mitigating each:
+
+- **A coverage oracle.** Naming any GitHub user in a trailer on a throwaway pull
+  request made the public check state reveal whether that user had signed —
+  functionally the lookup `REQ-PORTAL-5` forbids.
+- **A jamming vector.** Naming a contributor who later revoked made every pull
+  request carrying those commits unlandable (former risk R10).
+- **Failure in the ordinary case.** GitHub offers no reliable email-to-user
+  lookup; only `<id>+<login>@users.noreply.github.com` parses directly to a user
+  ID, so most legitimate trailers were unresolvable and failed closed (former
+  risk R1).
+
+Trailers are still collected and still matter — they are the project's only
+signal that someone else contributed:
+
+```
+public check          opener + commit authors only
+                      -> state cannot be steered by an injected trailer
+
+/p/<slug>/pr/<n>      trailer co-authors listed with coverage status,
+                      under §6.3's graded disclosure
+                      -> maintainer requires signing, records an exemption,
+                         or issues an override
+```
+
+**The residual gap, stated plainly:** a co-author declared only by a trailer can
+contribute without signing unless a maintainer acts on the surfaced list. That is
+the cost of the change, and it is why a project may configure trailers to block
+its own checks where its threat model prefers the older behaviour.
+
+**This does not close the oracle entirely.** Commit author email is equally
+attacker-controlled: authoring a commit as
+`<TARGET_ID+x@users.noreply.github.com>` still makes that user a subject and
+still leaks their coverage. The attack now requires authoring a commit under
+someone else's address rather than typing a line in a message — more visible,
+auditable in the commit list, and blocked outright by repositories requiring
+signed commits. Reduced, not eliminated; see the residual risk note below.
 
 **Attribution is as strong as git author metadata, and no stronger.** Commit
 author email is attacker-controlled, and a noreply address is derivable from any
@@ -645,15 +686,17 @@ co-author to block a pull request. The honest claim the evidence supports is
 attestation language is scoped accordingly. Verified-signature enforcement is
 offered as documented hardening for projects that need more.
 
-**The public check is a coverage oracle, and this is a residual risk.** An
-attacker can add `Co-authored-by: x <TARGET_ID+x@users.noreply.github.com>` to a
-fork pull request and read the target's coverage off the public check state —
-unauthenticated, arbitrary-target, repeatable. This is a functional equivalent
-of the lookup `REQ-PORTAL-5` forbids, built entirely from sanctioned mechanisms,
-and it cannot be removed while the check remains useful. Mitigations bound it
-rather than close it: per-account and per-IP rate limiting on check creation for
-pull requests whose opener is not the sole subject, and no reason detail on any
-public surface. Stated plainly as residual rather than claimed as met.
+**The public check remains a coverage oracle, and this is residual risk.** With
+trailers demoted (§6.3.1) the cheap path is closed, but an attacker willing to
+author a commit as `<TARGET_ID+x@users.noreply.github.com>` still makes that user
+a subject and still reads their coverage off the public check state. This cannot
+be removed while the check remains useful, because the check's whole purpose is
+to publish a boolean about a subject set the pull request author influences.
+Mitigations bound it: per-account and per-IP rate limiting on check creation for
+pull requests whose opener is not the sole subject, no reason detail on any
+public surface, and the fact that forged authorship is visible in the commit list
+and blocked by signed-commit rules. Stated as residual rather than claimed
+met.
 
 **Concurrent evaluations are conditioned on the head SHA.** Two `synchronize`
 deliveries for the same pull request can race, and a late-completing stale
@@ -775,12 +818,14 @@ agreement, carrying only what the mandated filters need:
 ```
 github_user_id, login_snapshot, login_as_of,
 agreement_id, version, scope,
-status: current | revoked | superseded | indeterminate,
+status: current | exempt | revoked | superseded | indeterminate,
 accepted_at, revoked_at
 ```
 
-`superseded` means a later acceptance replaced this one (`REQ-SIGN-5`) or an
-activation invalidated it; `indeterminate` means the subject sits in
+`exempt` means coverage rests on a recorded exemption rather than a signature
+(§6.8) and is never folded into `current`; `superseded` means a later acceptance
+replaced this one (`REQ-SIGN-5`) or an activation invalidated it;
+`indeterminate` means the subject sits in
 `inflight.ops`, an operation exhausted its retries, or replay could not resolve
 the record. Both statuses are required by `REQ-DASH-2` and neither existed in
 the projection before. Legal name, email, and confirmation text are **not** in
@@ -844,7 +889,9 @@ and no source-code edit, which `REQ-OPS-4` requires.
 | Publish a version | `agreement_published` | Preserves an immutable version; invalidates nothing |
 | Activate a version | `agreement_activated` | Sets the required version; `supersedes_coverage` decides re-signing (§6.5) |
 | Change scope | `agreement_activated` | Same path; scope is coverage-affecting (§6.5) |
-| Exempt an account | `exemption` | Materializes to `exemptions.json`; consulted by §6.3 |
+| Exempt a non-human account | `exemption` (`kind: bot`) | Materializes to `exemptions.json`; consulted by §6.3 |
+| Exempt a human account | `exemption` (`kind: human`) | Same, plus a recorded basis and instrument reference — see below |
+| Withdraw an exemption | `exemption_revoked` | Append-only; the original is preserved |
 | Override a check | `override` | Keyed `(pr_number, subject_user_id, tree_digest)` (§6.4) |
 | Edit project config | `config_updated` | Required fields, privacy policy, retention text |
 
@@ -855,6 +902,34 @@ records repository, verified per request with a **user-to-server** token via
 installation token, which would answer unconditionally. `REQ-SEC-6`'s currency
 rule applies, so this is re-verified at the moment of the action rather than
 read from the session.
+
+**Human exemptions carry an asserted basis.** Exempting a bot is a statement
+about identity plumbing — the account holds no authorship claim and the work
+belongs to whoever configured it. Exempting a *person* is a legal assertion: that
+their grant already exists by another instrument, typically employment or a prior
+assignment. The common real case is staff of the recipient entity, for whom a CLA
+is redundant.
+
+DraCLA records the assertion; it does not evaluate it, because `REQ-AGR-4`
+forbids it inferring legal meaning. The event therefore carries
+`basis` (`employment | prior_assignment | other`), a free-text
+`instrument_ref`, and the asserting administrator, so an audit can follow the
+claim to its source.
+
+**An exemption is reported distinctly from an acceptance**, never merged into
+`current`. The dashboard and exports carry `exempt` as its own status (§6.6), so
+a records reader is never shown something that looks like a signature but is not
+one. `REQ-CHECK-2` requires this separation.
+
+**Rules live in config; evidence lives in events.** `config/project.json` may
+express a rule such as "exempt all members of `acme-staff`". Membership is
+dynamic and the enforcer cannot query it cheaply or append-only, so the
+reconciler evaluates rules and materializes explicit per-account exemption
+events. A coverage decision never depends on state that is not recorded as an
+event — which is also what keeps the projection rebuildable (`REQ-REC-6`).
+
+**Exemptions are revocable, not erasable.** Withdrawal is a later event; the
+original assertion and its author remain in the record.
 
 **The recipient is never editable** (§5.5). `config_updated` rejects any change
 to it; changing recipient is a new project.
@@ -1466,11 +1541,20 @@ procedure, it is the ordinary one starting from an empty projection.
 
 ## 10. Requirement changes proposed
 
-### 10.1 Amendments proposed
+### 10.1 Amendments — approved and incorporated
 
-| Req | Change | Reason |
+Both were approved on 18 August 2026 and are now in the baseline as
+`design/requirements.md` revision 2, section 20.
+
+| Req | Change | Where |
 |---|---|---|
-| `REQ-AGR-2` | An activation may declare that it does not invalidate prior acceptances | §6.5, D10. Note the scope of this narrowed during review: separating **publish** from **activate** already handles the editorial case, so the amendment is needed only for a project that wants to activate a version without requiring re-signing. |
+| `REQ-AGR-2` | Publishing separated from activating; an activation declares whether it invalidates prior acceptances; staged activation permitted | §6.5, D10 |
+| `REQ-CHECK-2` | `Co-authored-by` trailers no longer determine a public check result, and are surfaced to authorized viewers instead; exemptions extended to named human accounts with a recorded basis; rule-based exemptions must materialize as events | §6.3.1, §6.8 |
+
+The `REQ-CHECK-2` change narrows who must be covered, so its residual gap is
+recorded rather than glossed: a co-author declared only by a trailer may
+contribute without signing unless a maintainer acts (§6.3.1). It also does not
+close the coverage oracle, only its cheap path (§6.3).
 
 ### 10.2 Deviations declared, not amendments
 
@@ -1515,10 +1599,10 @@ can be neither approved nor rejected. Run A4, then make it firm or drop it.
 
 ### 10.5 Baseline status
 
-With one firm amendment on the table (10.1), requirements §19 requires the
-baseline be marked **Draft** while it is under review, and Locked again on
-approval. The header of this document cites it as Locked, which will be accurate
-again once 10.1 is resolved.
+Resolved. Both amendments in 10.1 were approved and incorporated, so the
+baseline is **Locked at revision 2** and this document is written against it.
+Requirements section 20 records each change with its rationale, affected IDs,
+and what it does not resolve, as section 19 requires.
 
 The DraCLA-hosted-records variant in §9 remains opt-in and therefore does **not**
 amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
@@ -1553,7 +1637,7 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
 
 | ID | Risk | Mitigation |
 |---|---|---|
-| R1 | Co-author emails are largely unresolvable to user IDs, so co-authored PRs fail by default | Documented override path (`REQ-CHECK-2`); portal explains the exact cause; guidance to use noreply addresses |
+| R1 | ~~Co-author emails unresolvable, so co-authored PRs fail by default~~ **Closed** by `REQ-CHECK-2` rev 2 — trailers no longer block (§6.3.1) | Residual: a trailer-only co-author may contribute unsigned unless a maintainer acts on the surfaced list |
 | R2 | A substantive version activation invalidates every contributor at once | `supersedes_coverage` flag keeps editorial changes from triggering it at all; staged activation with a future `effective_at` warns and lets contributors sign early (§6.5, D10) |
 | R3 | Non-atomic write across two repos (§5.4 steps 1–3) | Pending-pointer forces fail-closed; Actions reconciler repairs |
 | R4 | Index proxy carries all dashboard traffic through the serverless tier | Bound index size; cache with short TTL; include in A3 envelope |
@@ -1562,7 +1646,7 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
 | R7 | Cloudflare limits are per account, so on Free one busy adopter consumes the shared hosted ceiling for everyone | Run the hosted deployment on Paid (10M req/mo, ~333k/day); per-project rate accounting; A3 must state behavior on reaching the limit |
 | R8 | Daily limit exceeded silently drops webhooks if routes fail open | Configure routes fail closed (`REQ-CHECK-5`, §9); reconciler creates the *temporarily unavailable* check the dead Worker could not |
 | R9 | `dracla-enforcer` is a public App, so an outsider can exhaust the shared per-account budget and halt checks, signing, and revocation for every adopter | WAF and rate limiting ahead of the routes; signature verification at the edge; three-Worker route split so the webhook surface cannot take the portal down (§9) |
-| R10 | Revocation-as-griefing: co-author widely, then revoke, and every open pull request carrying those commits becomes unlandable | Inherent to `REQ-REV-1` plus `REQ-CHECK-2` and not solvable in DraCLA; the maintainer override path (§6.4) is the intended response, and adopter documentation must describe it |
+| R10 | ~~Revocation-as-griefing via co-authoring~~ **Closed** by `REQ-CHECK-2` rev 2 — an injected trailer cannot block (§6.3.1) | Residual: a griefer who authors commits under their own identity can still revoke, but only affects pull requests containing their own authored work |
 | R11 | Reconciler consumes metered private-repo Actions minutes on the Free baseline | Incremental reconciliation on the ordinary path; full replay only on the scheduled pass and on repair; size in A3 |
 
 ---

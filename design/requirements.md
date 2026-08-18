@@ -1,7 +1,8 @@
 # DraCLA Requirements
 
 Status: Locked
-Date: 17 August 2026
+Date: 18 August 2026
+Revision: 2 — amends `REQ-AGR-2` and `REQ-CHECK-2`; see section 20.
 
 ## 1. Purpose
 
@@ -92,11 +93,28 @@ Published versions MUST NOT be modified in place.
 
 ### REQ-AGR-2: Version transitions
 
+Publishing a version and activating it are distinct acts. Publishing MUST
+preserve an immutable version and MUST NOT affect coverage. Activation sets the
+version contributors must have accepted.
+
 When a project activates a new agreement version, DraCLA MUST preserve all
-earlier versions and their acceptances. An acceptance of an earlier version
-MUST NOT provide current coverage for a merge decision made after activation.
-The contributor MUST accept the active version before new contributions can
-land.
+earlier versions and their acceptances.
+
+An activation MUST declare whether it invalidates prior acceptances:
+
+- If it does, an acceptance of an earlier version MUST NOT provide current
+  coverage for a merge decision made after the activation takes effect, and the
+  contributor MUST accept the active version before new contributions can land.
+- If it does not, prior acceptances MUST continue to provide current coverage.
+
+DraCLA MUST NOT infer which applies from the agreement text; the project
+declares it on the activation, consistent with `REQ-AGR-4`. The declaration MUST
+be carried on the append-only activation event, not in mutable configuration,
+because it determines who is covered.
+
+An activation MAY carry a future effective time. Between activation and that
+time, DraCLA MUST allow contributors to accept the new version early without
+losing current coverage under the version being replaced.
 
 ### REQ-AGR-3: Presentation before acceptance
 
@@ -238,15 +256,38 @@ state reserved to GitHub Actions.
 ### REQ-CHECK-2: Coverage subjects
 
 DraCLA MUST evaluate the pull request opener and every GitHub-resolved author
-and co-author of every commit in the pull request. Subjects MUST be deduplicated
-by stable GitHub numeric user ID, and every subject MUST have current coverage.
-If GitHub cannot resolve an author or co-author to a user ID, the result MUST be
-action required.
+of every commit in the pull request. Subjects MUST be deduplicated by stable
+GitHub numeric user ID, and every subject MUST have current coverage. If GitHub
+cannot resolve a commit author to a user ID, the result MUST be action required.
 
-Non-human accounts MUST follow the same rule unless project configuration
-explicitly exempts them. Exemptions and maintainer overrides MUST be
-attributable, append-only events. An override MUST identify the pull request
-head commit and the unresolved or uncovered subjects to which it applies.
+`Co-authored-by` trailers are self-declared, unauthenticated commit-message
+text. They MUST NOT determine a public check result, because any party able to
+write a commit could otherwise both block an unrelated pull request and read any
+GitHub user's coverage status from the public result. DraCLA MUST still surface
+trailer-declared co-authors, with their coverage status, to authorized viewers
+of that pull request, so that a project can require them to sign or record an
+explicit decision. A project MAY configure trailer-declared co-authors to block
+its own checks where its threat model permits.
+
+Non-human accounts MUST follow the same rules unless project configuration
+explicitly exempts them.
+
+A project MUST also be able to exempt a named human account where the
+contributor's rights are already granted by another instrument, such as an
+employment agreement or a prior assignment. Such an exemption MUST record the
+asserted basis and a reference to the governing instrument, MUST be attributable
+to the administrator who asserted it, and MUST be reported distinctly from an
+acceptance so that it is never mistaken for a signature. DraCLA MUST NOT assess
+whether the asserted basis is legally sufficient.
+
+Project configuration MAY express exemption rules over a set of accounts.
+Evaluating such a rule MUST produce explicit per-account exemption events;
+coverage decisions MUST NOT depend on state that is not recorded as an event.
+
+Exemptions and maintainer overrides MUST be attributable, append-only events,
+and MUST be revocable by a later event without erasing the original. An override
+MUST identify the pull request and the content it was granted against, and the
+unresolved or uncovered subjects to which it applies.
 
 ### REQ-CHECK-3: Merge enforcement
 
@@ -626,3 +667,58 @@ rationale, and receive project approval before it is incorporated. The document
 MUST be marked Draft while such a change is under review and Locked again only
 after the revised baseline is approved. Editorial corrections that do not alter
 meaning MAY be made through normal review.
+
+## 20. Revision history
+
+### Revision 2 — 18 August 2026
+
+Two substantive changes, proposed from the high-level design and approved.
+Both are recorded here as required by section 19.
+
+**`REQ-AGR-2` — version transitions.** Separates publishing from activating,
+and lets an activation declare whether it invalidates prior acceptances.
+
+*Rationale.* The previous text made every version change invalidate every
+contributor at once, with no way to correct a typo without a project-wide
+re-signing event. `REQ-AGR-4` forbids DraCLA inferring legal meaning from
+agreement text, so it must not assume every version bump is substantive either;
+the project declares it. Separating publish from activate handles the purely
+editorial case with no declaration at all. The staged-activation clause exists so
+the blast radius of a substantive change is visible in advance rather than
+turning every open pull request red without warning.
+
+*Affected:* `REQ-AGR-2`. Interacts with `REQ-AGR-1` (the declaration rides the
+immutable activation event) and `REQ-AGR-4`.
+
+**`REQ-CHECK-2` — coverage subjects.** `Co-authored-by` trailers no longer
+determine a public check result; they are surfaced to authorized viewers
+instead. Exemptions are extended from non-human accounts to named human accounts
+with a recorded basis, and rule-based exemptions must materialize as events.
+
+*Rationale.* A trailer is unauthenticated commit-message text that any commit
+author can write. Treating it as a blocking public subject created two defects:
+anyone could read any GitHub user's coverage status off the public check by
+naming them in a trailer, and anyone could jam unrelated pull requests by naming
+a contributor who later revoked. It also failed closed in the common legitimate
+case, because most trailer addresses cannot be resolved to an account. Demoting
+trailers removes both attacks and the false-failure case while preserving the
+purpose of the rule: genuine co-authors are still surfaced and can still be
+required to sign.
+
+This narrows who must be covered, and the residual gap is stated plainly: a
+co-author declared only by a trailer may contribute without signing unless a
+maintainer acts. The project retains the option to make trailers blocking.
+
+The human-exemption clause records the common case of contributors whose rights
+are already assigned by employment. DraCLA records the assertion and its author;
+it does not evaluate it, consistent with `REQ-AGR-4` and the purpose statement in
+section 1.
+
+*Affected:* `REQ-CHECK-2`. Interacts with `REQ-PORTAL-5` (the trailer oracle was
+a functional equivalent of the forbidden lookup), `REQ-CHECK-1` (reasons remain
+non-public), and `REQ-DASH-2` (exemption is a distinct reportable status).
+
+*Not resolved by this change.* Commit author email is also attacker-controlled,
+so a public check still leaks coverage to a party willing to author a commit
+under a target's address. That residual is documented in the design rather than
+claimed as closed.

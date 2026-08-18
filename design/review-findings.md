@@ -62,7 +62,7 @@ and mechanisms asserted without being specified.
 | DR-016 | §8.3's trust model is false in hosted mode: the operator holds the records App key, so repo custody ≠ key custody. Operator-forged events are byte-indistinguishable from genuine and replay faithfully into coverage. REQ-REC-4 waives detection of admin *rewriting*, not operator *forgery*. | §8.3, REQ-REC-4, principle 6 | | fixed |
 | DR-017 | "Enforcer never installed on canonical" is an org-admin checkbox, not a structural property. Flipping the installation to "All repositories" silently grants it read on canonical. Nothing asserts or detects this. *(Reviewers disagreed; adjudicated in favour of this reading.)* | §4, D2, D3, REQ-SEC-2 | | fixed |
 | DR-018 | §6.4's post-merge fallback "opens an issue identifying the commit and subjects" — on a public repo that is a permanent, indexable, public statement that a named user is uncovered. | §6.4, REQ-CHECK-1, REQ-PORTAL-3, REQ-PORTAL-5 | | fixed |
-| DR-019 | The public check is a per-user coverage oracle. An attacker adds `Co-authored-by: x <TARGET_ID+x@users.noreply.github.com>` to a fork PR; the public check state reveals whether the target is covered. Unauthenticated, arbitrary-target, repeatable — REQ-PORTAL-5's intent defeated while its letter is met. | §6.3, REQ-PORTAL-5, REQ-CHECK-2 | | fixed |
+| DR-019 | The public check is a per-user coverage oracle. An attacker adds `Co-authored-by: x <TARGET_ID+x@users.noreply.github.com>` to a fork PR; the public check state reveals whether the target is covered. Unauthenticated, arbitrary-target, repeatable — REQ-PORTAL-5's intent defeated while its letter is met. | §6.3, REQ-PORTAL-5, REQ-CHECK-2 | | reduced |
 | DR-020 | Commit-email attribution is forgeable in the other direction: setting author email to a covered user's noreply address attributes the commit to them. "GitHub-resolved author" is unauthenticated email matching, which §8.2's "attestation chain" language overstates. | §6.3, §8.2, REQ-CHECK-2 | | fixed |
 | DR-021 | Enforcer holds `pull_requests: read`, so DraCLA **cannot post a PR comment**. Badges (REQ-PORTAL-2/3/4) are undesigned beyond one line in the §9 repo tree. Release-scope item 10. | §4, §9, REQ-PORTAL-2..4 | | fixed |
 | DR-022 | Overrides are keyed to the PR head SHA, which does not exist at the merge-group check. Strict match → the override never applies and the PR is permanently unlandable; loose match → override laundering across a force-push. | §5.3, §6.4, REQ-CHECK-2 | | fixed |
@@ -186,3 +186,25 @@ blocking naive cross-tenant token aiming · fail-closed routing as the correct
 choice over fail-open · §5.4's honest framing of the reconciler as defense in
 depth rather than the mechanism that makes a signature effective · records
 never moving, which makes the REQ-OPS-6 migration argument genuinely a no-op.
+
+---
+
+## Post-review requirement amendments (18 August 2026)
+
+Two amendments were approved after this register was closed, changing the
+status of three findings.
+
+| Finding | Was | Now |
+|---|---|---|
+| DR-019 — public check is a coverage oracle | residual risk, mitigated by rate limiting | **reduced.** `REQ-CHECK-2` rev 2 demotes `Co-authored-by` trailers, closing the cheap path. The commit-author path remains and is still residual — forging authorship is visible in the commit list and blocked by signed-commit rules, but not prevented. |
+| R1 — unresolvable co-authors fail closed | accepted risk, documented | **closed.** Trailers no longer block. |
+| R10 — revocation-as-griefing via co-authoring | accepted, unsolvable in DraCLA | **closed** for injected trailers; a griefer can still revoke coverage for commits they actually authored. |
+
+New residual introduced by the same change: a co-author declared only by a
+trailer may contribute without signing unless a maintainer acts on the list
+surfaced in the authenticated pull request view (§6.3.1). Accepted deliberately
+as the cost of removing the oracle and the false-failure case.
+
+`REQ-CHECK-2` rev 2 also extends exemptions from non-human accounts to named
+human accounts with a recorded basis, and requires rule-based exemptions to
+materialize as per-account events (§6.8).
