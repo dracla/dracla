@@ -177,7 +177,8 @@ isolation that addresses it and §8.4 for the residual trust statement.
 ### 5.1 Canonical records repo (private)
 
 ```
-config/project.json            recipient, scope, required signer fields
+config/project.yaml            recipient, scope, required signer fields
+                               (resolved; Hydra composes it, §6.9)
 agreements/icla/v3.md          exact agreement content
 agreements/icla/v3.meta.json   digest, effective_at, scope, supersedes_coverage
 events/<aa>/<bb>/<event_id>.json
@@ -239,7 +240,7 @@ Envelope decisions, each closing a specific gap:
   Publishing preserves a version; activating makes it required. Keeping them
   distinct is what lets a project correct a typo without invalidating anyone
   (§6.5).
-- **`fields` is derived from `config/project.json`, not hardcoded.**
+- **`fields` is derived from `config/project.yaml`, not hardcoded.**
   `REQ-SIGN-3` makes the required set project-configurable and `REQ-SEC-1`
   forbids collecting anything the agreement and policy do not require. The
   schema validates submitted fields against the configured set and rejects
@@ -542,7 +543,7 @@ is what badges and check outputs link to (`REQ-PORTAL-1`, `REQ-PORTAL-2`).
    fields, the project privacy policy link (`REQ-SEC-3`), and a retention
    statement — evidence is retained after revocation. `REQ-SEC-7` requires this
    on the signing flow, not only on revocation, and per-project retention and
-   correction procedures come from `config/project.json`.
+   correction procedures come from `config/project.yaml`.
 3. Contributor submits an affirmative action with the required fields.
 4. Handler validates, commits the acceptance event, and materializes coverage
    (§5.4).
@@ -927,7 +928,7 @@ and no source-code edit, which `REQ-OPS-4` requires.
 | Exempt a human account | `exemption` (`kind: human`) | Same, plus a recorded basis and instrument reference — see below |
 | Withdraw an exemption | `exemption_revoked` | Append-only; the original is preserved |
 | Override a check | `override` | Keyed `(pr_number, subject_user_id, tree_digest)` (§6.4) |
-| Edit project config | `config_updated` | Required fields, privacy policy, retention text |
+| Edit project config | `config_updated` | Required fields, privacy policy, retention text (resolved YAML, §6.9) |
 
 **Authorization is concrete**, where §8.1 #5 previously said only "a separate
 check". The actor must currently hold **admin** permission on the canonical
@@ -955,7 +956,7 @@ claim to its source.
 a records reader is never shown something that looks like a signature but is not
 one. `REQ-CHECK-2` requires this separation.
 
-**Rules live in config; evidence lives in events.** `config/project.json` may
+**Rules live in config; evidence lives in events.** `config/project.yaml` may
 express a rule such as "exempt all members of `acme-staff`". Membership is
 dynamic and the enforcer cannot query it cheaply or append-only, so the
 reconciler evaluates rules and materializes explicit per-account exemption
@@ -1004,11 +1005,21 @@ recipient, agreement, and scope. The CLI composes those configurations with
 [Hydra](https://hydra.cc), so a base configuration is defined once and each
 recipient is an override rather than a copy.
 
-The composed result is written to `config/project.json` as **plain JSON**. Hydra
-is an authoring convenience in the CLI, never a runtime dependency: the
-committed artifact must stay readable without DraCLA (`REQ-REC-5`) and is also
-read by the Worker tier, which is TypeScript. Composition happens before the
-commit; what lands in the repository is inert data.
+The composed result is written to `config/project.yaml` as **fully resolved
+YAML**. The constraint is composition, not format: a raw Hydra config carrying
+`defaults:`, `${...}` interpolation, and config-group references cannot be read
+without the composition engine, which is the thing to avoid. A resolved file has
+no such dependency, and YAML is more readable than JSON for a human auditor —
+which is the direction `REQ-REC-5`'s spirit points, even though that requirement
+governs the event records rather than configuration.
+
+Hydra therefore stays an authoring convenience in the CLI and never a runtime
+dependency. The Worker tier parses the resolved file to serve the agreement and
+required fields (§6.6); a YAML parser is a small addition to a TypeScript bundle
+and is not a reason to pick the less readable format.
+
+Canonical **events** remain JSON (§5.1) — that is the format an external reader
+parses, and it is machine-written rather than human-authored.
 
 **Agreement and config delivery.** The portal is static and the agreement,
 recipient, scope, required fields, and confirmation labels live in the private
@@ -1128,7 +1139,7 @@ confused-deputy.
 
 | # | Attack | Control |
 |---|---|---|
-| 1 | **Path traversal** in the event file path — writing `.github/workflows/`, `config/project.json`, or agreement text yields code execution in the records repo and its secrets | Event paths derive from a **server-computed** hash, never a client-supplied id; commit trees built by allowlisted path, never by echoing input |
+| 1 | **Path traversal** in the event file path — writing `.github/workflows/`, `config/project.yaml`, or agreement text yields code execution in the records repo and its secrets | Event paths derive from a **server-computed** hash, never a client-supplied id; commit trees built by allowlisted path, never by echoing input |
 | 2 | **Unbounded append** — repeated sign/revoke cycles grow a repo that `REQ-REC-3` forbids pruning | Per-user rate limit and cooldown; idempotency key collapses identical resubmission |
 | 3 | **Stored injection** via signer fields into dashboard, JSON, CSV | `REQ-SEC-8` escaping and CSV formula neutralization, plus length and charset caps at ingest |
 | 4 | **IDOR on identity** — acting as another user | Subject is read from the verified session, never from the request body (§8.2) |
@@ -1334,7 +1345,7 @@ own log statements:
   can be traced end to end without carrying any field value.
 
 **Data minimization** (`REQ-SEC-1`). Collected fields derive from
-`config/project.json` (§5.1); nothing is stored because a workflow could observe
+`config/project.yaml` (§5.1); nothing is stored because a workflow could observe
 it. Rate limiting (§8.1 #2, #7) is implemented with counters keyed by GitHub
 user ID rather than by IP, so the "MUST NOT collect an IP address merely because
 a signing workflow can observe it" rule is not defeated by its own mitigation.
@@ -1712,7 +1723,7 @@ acceptance scenario. None of this existed in earlier drafts.
 | Canonical repo, full history, all branches | The only source of truth | Adopter-controlled mirror clone |
 | Recorded branch-head identities | `REQ-REC-4`; a mirror alone does not prove which head was canonical when | Signed head log, appended per reconciler run |
 | Coverage repo | Derived, but restoring it avoids a full rebuild | Same mirror schedule |
-| `config/project.json`, agreements | Inside canonical | — |
+| `config/project.yaml`, agreements | Inside canonical | — |
 | Coverage deploy key, session keys, App private keys | Needed to resume operation, **not** to interpret records | Operator or adopter secret store, never in any records repo (`REQ-SEC-4`) |
 
 No key is required to *read* the records: `REQ-SEC-2` chose repository privacy

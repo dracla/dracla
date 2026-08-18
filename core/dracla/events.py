@@ -143,6 +143,9 @@ def validate(event: Event, *, config: dict[str, Any]) -> None:
                 raise ValidationError(f"agreement.{key} is required")
 
     if event.type == ACCEPTANCE:
+        # `config` is the resolved project configuration (config/project.yaml,
+        # composed by the CLI — design 6.9). It reaches here as a plain dict;
+        # nothing in core depends on Hydra.
         required = set(config.get("required_fields", []))
         got = set(event.fields)
         if missing := required - got:
