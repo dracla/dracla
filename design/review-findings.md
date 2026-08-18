@@ -173,7 +173,9 @@ and mechanisms asserted without being specified.
 Reviewers split on whether the enforcer's PII boundary is structural. Resolved
 in favour of "not structural" (DR-017): GitHub App installation repository
 selection belongs to the adopting org's admin, so DraCLA cannot enforce it.
-The narrower claim that *the coverage projection contains no PII* does hold.
+The narrower claim holds only as far as *names and email addresses*: the
+projection contains neither. It is not free of personal data — see §8.4,
+which grounds its privacy in aggregation rather than secrecy.
 
 ## Properties that survived review
 
