@@ -17,13 +17,15 @@ deviates from or defers.
 |----|----------|-----------|
 | D1 | Pull request enforcement runs in the GitHub App's serverless handler, not GitHub Actions | Fork-triggered workflows receive no secrets, so they cannot read a private records repo. Deviates from `REQ-OPS-2`. See §2. |
 | D2 | Two private repositories per project: canonical records (PII) and a coverage projection (PII-free) | GitHub tokens cannot be scoped to a path, so a single repo means the enforcement path holds a token that can read signer PII. |
-| D3 | Two GitHub Apps: `dracla-records` and `dracla-enforcer` | Two repos buy nothing if one App holds permissions on both. Separation must be at the credential level. |
+| D3 | Two GitHub Apps: `dracla-records` and `dracla-enforcer` — and only two | Two repos buy nothing if one App holds permissions on both; separation must be at the credential level. A third provisioning App was considered and rejected (D11). |
 | D4 | Both repositories live in the **adopting project's** org, auto-provisioned at install | `REQ-CONFIG-1`, `REQ-OPS-6`, principle 6 require project custody. Auto-provisioning removes the setup friction that made central hosting attractive. |
 | D5 | Coverage state is materialized into the projection repo synchronously by the signing path; Actions replays canonical to verify it | Gives O(1) coverage lookup with no Actions latency on the hot path, while keeping the projection strictly derived (`REQ-REC-6`). |
 | D6 | Staleness is detected via a pending-pointer inside the coverage repo | The enforcer has no canonical access, so it cannot compare against canonical head directly. See §5.4. |
 | D7 | One repo pair per **legal recipient**, not per GitHub repo and not per project | A contributor signs once for a scope spanning many repos and orgs (`REQ-CONFIG-3`). An org with a single recipient needs exactly one pair. See §5.5. |
 | D8 | Python core owns the event model, replay, exports, and CLI; Cloudflare Workers in TypeScript host the thin serverless tier | `REQ` §1 implies a Python package. Python Workers run on Pyodide with cold-start and package limits unsuited to webhook latency. Keeping the edge thin makes the split cheap and reversible. |
 | D9 | Coverage is stored in packed shards, not one file per user | Workers cap outbound subrequests per invocation; a per-subject read approaches that cap on a many-author PR. One shard read replaces N reads. |
+| D11 | Provisioning runs in the `dracla` CLI with the administrator's own credentials, not a third GitHub App | A provisioning App would hold `administration`, `workflows`, and `secrets` write in the adopter's org. `workflows: write` retained is a code-execution channel into their PII repo (DR-011), and an uninstall that fails to fire leaves it. `uvx` makes the CLI a single command, so the adoption cost is one command against three consent screens. |
+| D12 | The CLI is the configuration and reporting surface, not just an installer | Gives maintainers a zero-infrastructure path for common queries and demonstrates `REQ-REC-5` directly: the records are readable with the same tool an auditor would use. |
 | D10 | An agreement version declares whether it invalidates prior acceptances | A typo fix and a new patent grant are not the same event. `REQ-AGR-4` forbids inferring legal meaning from agreement text, so DraCLA must not assume every version bump is substantive. Amends `REQ-AGR-2`. |
 
 ---
@@ -86,6 +88,7 @@ opens would be acceptable. The credential boundary is the disqualifier.
                     └───┬──────────────────────────┬──────────┘
                         │                          │
               dracla-records App          dracla-enforcer App
+              (portal side)               (check side)
                         │                          │
         ┌───────────────▼──────────┐   ┌───────────▼──────────────┐
         │ acme/acme-cla-records    │   │ acme/acme-cla-coverage   │
@@ -105,8 +108,7 @@ opens would be acceptable. The credential boundary is the disqualifier.
 ## 4. Principals and permissions
 
 Four principals. Each holds the minimum for its steady-state job, and
-provisioning privilege is separated from all of them so it does not persist
-(`REQ-REC-2`).
+provisioning privilege never belongs to DraCLA at all (`REQ-REC-2`).
 
 ### `dracla-records` App — portal side
 - OAuth: contributor login, signing, revocation, dashboard authorization
@@ -123,14 +125,20 @@ provisioning privilege is separated from all of them so it does not persist
 - `contents: read` on **coverage** only
 - Not installed on canonical
 
-### `dracla-installer` App — provisioning only
-- Org `administration: write` (create the repo pair), `workflows: write` (seed
-  the reconcile workflow), `secrets: write` (seed the coverage deploy key)
-- Held **only during install**, then uninstalled or reduced to zero
-  repositories. These permissions cannot be folded into `dracla-records`:
-  retained `workflows: write` on canonical is a permanent code-execution
-  channel into an adopter's PII repo, and `administration: write` permits
-  flipping that repo to public. No steady-state principal carries either.
+### `dracla` CLI — provisioning, configuration, reporting (D11, D12)
+- Runs locally, `uvx dracla …`, using the **administrator's own** GitHub
+  credentials. DraCLA holds no provisioning privilege at any point.
+- Creates the repo pair, seeds config, agreement, reconcile workflow, and the
+  coverage deploy key
+- Also the ongoing configuration and reporting surface (§6.9)
+
+An earlier draft used a third App for this, holding org `administration`,
+`workflows`, and `secrets` write. That is rejected: retained `workflows: write`
+on canonical is a permanent code-execution channel into an adopter's PII repo
+(DR-011), `administration: write` permits flipping that repo to public, and an
+uninstall step that fails to fire leaves both in place. Provisioning is the
+administrator's own act, performed with their own credentials, so those
+permissions never exist as a DraCLA credential.
 
 ### Actions job inside canonical — reconciler
 - Runs where PII already legitimately lives
@@ -960,6 +968,48 @@ original assertion and its author remain in the record.
 **The recipient is never editable** (§5.5). `config_updated` rejects any change
 to it; changing recipient is a new project.
 
+### 6.9 The `dracla` CLI (D12, `REQ-REC-5`, `REQ-OPS-4`)
+
+Python, distributed on PyPI, run without installation:
+
+    uvx dracla install
+
+The CLI is not merely an installer. It is the configuration and reporting
+surface, and it reads the canonical repository **directly**, with the
+maintainer's own credentials and no DraCLA service in the path:
+
+| Command | Purpose |
+|---|---|
+| `dracla install` | Provision the repo pair, seed config, agreement, reconcile workflow, coverage deploy key (§9) |
+| `dracla config` | Required signer fields, confirmation labels, agreement, scope, recipient |
+| `dracla publish` / `dracla activate` | Agreement lifecycle (§6.5) |
+| `dracla status <user>` | Coverage for one contributor |
+| `dracla export --json --csv` | Portable formats (`REQ-REC-5`) |
+| `dracla verify` | Replay canonical locally and check the projection matches |
+| `dracla audit <pr>` | Why a check decided what it did |
+
+Two things this buys beyond convenience. `REQ-REC-5` requires records to be
+readable **without** DraCLA; a CLI that reads the repository directly is the
+strongest demonstration of that, because it is the same tool an auditor would
+use. And `REQ-OPS-4` requires installation be driven by configuration without
+editing source, which is exactly what `install` and `config` are.
+
+`verify` runs the same replay the reconciler runs (§5.4), so a maintainer can
+reproduce the integrity check on their own machine rather than trusting a
+workflow's word for it.
+
+**Config composition.** A single administrator may manage several repo pairs —
+one per legal recipient (§5.5) — which share almost everything and differ in
+recipient, agreement, and scope. The CLI composes those configurations with
+[Hydra](https://hydra.cc), so a base configuration is defined once and each
+recipient is an override rather than a copy.
+
+The composed result is written to `config/project.json` as **plain JSON**. Hydra
+is an authoring convenience in the CLI, never a runtime dependency: the
+committed artifact must stay readable without DraCLA (`REQ-REC-5`) and is also
+read by the Worker tier, which is TypeScript. Composition happens before the
+commit; what lands in the repository is inert data.
+
 **Agreement and config delivery.** The portal is static and the agreement,
 recipient, scope, required fields, and confirmation labels live in the private
 canonical repo. A read-only Worker endpoint serves them with the records
@@ -1334,15 +1384,19 @@ key, the OAuth client secret, and every webhook secret means a single Worker
 compromise defeats the §4 split entirely — the attacker simply uses the other
 key, and the highest-value payload is forging `success` on authoritative
 merge-group checks across all adopters. The deployment is therefore split into
-three Workers with disjoint secret bindings, communicating over service
-bindings:
+**two** Workers with disjoint secret bindings:
 
 ```
 worker-enforce    webhook secret + enforcer App key + coverage read
                   most exposed (anonymous internet), least privileged
 worker-portal     OAuth client secret + session key + records App key
-worker-admin      installer App key; reachable only from the install flow
 ```
+
+There is no third Worker because there is no third App: provisioning runs in the
+CLI on the administrator's machine (D11), so no isolate holds
+`administration`/`workflows`/`secrets` write. The install-flow routes that remain
+in `worker-portal` only record installation ids arriving on the Setup URL
+redirect, which needs no privilege.
 
 This does not make compromise harmless — `worker-portal` still reaches signer
 PII — but it stops the most exposed surface from holding the keys that forge the
@@ -1444,18 +1498,36 @@ the webhook surface does not take the portal down with it. Risks R7 and R9.
 (`REQ-OPS-1`), with records in the adopter's own org (`REQ-OPS-6`).
 
 ```
-admin installs dracla-installer on their org        (provisioning only)
-  -> prompt: legal recipient, agreement, scope, project slug
-  -> verify slug claim against an org the installer administers   (§7)
-  -> check org base repository permission            <- see below
-  -> provision <slug>-cla-records and <slug>-cla-coverage (both private)
-  -> restrict both to the intended readers explicitly
-  -> seed config, agreement, reconcile workflow, coverage deploy key
-  -> install dracla-records and dracla-enforcer on their repos
-  -> uninstall dracla-installer                     (privilege does not persist)
-  -> write registry entry (last, so a half-provisioned project is
-     never routable — R5)
+1. admin runs:  uvx dracla install                  (their own credentials)
+     -> prompt: legal recipient, agreement, scope, project slug
+     -> check org base repository permission        <- see below
+     -> create <slug>-cla-records and <slug>-cla-coverage (both private)
+     -> restrict both to the intended readers explicitly
+     -> seed config, agreement, reconcile workflow, coverage deploy key
+     -> print the two installation links, with a signed state parameter
+
+2. admin clicks:  install dracla-records            (GitHub's own consent UI)
+     -> GitHub redirects to the Setup URL with installation_id + state
+
+3. admin clicks:  install dracla-enforcer  on the repos in scope
+     -> same redirect; slug claim verified against an org they administer (§7)
+
+4. registry entry written last, so a half-provisioned project is never
+   routable (R5)
 ```
+
+**Why the installation links rather than an API call.** A GitHub App cannot
+install another GitHub App; installation is a user action through GitHub's own
+UI. Offering the link is therefore not a workaround but the intended flow, and
+it is better than anything DraCLA could build: GitHub owns the consent screen,
+the repository picker, and the permission display. The link needs no privilege
+to offer — it is an anchor.
+
+**Why provisioning is the CLI and not a third App** (D11): step 1 needs
+`administration`, `workflows`, and `secrets` write on the adopter's
+organization. Running it as the administrator means DraCLA never holds those
+permissions, so there is nothing to leave behind if an uninstall fails.
+`uvx` makes it a single command with no environment to manage.
 
 **Org base permissions are checked, not assumed.** Many organizations set
 Base permissions to Read for all members, so a newly created private repository
@@ -1476,7 +1548,8 @@ additional pair (§5.5). The recipient itself is immutable once chosen.
 ```
 dracla/dracla            monorepo
   core/                  Python: event model, replay, validation, index, exports
-  cli/                   dracla command
+  cli/                   dracla command (uvx-runnable; install, config,
+                         status, export, verify, audit — §6.9)
   api/                   Cloudflare Workers (TypeScript)
   dashboard/             static shell + badge assets (Pages)
   registry/              project routing
@@ -1796,7 +1869,7 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
 | R2 | A substantive version activation invalidates every contributor at once | `supersedes_coverage` flag keeps editorial changes from triggering it at all; staged activation with a future `effective_at` warns and lets contributors sign early (§6.5, D10) |
 | R3 | Non-atomic write across two repos (§5.4 steps 1–3) | Pending-pointer forces fail-closed; Actions reconciler repairs |
 | R4 | Index proxy carries all dashboard traffic through the serverless tier | Bound index size; cache with short TTL; include in A3 envelope |
-| R5 | Two-repo, two-App provisioning failure leaves a half-installed project | Provisioning is idempotent and re-runnable; registry entry written last |
+| R5 | Provisioning failure leaves a half-installed project | `dracla install` is idempotent and re-runnable locally; the two App installs are GitHub's own flow and resumable; registry entry written last |
 | R6 | ~~10 ms Free-tier CPU exceeded on a large pull request~~ **Closed** by measurement: 1.26 ms worst case, 13% of budget (§9, A2) | Residual: a pathological pull request with very long commit messages parses in proportion to bytes; the 250-commit API ceiling bounds it |
 | R7 | ~~One busy adopter consumes the shared hosted ceiling~~ **Downgraded** by the A3 model: Free saturates near 1,400 projects, 520 if all are as busy as `cli/cli` (§9.2) | Per-project rate accounting retained as a guard; Paid raises the ceiling 3.3x |
 | R8 | Daily limit exceeded silently drops webhooks if routes fail open | Configure routes fail closed (`REQ-CHECK-5`, §9); reconciler creates the *temporarily unavailable* check the dead Worker could not |
@@ -1823,5 +1896,6 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
 | Administrative flows | `REQ-AGR-1..2`, `REQ-CHECK-2`, `REQ-OPS-4` | §6.5, §6.8 |
 | Backup and recovery | `REQ-REC-7`, `REQ-REC-4` | §9.1 |
 | Observability and minimization | `REQ-OPS-5`, `REQ-SEC-1` | §8.4 |
+| CLI: config, reporting, portability | `REQ-REC-5`, `REQ-OPS-4` | §6.9 |
 | Deployment and portability | `REQ-OPS-1..6` | §2, §7, §9 |
 | Release verification | `REQ-VERIFY-1..2` | **Deferred**, and declared as such in §10.3 rather than only here. The traceability matrix and acceptance scenarios are a separate deliverable; §9.1, §8.2, and §9 name concrete pass criteria for three of the `REQ-VERIFY-2` scenarios that previously had none. |
