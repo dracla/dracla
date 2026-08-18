@@ -438,13 +438,18 @@ open marker, the Worker checks whether that operation's event actually landed in
 canonical. If it did, the Worker completes the materialization and closes the
 marker itself. This costs nothing and clears most orphans promptly.
 
-*Scheduled, in Actions.* The reconciler runs on push to canonical **and** on an
-Actions `schedule:` trigger — a scheduled workflow, not a job queue — resolving
-whatever the opportunistic path did not reach, repairing the projection, and
-re-requesting checks left `in_progress`. The schedule is **six-hourly**, set by
-Actions-minute cost rather than by preference; §9.2 shows why hourly is
-unaffordable on an adopter's Free allowance and what the six-hour worst-case
-latency actually delays.
+*Scheduled, in Actions.* The reconciler runs on push to canonical **and** on a
+**daily** Actions `schedule:` trigger — a scheduled workflow, not a job queue —
+resolving whatever the opportunistic path did not reach, repairing the
+projection, re-requesting checks left `in_progress`, and performing the
+from-scratch verification replay.
+
+Daily rather than six-hourly because only one scheduled duty is
+latency-sensitive at all. Verification is an integrity check; the index and
+exports are push-triggered by `REQ-DASH-5`, not scheduled; and due activations
+no longer need a clock-driven actor (§6.5). That leaves orphan clearing, which
+fails closed and which the opportunistic path already handles in the common
+case. §9.2 gives the cost.
 
 That re-drive is a recovery optimization; per `REQ-CHECK-4` core correctness
 does not depend on either driver, because the guard fails closed without them.
@@ -577,6 +582,8 @@ pull_request opened / synchronize
   -> any subject in inflight.ops                           -> in_progress  (§5.4)
   -> map subjects to shards, fetch each distinct shard once   (D9)
   -> for each subject: row = shard[user_id][agreement_id]
+        if row.pending_effective_at and now >= it:
+              the pending version is operative              (§6.5)
         row.decision == "covered"                          -> ok
         AND this repository ∈ row.scope                    -> ok
      any subject failing either test  -> failure / action_required
@@ -794,13 +801,22 @@ and lets them sign early — recorded in `pending_version` /
 `pending_effective_at` (§5.3), so an early signer is neither treated as
 uncovered before the flip nor as still-covered under the old version after it.
 
-**The flip has a trigger.** Nothing in the Worker or the push-driven reconciler
-fires at a time; without a scheduled actor an activation whose `effective_at`
-has passed would leave everyone still passing under a superseded agreement. The
-reconciler's `schedule:` trigger (§5.4) evaluates due activations, rewrites
-affected shards under compare-and-swap, and re-drives checks. The activation
-itself opens an in-flight marker covering the affected subjects, so the guard
-fails closed across a partially applied rewrite rather than passing half of them.
+**The flip needs no scheduler.** Nothing in the Worker or the push-driven
+reconciler fires at a time, and relying on a periodic job would leave a window
+between `effective_at` passing and the shards being rewritten in which
+contributors still pass under a superseded agreement — a `REQ-AGR-2` violation,
+not merely staleness.
+
+The row already carries `pending_version` and `pending_effective_at` (§5.3), so
+the enforcer closes the window itself: if `now >= pending_effective_at`, the
+pending version is the operative one. That is a timestamp comparison, not a rule
+engine, so it does not breach the thin-edge rule of §9 — the decision was still
+precomputed, the edge only observes that it has come due.
+
+The reconciler rewrites the shards to match on its next run, which is
+housekeeping rather than the mechanism. Activation still opens an in-flight
+marker covering the affected subjects, so a partially applied rewrite fails
+closed rather than passing half of them.
 
 **Scope changes follow the same path.** Widening or narrowing project scope is
 coverage-affecting in exactly the way a version change is, and §6.3 evaluates
@@ -1543,7 +1559,7 @@ DraCLA receives all 23 `pull_request` actions and acts on 4. The other 19 —
 labelling, assignment, review requests — are discarded on arrival but still cost
 a Workers request.
 
-**Result**
+**Result** (Cloudflare requests)
 
 | Projects | Requests/day | % of Free | % of Paid | CPU s/day |
 |---|---|---|---|---|
@@ -1574,18 +1590,26 @@ frequency dominates:
 | Every 15 min | 2,940 min — **147%, over Free** | over Free |
 | Hourly | 780 min — 39% | 1,560 min — 78% |
 | Every 6 h | 180 min — 9% | 360 min — 18% |
+| **Daily** | **30 min — 1.5%** | **60 min — 3%** |
 
-**Decision: every 6 hours by default.** Hourly would consume between 39% and 78%
-of an adopter's entire private-repo CI allowance for a component that is not
-their product, which is an unreasonable adoption cost. Six-hourly costs under a
-fifth of that even pessimistically.
+**Decision: daily.** These minutes bill to the **adopting organization's**
+account — Actions bills the repository owner — so they come out of that org's
+whole 2,000 min/month, shared with all their other private repos. Spending 39%
+to 78% of an adopter's entire CI allowance on a component that is not their
+product is an unreasonable adoption cost. Daily is 1.5% to 3%.
 
-What that schedule delays, and why it is tolerable: the reconciler is not on the
-signing critical path (§5.4), so it handles only orphaned in-flight markers and
-due activations. Activation `effective_at` is set in days, so six-hourly
-granularity is immaterial. An orphaned marker leaves its subjects
-`in_progress` — failing closed — for up to six hours, which is the one real
-cost.
+Daily is defensible because only one scheduled duty is latency-sensitive:
+
+| Scheduled duty | Cadence needed |
+|---|---|
+| From-scratch verification replay | Daily or weekly — it is an integrity check |
+| Index and exports | Not scheduled at all; `REQ-DASH-5` makes them push-triggered |
+| Due activations | Not scheduled at all; the enforcer honours `pending_effective_at` directly (§6.5) |
+| Orphaned marker clearing | Minutes, ideally — but the Worker clears opportunistically (§5.4), and an uncleared marker fails closed |
+
+Moving activations off the schedule also *improves* correctness: a periodic
+flip left a window in which contributors passed under a superseded agreement,
+and the edge comparison closes it to zero.
 
 **Opportunistic orphan clearing** removes most of that latency without spending
 minutes: on any later request touching a subject with an open marker, the Worker
@@ -1739,9 +1763,10 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
   and is parameterised, so it answers for any adopter count.
 
   Two conclusions worth carrying: the Cloudflare request ceiling is **not** a
-  capacity constraint (Free saturates near 1,400 projects), and the actual
-  binding constraint is **GitHub Actions minutes** in each adopter's private
-  canonical repository, which set the reconciler schedule at six-hourly.
+  capacity constraint (Free saturates near 1,400 projects), and Actions minutes
+  in each adopter's private canonical repository — billed to *their* org, not
+  DraCLA's — set the reconciler schedule. Daily costs about 4% of an adopter's
+  allowance; the alternative cadences cost 9% to 147%.
 - **A4 — Merge queue on GitHub Free. CLOSED, verified 18 August 2026.**
   Tested empirically against a throwaway public repository in a Free-plan
   organization (`plan: free`, 1 seat):
@@ -1777,7 +1802,7 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
 | R8 | Daily limit exceeded silently drops webhooks if routes fail open | Configure routes fail closed (`REQ-CHECK-5`, §9); reconciler creates the *temporarily unavailable* check the dead Worker could not |
 | R9 | `dracla-enforcer` is a public App, so an outsider can exhaust the shared per-account budget and halt checks, signing, and revocation for every adopter | WAF and rate limiting ahead of the routes; signature verification at the edge; three-Worker route split so the webhook surface cannot take the portal down (§9) |
 | R10 | ~~Revocation-as-griefing via co-authoring~~ **Closed** by `REQ-CHECK-2` rev 2 — an injected trailer cannot block (§6.3.1) | Residual: a griefer who authors commits under their own identity can still revoke, but only affects pull requests containing their own authored work |
-| R11 | Reconciler consumes an adopter's private-repo Actions allowance — **the binding capacity constraint**, not Cloudflare (§9.2) | Six-hourly schedule (9–18% of the 2,000 min/month allowance); opportunistic orphan clearing in the Worker; incremental reconciliation on the ordinary path |
+| R11 | Reconciler consumes the **adopting org's** private-repo Actions allowance (Actions bills the repo owner), shared with all their other private repos | Daily schedule (~4% including per-signing runs, vs 39–78% hourly); activations moved off the schedule entirely (§6.5); opportunistic orphan clearing in the Worker; incremental reconciliation on the ordinary path |
 
 ---
 

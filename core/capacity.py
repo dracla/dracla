@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """A3 capacity envelope (REQ-OPS-3).
 
+Note on who pays: GitHub bills Actions minutes to the account that OWNS the
+repository. The canonical records repo lives in the adopting organization
+(D4), so reconciler minutes come out of that org's allowance — shared with
+every other private repo they own — not out of DraCLA's.
+
 REQ-OPS-3 requires the documented deployment to state its request and compute
 assumptions, the applicable provider limits, and the behaviour when those limits
 are reached. This computes the first two for any adopter count, so the answer
@@ -30,7 +35,7 @@ class Assumptions:
     dashboard_views_project_day: float = 5
     requests_per_dashboard_view: float = 3   # shell, authz probe, index
     badge_requests_project_day: float = 0    # badges are static assets (§6.7)
-    reconcile_schedule_per_day: int = 24     # hourly
+    reconcile_schedule_per_day: int = 1      # daily (see design 9.2)
     actions_minutes_per_run: float = 1.0     # GitHub bills whole minutes per job
 
 
@@ -95,7 +100,8 @@ def main() -> None:
           f"{FREE_ACTIONS_MIN_MONTH:,} min/month):")
     print(f"  reconciler runs/month     {one['actions_min_month']:>8,.0f} min"
           f"   {one['actions_pct']:.0f}% of the monthly allowance")
-    for per_day, label in ((96, "every 15 min"), (24, "hourly"), (4, "every 6 h")):
+    for per_day, label in ((96, "every 15 min"), (24, "hourly"),
+                           (4, "every 6 h"), (1, "daily")):
         m = model(Assumptions(**{**base.__dict__, "projects": 1,
                                  "reconcile_schedule_per_day": per_day}))
         over = "  <- over Free" if m["actions_pct"] > 100 else ""
