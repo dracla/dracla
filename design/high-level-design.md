@@ -1025,9 +1025,11 @@ hosted view would mean one surface aggregating several projects' signer PII.
 
 **Config composition.** Those projects share almost everything and differ in
 recipient, agreement, and scope. The CLI composes their configurations with
-[Hydra](https://hydra.cc), so a base configuration is defined once and each
-recipient is an override rather than a copy — which is where composition starts
-paying for itself rather than being ceremony over a single file.
+[Hydra](https://hydra.cc) on the 1.4 development line, so a base configuration
+is defined once and each recipient is an override rather than a copy — which is
+where composition starts paying for itself rather than being ceremony over a
+single file. Hydra 1.4 sets the floor at Python 3.10 for the CLI; `core` has no
+such constraint, since it depends on nothing.
 
 **Composition stays on the client.** The administrator authors YAML and Hydra
 composes it locally; `dracla config` then writes the **resolved** result to
