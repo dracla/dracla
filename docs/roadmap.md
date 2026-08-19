@@ -145,6 +145,14 @@ as `dracla.yadan.net`; `cli.dev` is assigned but its transfer is pending and may
 take months, so nothing is planned around it. Moving later costs two App config
 edits plus a permanent redirect — see `docs/github-apps.md`.
 
+## Documentation
+
+`docs/faq.md` answers the questions adopters actually ask, and is written from
+questions that came up during design rather than invented. It needs extending
+as real adopters ask things — particularly around agreement authoring, the
+connect flow, and what happens when a project changes legal recipient, none of
+which have been exercised by anyone yet.
+
 ## Parked
 
 - Confirming CPU measurement on a real Cloudflare account (A2). The workerd
