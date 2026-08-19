@@ -25,14 +25,18 @@ What exists:
 | [`core/`](core/) | Event model, append-only commit protocol, coverage projection — unit tests plus integration tests against live GitHub |
 | [`api/bench/`](api/bench/) | CPU measurements for the edge tier |
 | [`design/cli-review-findings.md`](design/cli-review-findings.md) | 28 findings from reviewing a first CLI attempt, kept as input to its design |
+| [`cli/`](cli/) | `dracla install` — provisions a project's repository pair and workflow |
+| [`docs/faq.md`](docs/faq.md) | Why it is shaped this way: dedicated organizations, append-only records, no encryption |
 
-What does not exist: the Workers, the portal, the dashboard, the CLI, the
-badges. See §16 of the requirements for the release scope.
+What does not exist: the Workers, the portal, the dashboard, the badges, and
+reconciliation. The CLI's other subcommands are designed but unbuilt. See §16 of
+the requirements for the release scope.
 
 A first CLI implementation was written, reviewed, and removed rather than
 patched — it had been built without a design, and several of its 28 findings
-were decisions nobody had made rather than bugs. The findings are kept as input
-to the design that should have come first.
+were decisions nobody had made rather than bugs. Those findings became the input
+to [§6.10](design/high-level-design.md), and the current CLI was written against
+it.
 
 ## How it works
 
