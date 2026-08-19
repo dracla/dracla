@@ -551,3 +551,143 @@ class TestClientRetry(unittest.TestCase):
         finally:
             G.urllib.request.urlopen = orig
         self.assertEqual(seen["timeout"], h.timeout)
+
+
+class TestPublicTransport(unittest.TestCase):
+    """`request()` is API, not an accident.
+
+    Administration outside the GitHost protocol — creating repositories, reading
+    organization settings — needs this transport's auth, retry, and timeout
+    policy and none of the protocol. Callers previously reached into `_req` to
+    borrow it, which made a real dependency invisible to anyone changing it.
+    """
+
+    def test_request_is_public_and_delegates(self):
+        from dracla.github import GitHubHost
+        host = GitHubHost(repo="o/r", token="t")
+        seen = {}
+
+        def fake_req(method, path, body=None):
+            seen.update(method=method, path=path, body=body)
+            return {"ok": True}
+
+        host._req = fake_req                        # type: ignore[method-assign]
+        self.assertEqual(host.request("POST", "/x", {"a": 1}), {"ok": True})
+        self.assertEqual(seen, {"method": "POST", "path": "/x", "body": {"a": 1}})
+
+    def test_request_carries_the_retry_policy(self):
+        """It must not become a bare urlopen that skips retries and timeouts.
+
+        Exercised rather than read: a source-text assertion passes on the
+        docstring, so it cannot fail for the reason the test exists.
+        """
+        import io as _io
+        import urllib.error
+        from dracla import github as G
+        from dracla.github import GitHubHost
+
+        host = GitHubHost(repo="o/r", token="t")
+        host.sleep = lambda _d: None                # type: ignore[method-assign]
+        calls = {"n": 0}
+        seen = {}
+
+        class FakeResp:
+            def read(self): return b'{"ok": true}'
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def urlopen(req, timeout=None):
+            calls["n"] += 1
+            seen["timeout"] = timeout
+            if calls["n"] == 1:
+                body = '{"message":"bad gateway"}'
+                raise urllib.error.HTTPError(
+                    "u", 502, body, {}, _io.BytesIO(body.encode()))
+            return FakeResp()
+
+        original = G.urllib.request.urlopen
+        G.urllib.request.urlopen = urlopen
+        try:
+            self.assertEqual(host.request("GET", "/x"), {"ok": True})
+        finally:
+            G.urllib.request.urlopen = original
+        self.assertEqual(calls["n"], 2, "a transient fault must be retried")
+        self.assertEqual(seen["timeout"], host.timeout)
+
+
+class TestEmptyRepository(unittest.TestCase):
+    """A repository with no commits is not the same as a missing repository,
+    and GitHub distinguishes them differently from how you would expect.
+
+    Reported from real use: `dracla install` creates repositories empty on
+    purpose, and the first head() against one crashed. GitHub answers 409
+    "Git Repository is empty" for a ref read there, not 404.
+    """
+
+    def test_head_returns_none_when_the_repository_is_empty(self):
+        import io as _io
+        import urllib.error
+        from dracla import github as G
+        from dracla.github import GitHubHost
+
+        host = GitHubHost(repo="o/r", token="t")
+        host.sleep = lambda _d: None                # type: ignore[method-assign]
+        body = '{"message":"Git Repository is empty.","status":"409"}'
+
+        def urlopen(req, timeout=None):
+            raise urllib.error.HTTPError(
+                "u", 409, body, {}, _io.BytesIO(body.encode()))
+
+        original = G.urllib.request.urlopen
+        G.urllib.request.urlopen = urlopen
+        try:
+            self.assertIsNone(host.head("refs/heads/events"))
+        finally:
+            G.urllib.request.urlopen = original
+
+    def test_head_does_not_treat_every_conflict_as_an_absent_ref(self):
+        """409 also covers a repository GitHub is still processing. Reporting
+        that as "no ref" is silent and expensive: history() returns [], the
+        chain head reads as GENESIS, and the next event is keyed off the wrong
+        parent — forking the subject's chain instead of failing loudly."""
+        import io as _io
+        import urllib.error
+        from dracla import github as G
+        from dracla.github import GitHubHost
+        from dracla.githost import BlobConflict
+
+        host = GitHubHost(repo="o/r", token="t")
+        host.sleep = lambda _d: None                # type: ignore[method-assign]
+        body = '{"message":"Repository is unavailable.","status":"409"}'
+
+        def urlopen(req, timeout=None):
+            raise urllib.error.HTTPError(
+                "u", 409, body, {}, _io.BytesIO(body.encode()))
+
+        original = G.urllib.request.urlopen
+        G.urllib.request.urlopen = urlopen
+        try:
+            with self.assertRaises(BlobConflict):
+                host.head("refs/heads/events")
+        finally:
+            G.urllib.request.urlopen = original
+
+    def test_head_still_returns_none_for_a_missing_ref(self):
+        import io as _io
+        import urllib.error
+        from dracla import github as G
+        from dracla.github import GitHubHost
+
+        host = GitHubHost(repo="o/r", token="t")
+        body = '{"message":"Not Found"}'
+
+        def urlopen(req, timeout=None):
+            raise urllib.error.HTTPError(
+                "u", 404, body, {}, _io.BytesIO(body.encode()))
+
+        original = G.urllib.request.urlopen
+        G.urllib.request.urlopen = urlopen
+        try:
+            self.assertIsNone(host.head("refs/heads/events"))
+        finally:
+            G.urllib.request.urlopen = original
