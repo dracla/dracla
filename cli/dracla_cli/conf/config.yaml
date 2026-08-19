@@ -1,0 +1,36 @@
+# Base configuration for `dracla install` (design §6.10.3).
+#
+# github.org names the organization DEDICATED to CLA records (§6.10.4) — never
+# the one holding the project's code. It has no sensible default, so it is ???
+# here and the CLI reports it as missing rather than guessing.
+#
+# recipient.slug defaults to github.org through interpolation. That default is
+# why a second legal recipient is additive rather than exceptional: the naming
+# rule is <recipient.slug>-cla-* either way, so §5.5's deferred multi-recipient
+# case is a different *value*, not a different scheme.
+#
+# Execution modifiers are overrides too, so the command reads uniformly:
+#   dracla install github.org=acme-cla dry_run=true
+#   dracla install github.org=acme-cla force=true
+
+defaults:
+  # The structured schema FIRST, so its types govern; `_self_` after it so the
+  # values below override the schema's defaults rather than the reverse.
+  # Registering the schema without listing it here leaves it inert: `force`
+  # stayed an untyped string, and `force=no` coerced to True — skipping the
+  # confirmation entirely.
+  - install_schema
+  - _self_
+
+github:
+  org: ???
+
+recipient:
+  slug: ${github.org}
+
+# Skip the confirmation prompt. Required when stdin is not a terminal.
+force: false
+
+# Report what would happen and write nothing.
+dry_run: false
+
