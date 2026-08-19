@@ -59,6 +59,17 @@ class GitHubHost:
 
     # --- transport --------------------------------------------------------
 
+    def request(self, method: str, path: str,
+                body: dict | None = None) -> dict | list:
+        """Public transport: authenticated, retried, timed out.
+
+        The records protocol is not the only caller. Repository and organization
+        administration needs the same auth, retry, and timeout policy and none
+        of the GitHost protocol, and it previously reached into `_req` to borrow
+        them — a real dependency left undeclared. This is that dependency, named.
+        """
+        return self._req(method, path, body)
+
     def _req(self, method: str, path: str, body: dict | None = None) -> dict | list:
         """One API call, with a socket timeout and retries on transient faults.
 
@@ -131,10 +142,20 @@ class GitHubHost:
     # --- GitHost ----------------------------------------------------------
 
     def head(self, ref: str) -> str | None:
+        """The ref's sha, or None if it does not exist.
+
+        An **empty repository** answers 409 "Git Repository is empty" rather
+        than 404, and `_req` maps 409 to BlobConflict. Reading a ref has no
+        other meaning for a conflict, so both are "no such ref" here.
+
+        This matters because repositories are deliberately created empty (design
+        §6.10.3.1) so that the first branch created is the one that should be
+        default. Before that, nothing ever asked an empty repository for a ref.
+        """
         try:
             r = self._req("GET", f"/repos/{self.repo}/git/ref/heads/{self._branch(ref)}")
             return r["object"]["sha"]                     # type: ignore[index]
-        except NotFound:
+        except (NotFound, BlobConflict):
             return None
 
     def read(self, ref_or_sha: str, path: str) -> tuple[str, str]:
