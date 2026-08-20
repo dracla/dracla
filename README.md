@@ -23,9 +23,12 @@ What exists:
 | [`design/high-level-design.md`](design/high-level-design.md) | The architecture |
 | [`core/`](core/) | Event model, append-only commit protocol, coverage projection — unit tests plus integration tests against live GitHub |
 | [`api/bench/`](api/bench/) | CPU measurements for the edge tier |
+| [`cli/`](cli/) | `dracla install` — provisions a project's repository pair and workflow |
+| [`docs/faq.md`](docs/faq.md) | Why it is shaped this way: dedicated organizations, append-only records, no encryption |
 
-What does not exist: the Workers, the portal, the dashboard, the CLI, the
-badges. See §16 of the requirements for the release scope.
+What does not exist: the Workers, the portal, the dashboard, the badges, and
+reconciliation. The CLI's other subcommands are designed but unbuilt. See §16 of
+the requirements for the release scope.
 
 ## How it works
 
