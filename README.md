@@ -19,7 +19,7 @@ What exists:
 
 | | |
 |---|---|
-| [`design/requirements.md`](design/requirements.md) | Locked requirements baseline, revision 2 |
+| [`design/requirements.md`](design/requirements.md) | Locked requirements baseline, revision 3 |
 | [`design/high-level-design.md`](design/high-level-design.md) | The architecture |
 | [`design/review-findings.md`](design/review-findings.md) | 81 findings from four independent adversarial reviews, all resolved |
 | [`core/`](core/) | Event model, append-only commit protocol, coverage projection — unit tests plus integration tests against live GitHub |
