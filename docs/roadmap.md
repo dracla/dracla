@@ -42,10 +42,12 @@ Runs immediately, in parallel with everything blocked on the domain.
 | **Closes** | §16 item 1 (partly), foundation for item 11 |
 | **Needs** | nothing |
 
-- `dracla install` — create the repo pair, seed config, agreement, reconcile
-  workflow, coverage deploy key; print the two installation links
-- `dracla config` — Hydra composition on the client, resolved JSON committed
-- `dracla publish` / `dracla activate` — agreement lifecycle (§6.5)
+- `dracla install` — create the empty repo pair and seed the placeholder
+  reconcile workflow; print the two installation links (§6.10). Config,
+  agreement, and the deploy key are deliberately *not* here: recipient,
+  scope, policy, and agreement lifecycle are portal actions recorded as
+  events with an actor (§6.10.3, §6.5), and the key waits for the
+  reconciler that consumes it (M2, §6.10.2)
 - Workspace file for multi-project operation (§6.9)
 - Integration-tested against a real org, the way `core/` already is
 
@@ -59,7 +61,9 @@ pair exists, so this is on the critical path for M3 and M4 regardless.
 | **Closes** | §16 item 8 |
 | **Needs** | M1 |
 
-- Actions workflow seeded into canonical, daily schedule (§9.2)
+- Upgrade M1's placeholder workflow in canonical, daily schedule (§9.2);
+  `dracla install` re-run provisions the coverage deploy key and
+  `dracla rotate-key` replaces it (§6.10.2)
 - Replay, verify the projection, repair, clear orphaned markers
 - Dashboard index and JSON/CSV exports to `derived/` (§5.1)
 - CSV formula neutralization, JSON keeping canonical values (`REQ-SEC-8`)
