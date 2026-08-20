@@ -59,6 +59,17 @@ class GitHubHost:
 
     # --- transport --------------------------------------------------------
 
+    def request(self, method: str, path: str,
+                body: dict | None = None) -> dict | list:
+        """Public transport: authenticated, retried, timed out.
+
+        The records protocol is not the only caller. Repository and organization
+        administration needs the same auth, retry, and timeout policy and none
+        of the GitHost protocol, and it previously reached into `_req` to borrow
+        them — a real dependency left undeclared. This is that dependency, named.
+        """
+        return self._req(method, path, body)
+
     def _req(self, method: str, path: str, body: dict | None = None) -> dict | list:
         """One API call, with a socket timeout and retries on transient faults.
 
@@ -131,11 +142,38 @@ class GitHubHost:
     # --- GitHost ----------------------------------------------------------
 
     def head(self, ref: str) -> str | None:
+        """The ref's sha, or None if it does not exist.
+
+        An **empty repository** answers 409 "Git Repository is empty" rather
+        than 404, and `_req` maps 409 to BlobConflict — so that one message
+        means "no such ref" too. It is matched on, rather than treating every
+        409 that way, because a conflict has other causes and none of them
+        mean the ref is absent.
+
+        This matters because repositories are deliberately created empty (design
+        §6.10.3.1) so that the first branch created is the one that should be
+        default. Before that, nothing ever asked an empty repository for a ref.
+        """
         try:
             r = self._req("GET", f"/repos/{self.repo}/git/ref/heads/{self._branch(ref)}")
             return r["object"]["sha"]                     # type: ignore[index]
         except NotFound:
             return None
+        except BlobConflict as e:
+            # 409 is not exclusively "empty". Only the empty-repository message
+            # means "no ref"; any other conflict — a repository GitHub is still
+            # processing, for instance — must NOT be reported as an absent ref.
+            # A false None here is silent and expensive: history() would return
+            # [], the chain head would read as GENESIS, and the next event would
+            # be keyed off the wrong parent and fork the subject's chain.
+            if "repository is empty" in str(e).lower():
+                return None
+            # Matching GitHub's wording is not guaranteed — the status is
+            # documented, the message is not. If it ever changes, this raises
+            # and install stops before bootstrapping, which is the direction to
+            # fail in: the alternative reads a live repository as empty. Fix it
+            # by widening the match, not by widening the except.
+            raise
 
     def read(self, ref_or_sha: str, path: str) -> tuple[str, str]:
         """Return (content, blob_sha). blob_sha is the CAS token for put()."""
