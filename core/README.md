@@ -10,10 +10,11 @@ git host. It is not the product.
 
 Why a fake host: the properties worth testing are concurrent — two writers
 racing a ref update, a crash between two writes, a lost shard row. Those cannot
-be provoked reliably against real GitHub, and each one corresponds to a specific
-finding in `design/review-findings.md`. The fake models the one semantic that
-matters, `update_ref(force=False)` succeeding only on a fast-forward, so the
-tests exercise the real failure mode rather than a mock of it.
+be provoked reliably against real GitHub, and each one corresponds to a
+concurrency defect identified during design review. The fake models the one
+semantic that matters, `update_ref(force=False)` succeeding only on a
+fast-forward, so the tests exercise the real failure mode rather than a mock of
+it.
 
 Run:
 
