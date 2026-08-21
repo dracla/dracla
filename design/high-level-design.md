@@ -1,8 +1,8 @@
 # DraCLA High-Level Design
 
 Status: Draft
-Date: 17 August 2026
-Requirements baseline: `design/requirements.md` (Locked, revision 2, 18 August 2026)
+Date: 22 August 2026
+Requirements baseline: `design/requirements.md` (Locked, revision 9, 22 August 2026)
 
 This document proposes an implementation architecture for the locked
 requirements baseline. Per `REQ` acceptance section 19, it maps major
@@ -16,17 +16,18 @@ deviates from or defers.
 | ID | Decision | Rationale |
 |----|----------|-----------|
 | D1 | Pull request enforcement runs in the GitHub App's serverless handler, not GitHub Actions | Fork-triggered workflows receive no secrets, so they cannot read a private records repo. Deviates from `REQ-OPS-2`. See §2. |
-| D2 | Two private repositories per project: canonical records (PII) and a coverage projection (PII-free) | GitHub tokens cannot be scoped to a path, so a single repo means the enforcement path holds a token that can read signer PII. |
+| D2 | Two private repositories per project: canonical records (names and addresses) and a coverage projection (neither, but still personal data — §8.4) | GitHub tokens cannot be scoped to a path, so a single repo means the enforcement path holds a token that can read signer names and addresses. |
 | D3 | Two GitHub Apps: `dracla-records` and `dracla-enforcer` — and only two | Two repos buy nothing if one App holds permissions on both; separation must be at the credential level. A third provisioning App was considered and rejected (D11). |
 | D4 | Both repositories live in the **adopting project's** org, auto-provisioned at install | `REQ-CONFIG-1`, `REQ-OPS-6`, principle 6 require project custody. Auto-provisioning removes the setup friction that made central hosting attractive. |
+| D4a | **Supersedes D4's "adopting project's org":** custody must satisfy the effective-reader invariant; a dedicated org is the default, while personal or other organizations are allowed only when every effective reader is authorized (§6.10.4) | Private visibility is not an ACL. Base permissions, owners, teams, collaborators, and service principals all contribute to the real reader set. |
 | D5 | Coverage state is materialized into the projection repo synchronously by the signing path; Actions replays canonical to verify it | Gives O(1) coverage lookup with no Actions latency on the hot path, while keeping the projection strictly derived (`REQ-REC-6`). |
-| D6 | Staleness is detected via a pending-pointer inside the coverage repo | The enforcer has no canonical access, so it cannot compare against canonical head directly. See §5.4. |
-| D7 | One repo pair per **legal recipient**, not per GitHub repo and not per project | A contributor signs once for a scope spanning many repos and orgs (`REQ-CONFIG-3`). An org with a single recipient needs exactly one pair. See §5.5. |
+| D6 | Staleness is detected via operation-scoped in-flight markers inside the coverage repo | The enforcer has no canonical access, so it cannot compare against canonical head directly. See §5.4. |
+| D7 | One repo pair per **legal recipient**, not per GitHub repo and not per project | One agreement may state broad legal coverage while DraCLA enforces it across many configured repositories; DraCLA does not derive that legal coverage from enforcement scope (`REQ-CONFIG-3`). See §5.5. |
 | D8 | Python core owns the event model, replay, exports, and CLI; Cloudflare Workers in TypeScript host the thin serverless tier | `REQ` §1 implies a Python package. Python Workers run on Pyodide with cold-start and package limits unsuited to webhook latency. Keeping the edge thin makes the split cheap and reversible. |
 | D9 | Coverage is stored in packed shards, not one file per user | Workers cap outbound subrequests per invocation; a per-subject read approaches that cap on a many-author PR. One shard read replaces N reads. |
 | D11 | Provisioning runs in the `dracla` CLI with the administrator's own credentials, not a third GitHub App | A provisioning App would hold `administration`, `workflows`, and `secrets` write in the adopter's org. `workflows: write` retained is a code-execution channel into their PII repo (DR-011), and an uninstall that fails to fire leaves it. `uvx` makes the CLI a single command, so the adoption cost is one command against three consent screens. |
-| D12 | The CLI is the configuration and reporting surface, not just an installer | Gives maintainers a zero-infrastructure path for common queries and demonstrates `REQ-REC-5` directly: the records are readable with the same tool an auditor would use. |
-| D10 | An agreement version declares whether it invalidates prior acceptances | A typo fix and a new patent grant are not the same event. `REQ-AGR-4` forbids inferring legal meaning from agreement text, so DraCLA must not assume every version bump is substantive. Amends `REQ-AGR-2`. |
+| D12 | The CLI is the reporting and read-out surface, not just an installer | Gives maintainers a zero-infrastructure path for common queries and demonstrates `REQ-REC-5` directly: the records are readable with the same tool an auditor would use. |
+| D10 | An agreement version declares whether it invalidates prior acceptances | A typo fix and a new patent grant are not the same event. `REQ-AGR-4` forbids inferring legal meaning from agreement text, so DraCLA must not assume every version bump is substantive. Implemented by `REQ-AGR-2`. |
 
 ---
 
@@ -48,9 +49,12 @@ different, public one. A workflow in the contributing repo cannot do this:
 
 Contributors to open source projects contribute overwhelmingly from forks, so
 the Actions path fails closed for precisely the population the system exists to
-check. The `pull_request_target` workaround runs untrusted PR content in a
-context holding secrets and is rejected as unsafe for a component whose job is
-ingesting arbitrary PR content.
+check. A `pull_request_target` workflow runs the base repository's trusted
+default-branch code, but it still creates a secret-bearing Actions surface that
+parses attacker-controlled pull-request metadata and that an apparently harmless
+future checkout of the head would make exploitable. DraCLA rejects that durable
+parser and workflow-hardening obligation when the GitHub App path needs neither
+repository secrets nor a per-PR Actions run.
 
 The GitHub App path has no such problem: the webhook is delivered regardless of
 fork status, and the installation token is minted server-side where no
@@ -91,8 +95,8 @@ opens would be acceptable. The credential boundary is the disqualifier.
               (portal side)               (check side)
                         │                          │
         ┌───────────────▼──────────┐   ┌───────────▼──────────────┐
-        │ acme/acme-cla-records    │   │ acme/acme-cla-coverage   │
-        │ PRIVATE · canonical      │──▶│ PRIVATE · PII-free       │
+        │ acme-cla/…-cla-records   │   │ acme-cla/…-cla-coverage  │
+        │ PRIVATE · canonical      │──▶│ PRIVATE · no names/emails│
         │ append-only events + PII │   │ user_id -> coverage      │
         └──────────────────────────┘   └───────────┬──────────────┘
                         │                          │
@@ -113,24 +117,38 @@ provisioning privilege never belongs to DraCLA at all (`REQ-REC-2`).
 ### `dracla-records` App — portal side
 - OAuth: contributor login, signing, revocation, dashboard authorization
 - `contents: write` on **canonical**
-- `contents: write` on **coverage** (materialization and the in-flight marker)
+- `contents: write` on **coverage** (materialization, the in-flight marker,
+  and active-version updates, §6.5)
 - Not installed on any contributing repo; receives no pull request webhooks
 
 ### `dracla-enforcer` App — check side
 - Webhooks: `pull_request`, `merge_group`, `check_run.rerequested`
+- A daily Cron Trigger in `worker-enforce` uses the same App identity to recover
+  missing and stranded checks and to verify installation boundaries; unlike the
+  canonical reconciler, it can enumerate contributing repositories and write
+  check runs
 - `checks: write`, **`pull_requests: write`**, `contents: read` on
   **contributing** repos. Write is required to post the pull request comment of
   `REQ-PORTAL-3`; read alone cannot, and the earlier inventory made that
   requirement unimplementable.
+- Organization `members: read` only where an organization-wide
+  enforcement-scope selector must verify an owner; repository metadata is used
+  for live per-repository permission checks
 - `contents: read` on **coverage** only
 - Not installed on canonical
 
 ### `dracla` CLI — provisioning, configuration, reporting (D11, D12)
 - Runs locally, `uvx dracla …`, using the **administrator's own** GitHub
   credentials. DraCLA holds no provisioning privilege at any point.
-- Creates the repo pair, seeds config, agreement, reconcile workflow, and the
-  coverage deploy key
-- Also the ongoing configuration and reporting surface (§6.9)
+- Creates the repo pair and seeds the reconcile workflow (§6.10). It writes no
+  project configuration and publishes no agreement: those are portal actions,
+  where each becomes an event with an actor
+- The coverage deploy key is also absent at first install, but it is the
+  administrator's own CLI act, never a portal one — the records App never
+  holds the repository administration such a write needs. M2's
+  `dracla install` re-run provisions it and `dracla rotate-key` replaces it,
+  and the key waits for the reconciler that consumes it (§6.10.2)
+- Reporting surface thereafter (§6.9)
 
 An earlier draft used a third App for this, holding org `administration`,
 `workflows`, and `secrets` write. That is rejected: retained `workflows: write`
@@ -155,16 +173,18 @@ permissions never exist as a DraCLA credential.
 
 ### What the separation does and does not guarantee
 
-**Unconditional:** the coverage projection contains no signer PII (§5.3), so
-the check computation never takes PII as an input, whatever else is true.
+**Unconditional:** the coverage projection contains no names, email addresses,
+confirmation text, or entity evidence (§5.3), so the check computation never
+reads them, whatever else is true. It is not free of personal data — §8.4.
 
 **Conditional:** the enforcer's inability to read canonical is a GitHub
 permission boundary, not an invariant DraCLA can enforce. Installation
 repository selection belongs to the adopting org's admin, and flipping the
 enforcer to "All repositories" would silently grant it read on canonical. The
-reconciler therefore asserts on each run that the enforcer installation's
-repository list excludes canonical, and fails loudly if not. Earlier drafts
-described this as structural; it is not.
+enforcer's scheduled sweep therefore asserts that its installation repository
+list excludes canonical, and fails loudly if not. The canonical reconciler has
+no credential that could inspect that installation. Earlier drafts described
+this as structural; it is not.
 
 **Not covered:** a compromise of the Worker itself defeats the split entirely,
 because both App private keys are reachable from one isolate. See §9 for the
@@ -177,10 +197,10 @@ isolation that addresses it and §8.4 for the residual trust statement.
 ### 5.1 Canonical records repo (private)
 
 ```
-config/project.json            recipient, scope, required signer fields
+config/project.json            recipient, enforcement scope, required signer fields
                                (resolved on the client; §6.9)
 agreements/icla/v3.md          exact agreement content
-agreements/icla/v3.meta.json   digest, effective_at, scope, supersedes_coverage
+agreements/icla/v3.meta.json   mirror for human reading; events canonical (§6.5)
 events/<aa>/<bb>/<event_id>.json
 derived/index.json             dashboard index      (generated, private)
 derived/export.json            canonical values     (generated, private)
@@ -205,17 +225,35 @@ Event envelope (`REQ-SIGN-4`, `REQ-REC-5`):
   "event_id": "…",
   "idempotency_key": "…",
   "type": "acceptance | revocation | agreement_published | agreement_activated
-           | override | exemption",
+           | project_connected | config_updated
+           | enforcement_scope_requested | enforcement_scope_activated
+           | enforcement_scope_abandoned | override
+           | retry_requested | exemption | exemption_revoked
+           | entity_authorized | entity_deauthorized",
   "recorded_at": "2026-08-17T12:00:00Z",
   "dracla_version": "0.1.0",
   "actor":    { "github_user_id": 7654321, "login_snapshot": "maintainer" },
+  "authorization": { "operation": "agreement.activate",
+                     "resource": "acme/acme-cla-records",
+                     "required_authority": { "permission": "admin" },
+                     "observed": { "permission": "admin",
+                                   "authorized": true },
+                     "checked_at": "…" },
   "subjects": [ { "github_user_id": 1234567, "login_snapshot": "octocat" } ],
   "agreement": { "id": "icla", "version": "v3", "digest": "sha256:…",
+                 "recipient": { "id": "acme-foundation",
+                                "name": "Acme Foundation" },
+                 "ref": "github.com/acme/acme/blob/<sha>/ICLA.md",
                  "content_commit_oid": "…" },
-  "scope": { "orgs": ["acme"], "repos": ["acme-labs/widget"] },
+  "configuration": { "enforcement_scope": { "orgs": ["acme"],
+                       "repos": ["acme-labs/widget"] } },
   "fields": { "legal_name": "…", "email": "…" },
   "confirmations": [{ "label": "…", "checked": true }],
-  "revokes":    "event_id | null",
+  "coverage_tuple": { "github_user_id": 1234567,
+                       "project_id": "acme",
+                       "agreement_id": "icla",
+                       "recipient_id": "acme-foundation" },
+  "confirmed_canonical_oid": "… | null",
   "supersedes": "event_id | null",
   "applies_to": { "pr_number": 42, "tree_digest": "sha256:…" }
 }
@@ -229,17 +267,38 @@ Envelope decisions, each closing a specific gap:
   the administrator issuing the override, and could not carry more than one.
 - **`applies_to` binds overrides to content**, not to a pull request head SHA
   that does not survive the merge queue's commit rewrite (§6.4).
-- **`revokes` is distinct from `supersedes`.** `REQ-REV-3` requires a revocation
-  to be tied to the acceptance being revoked; `supersedes` carries the
-  `REQ-SIGN-5` correction link. One field could not mean both, and reusing it
-  left the revocation tie unstated.
-- **`content_commit_oid`** records the Git commit object ID of the agreement
-  content, which `REQ-REC-4` requires alongside the digest and which nothing
-  previously captured.
+- **A revocation carries `coverage_tuple` and `confirmed_canonical_oid`, not an
+  acceptance-event pointer.** The tuple is the contributor's stable numeric
+  ID, project identity, agreement identifier, and immutable recipient identity.
+  Agreement version and repository scope are deliberately absent. Canonical
+  order makes the revocation a cutoff over every earlier acceptance for that
+  tuple; `confirmed_canonical_oid` identifies the state the contributor saw.
+  `supersedes` remains only the `REQ-SIGN-5` correction link between acceptance
+  events.
+- **`ref` and `content_commit_oid`** record where the agreement came from and
+  the Git commit object ID of its content — `REQ-REC-4` requires the latter
+  alongside the digest, and `REQ-AGR-1` explicitly permits an immutable content
+  reference in place of inlined text (§6.5). The snapshot in `agreements/` is
+  what makes the record survive the reference being deleted.
 - **`agreement_published` and `agreement_activated` are separate types.**
-  Publishing preserves a version; activating makes it required. Keeping them
-  distinct is what lets a project correct a typo without invalidating anyone
-  (§6.5).
+  Publishing preserves any number of immutable versions; activating selects
+  exactly one version as active and signable. Keeping them distinct lets a
+  project prepare a version without exposing it to contributors (§6.5).
+- **`agreement.recipient` is immutable evidence.** The legal recipient is
+  bound into the version and every acceptance rather than read later from
+  mutable project configuration. A recipient change creates a successor
+  project (§5.5).
+- **`authorization` accompanies every administrative event.** It records the
+  exact operation, GitHub resource, required permission or other authority,
+  observed result or evidence, and check time from `REQ-REC-8` and
+  `REQ-SEC-6`; the stable actor ID and login snapshot remain in `actor`.
+- **`configuration` is event-type-specific.** An
+  `enforcement_scope_requested` event carries the complete desired enforcement
+  scope. Its later `enforcement_scope_activated` event immutably references that
+  request and the exact registry generation it activates; only activated events
+  enter the current-scope fold. An `enforcement_scope_abandoned` event closes a
+  request that never became effective. An acceptance omits configuration.
+  Enforcement configuration is never copied into signer evidence.
 - **`fields` is derived from `config/project.json`, not hardcoded.**
   `REQ-SIGN-3` makes the required set project-configurable and `REQ-SEC-1`
   forbids collecting anything the agreement and policy do not require. The
@@ -260,23 +319,30 @@ client-supplied, which is also what keeps event paths out of reach of traversal
 (§8.1 #1).
 
 ```
-idempotency_key = H( project, subject_user_id, event_type,
-                     agreement_id, agreement_version, agreement_digest,
-                     prior_event_id,        <- current head of this subject's
-                                               event chain, or "genesis"
-                     submission_nonce )     <- server-issued with the signing
-                                               form, single-use
+idempotency_key = H( project, actor_user_id, event_type,
+                     canonical_operation_target,
+                     canonical_payload,
+                     confirmed_canonical_oid,
+                     submission_nonce )     <- server-issued with the form,
+                                               stable for one submission
 event_id        = H( idempotency_key )
 ```
 
-`prior_event_id` is what makes re-signing after revocation a distinct path
-rather than a collision with the original acceptance (`REQ-REV-5`), and the
-single-use `submission_nonce` is what makes a repeated delivery of the *same*
-submission collapse rather than duplicate (`REQ-SIGN-5`). A derivation using
-only content would break the first; one including a timestamp or fresh random
-would break the second. `REQ-REC-3` speaks of the idempotency key, and
-`event_id` is a pure function of it, so the path existence check in §5.2 *is*
-the idempotency-key check.
+For acceptance, the target and payload include the agreement version, digest,
+fields, confirmations, and correction link. For revocation, the target is the
+complete coverage tuple, the payload states the forward-looking cutoff, and
+`confirmed_canonical_oid` is required. A fresh nonce makes re-signing after
+revocation a distinct explicit action even when the submitted values match an
+older acceptance; retaining that nonce across retries makes a lost response
+collapse onto the original event (`REQ-SIGN-5`). A derivation using only
+content would break the first property; one generating a fresh random value on
+retry would break the second. `event_id` is a pure function of the key, so the
+path existence check in §5.2 is also the idempotency-key check.
+
+On retry, the server recomputes the key from the authenticated actor, canonical
+operation target and payload, confirmed canonical identity when required, and
+form nonce. Finding the same key with different inputs is a conflict; it is
+never accepted as an idempotent success.
 
 ### 5.2 Append-only commit protocol (`REQ-REC-3`)
 
@@ -288,7 +354,7 @@ One logical event per commit; commit ancestry is the authoritative order.
 2. build tree = base tree of H  +  events/<shard>/<event_id>.json
 3. create commit C with single parent H
 4. PATCH ref, force = false
-5. on 422 (not a fast-forward):
+5. on 409, or on a 422 specifically reporting a non-fast-forward update:
       reload head H'
       if events/<shard>/<event_id>.json exists at H'  -> done, idempotent
       else
@@ -296,6 +362,7 @@ One logical event per commit; commit ancestry is the authoritative order.
                                                          or a conflict
          rebuild the tree on the base tree of H'
          retry from 3 with H'
+   on any other 422: report the validation or abuse error; do not retry it as a race
 ```
 
 Two things this spelling out prevents:
@@ -305,11 +372,13 @@ Two things this spelling out prevents:
   GitHub accepts as a clean fast-forward while the concurrent event vanishes
   from the tree. Since §5.1 locates events by path existence, every reader
   short of a full history walk would then believe that event never happened.
-- **Step 5 must re-validate, not just re-parent.** A revocation of acceptance
-  `E1` that loses the race to a re-signing that produced `E2` is no longer the
-  same operation against `H'`. Re-validation decides whether it still applies,
-  targets the new event, or fails as a conflict — rather than silently
-  appending a revocation whose meaning depends on replay rules.
+- **Step 5 must re-validate, not just re-parent.** A revocation confirmed at
+  canonical state `H` that loses the race to a later acceptance for the same
+  tuple is stale against `H'`. Re-validation returns the original event if the
+  same idempotency key already landed, otherwise requires fresh contributor
+  confirmation; it never silently extends the revocation to an acceptance the
+  contributor had not seen. A 409 and only the non-fast-forward form of 422 use
+  this path. Other 422 responses are not concurrency evidence.
 
 `force: false` is a **fast-forward check, not a compare-and-swap** on `H`. It
 guarantees the new commit descends from the current ref, which combined with a
@@ -323,18 +392,20 @@ caller with an explicit indeterminate marker (§5.4), because the commit may or
 may not have landed. No merge commits are ever created. Timestamps never
 resolve ordering.
 
-### 5.3 Coverage projection repo (private, PII-free)
+### 5.3 Coverage projection repo (private; no names or emails)
 
 ```
 source.json          { canonical_sha, built_at, dracla_version }
-inflight.json        { ops: { "<idempotency_key>": { started_at } } }
+inflight.json        { ops: { "<idempotency_key>":
+                         { started_at, subjects: [user_id, ...],
+                           project_wide: false } } }
 users/<shard>.json   packed, keyed (user_id, agreement_id):
                        { "<user_id>": { "<agreement_id>": {
                            decision,      "covered" | "uncovered"
                            reason,        for the authenticated portal only
-                           version, digest, scope, since,
-                           pending_version, pending_effective_at } } }
-agreements/active.json
+                           version, digest, since } } }
+agreements/active.json  { agreement_id, active_version,
+                          accepted_versions, activation_event_id }
 overrides/<key>.json
 exemptions.json     { "<user_id>": { kind: "bot" | "human",
                                      basis, instrument_ref,
@@ -344,25 +415,32 @@ exemptions.json     { "<user_id>": { kind: "bot" | "human",
 
 Contains no legal name, email, confirmation text, or entity evidence.
 
-**Coverage MUST remain private.** "PII-free" does not mean publishable: this is
-a complete `user_id → covered?` directory, exactly the public signer lookup
-`REQ-PORTAL-5` forbids and §17 lists as a non-goal. Its privacy is checked by
-the reconciler on each run alongside the enforcer-installation assertion (§4).
+**Coverage MUST remain private.** Carrying no names or addresses does not make
+it publishable: this is a complete `user_id → covered?` directory, exactly the
+public signer lookup `REQ-PORTAL-5` forbids and the requirements' §17 lists as
+a non-goal. §8.4 gives the reason in full: the harm is aggregation, not
+secrecy. Its privacy is checked by the reconciler on each run; the enforcer's
+separate scheduled sweep checks the installation boundary (§4).
 
-**Keyed by `(user_id, agreement_id)`**, not by user alone. A repo pair may hold
-several agreements (§5.5); a single row per user would have let the second
-agreement overwrite the first. `pending_version` and `pending_effective_at`
-carry an early signature under a staged activation (§6.5), which a single
-`version` field could not represent without either uncovering compliant early
-signers or passing superseded ones.
+**Keyed by `(user_id, agreement_id)`**, not by user alone. The initial release
+permits exactly one agreement identifier per project; keeping the identifier in
+the format avoids conflating versions and leaves a compatible schema if a later
+requirements revision defines multi-agreement combination rules. Inactive
+versions are never signable, so there is no pending-version state.
 
-**`decision` is precomputed, not derived at the edge.** The reconciler and the
-Worker resolve version currency, `supersedes_coverage` chains, `effective_at`,
-and scope, and write the resulting boolean. The enforcer compares the PR's
-repository against `scope` and reads `decision`; it does not re-implement the
-rule engine. This keeps the edge thin as §9 claims — the earlier row shape
-would have required a full duplicate evaluator in TypeScript inside a 10 ms
-budget, drifting against the Python replay.
+**The edge performs a tuple cutoff and one bounded version test.** Replay keeps
+the latest acceptance or revocation for the repository pair's project and
+recipient plus `(user_id, agreement_id)`. A revocation makes every earlier
+acceptance of every version for that tuple uncovered. A later acceptance
+restores coverage from its canonical position onward. If the latest tuple event
+permits coverage, its acceptance row provides coverage only when its `version` is in
+`agreements/active.json.accepted_versions`. Activation updates that small file
+synchronously: a superseding activation replaces the set with the new version;
+a non-superseding activation adds the new version without reviving versions
+removed by an earlier superseding activation or acceptances cut off by a later
+revocation (§6.5). Enforcement scope is resolved by project routing before any
+subject row is read; it is not part of the tuple, is not signer evidence, and
+does not live in the row.
 
 **Packed shards (D9).** Sharded by `user_id % 256` rather than one file per
 user, so a check with `N` subjects touches one or two files rather than `N`,
@@ -373,9 +451,8 @@ is part of the documented format.
 read-modify-write and two concurrent signers in the same bucket would otherwise
 lose one row — silently keeping a revoked contributor covered. Every shard
 update supplies the blob SHA it read as a precondition and retries on mismatch,
-re-reading and re-applying only its own key. This matters most precisely when
-it is most likely: a `supersedes_coverage: true` activation is by construction
-a mass-concurrent-write event against 256 buckets.
+re-reading and re-applying only its own key. Activations update only
+`agreements/active.json`; they do not rewrite all subject shards (§6.5).
 
 ### 5.4 Freshness guard (`REQ-CHECK-3`, `REQ-CHECK-4`)
 
@@ -407,7 +484,9 @@ enforcer, on every check:
   read inflight.json
   if any of MY subjects appears in inflight.ops:
         that subject is indeterminate -> in_progress; never pass
-  else read shards and decide
+  if a project_wide operation is open:
+        the project is indeterminate -> in_progress; never pass
+  else read agreements/active.json and shards, and decide
 ```
 
 Opening the marker **before** the canonical commit is the whole point. A crash
@@ -422,10 +501,10 @@ could not represent: a failed write later "repaired" by an unrelated signer's
 successful write, and two concurrent signers whose pointer updates interleave
 so the pair agrees while one signer's coverage was never materialized.
 
-**Scoping to subjects, not the project**, bounds the blast radius. A single bad
-or unlucky operation makes *its own subjects* indeterminate, not every check in
-the project — which the earlier project-global signal would have turned into a
-cheap remote denial of service on the landing gate.
+**Scoping to subjects where possible** bounds the blast radius. A sign or revoke
+makes only its own subjects indeterminate. An activation is deliberately
+project-wide because it changes version currency for every subject; only
+administrators can open that marker under `REQ-SEC-6`.
 
 **Ownership is explicit.** Only the Worker that opened a marker entry may
 remove it in step 4. The reconciler may clear an entry only after replaying
@@ -435,9 +514,12 @@ replay head, could overwrite a newer marker and make a stale projection look
 fresh — passing a contributor who had already revoked.
 
 **Every canonical writer participates**, not just sign/revoke: agreement
-publication and activation, overrides, exemptions, and administrator commits all
-open and close a marker. A guard that only one code path maintains is a liveness
-signal for that path, not a freshness proof for canonical.
+publication, overrides, exemptions, and administrator commits all open and
+close a marker — a guard that only one code path maintains is a liveness
+signal for that path, not a freshness proof for canonical. Activations carry
+their own project-wide marker, append canonical, update
+`agreements/active.json`, and then close the marker (§6.5), using the same
+open-before-commit, orphans-fail-closed lifecycle as every other writer.
 
 **Recovery has two drivers.** An entry orphaned by a crash would otherwise
 wedge its subjects indefinitely, and `REQ-OPS-3` forbids a durable job queue.
@@ -450,15 +532,22 @@ marker itself. This costs nothing and clears most orphans promptly.
 *Scheduled, in Actions.* The reconciler runs on push to canonical **and** on a
 **daily** Actions `schedule:` trigger — a scheduled workflow, not a job queue —
 resolving whatever the opportunistic path did not reach, repairing the
-projection, re-requesting checks left `in_progress`, and performing the
-from-scratch verification replay.
+projection, and performing the from-scratch verification replay.
 
-Daily rather than six-hourly because only one scheduled duty is
-latency-sensitive at all. Verification is an integrity check; the index and
-exports are push-triggered by `REQ-DASH-5`, not scheduled; and due activations
-no longer need a clock-driven actor (§6.5). That leaves orphan clearing, which
+*Scheduled, in the enforcer service.* A daily Cron Trigger in
+`worker-enforce` uses the enforcer App installation to find in-scope pull
+requests with absent checks and to re-evaluate checks left `in_progress`. This
+is deliberately not an Actions duty: the canonical reconciler has only a
+coverage deploy key and cannot enumerate contributing repositories or write
+their check runs.
+
+Daily rather than six-hourly because only one of the reconciler's scheduled
+duties is latency-sensitive at all. Verification is an integrity check; the index and
+exports are push-triggered by `REQ-DASH-5`, not scheduled; and agreement
+activation is immediate and request-driven (§6.5). That leaves orphan clearing, which
 fails closed and which the opportunistic path already handles in the common
-case. §9.2 gives the cost.
+case. Check recovery has the separate enforcer schedule above and therefore
+does not set the Actions frequency. §9.2 gives the cost.
 
 That re-drive is a recovery optimization; per `REQ-CHECK-4` core correctness
 does not depend on either driver, because the guard fails closed without them.
@@ -474,9 +563,10 @@ This is what lets the merge-group result honestly be called authoritative.
 
 ### 5.5 How many repo pairs a project needs
 
-A *project* in DraCLA is a `(recipient, agreements, scope)` tuple, not a GitHub
-repository. One pair therefore covers every repository in its scope, and a
-contributor who signs once is covered across all of them.
+A *project* in DraCLA is a `(recipient, agreements, enforcement_scope)` tuple,
+not a GitHub repository. One pair therefore enforces the same agreement across
+every repository in its enforcement scope. Whether one acceptance legally
+covers those repositories is stated by the agreement, not inferred by DraCLA.
 
 **The boundary is the legal recipient.** A second pair is required only when
 the entity receiving the granted rights differs (`REQ-CONFIG-2`), because that
@@ -486,23 +576,27 @@ entity's administrators read the other's CLA evidence.
 
 ```
 one recipient, many repos          ->  one pair
-  acme/acme-cla-records
+  acme-cla/acme-cla-records            <- the DEDICATED org (§6.10.4)
     recipient: Acme Foundation
-    scope:     acme/*, acme-labs/widget
-    agreements/icla/…                    several agreement ids are fine;
-                                         coverage keys on (user_id, agreement_id)
+    enforcement_scope: acme/*, acme-labs/widget  <- the CODE repos
+    agreements/icla/…                    one agreement, versioned (§6.3);
+                                         keying reserves room for more
 
 two recipients in one org          ->  two pairs
-  foundation/projX-cla-records         recipient: Project X Inc
-  foundation/projY-cla-records         recipient: Y Foundation
+  foundation-cla/projX-cla-records     recipient: Project X Inc
+  foundation-cla/projY-cla-records     recipient: Y Foundation
 ```
 
 `REQ-CONFIG-1` forbids *requiring* unrelated projects to share a repository; it
 does not prevent related projects from sharing one deliberately.
 
-**The recipient is chosen at install and is immutable thereafter.**
-`REQ-CONFIG-2` makes it a required configuration input, and the install flow
-prompts for it. It cannot later be edited: past acceptances granted rights to a
+**The recipient is fixed when the project is connected, and is immutable
+thereafter.** `REQ-CONFIG-2` makes it a required configuration input, and the
+portal collects it at connect time (§6.10.3) — install prompts for nothing and
+takes only where to put the repositories. `recipient.slug` names the pair; the
+legal identity behind that slug is recorded as an event with an actor.
+
+It cannot later be edited: past acceptances granted rights to a
 specific legal entity, and those grants cannot be retroactively reassigned.
 Changing recipient is therefore a **new project with a new pair** — the
 contributors sign the new agreement, and the existing records remain as
@@ -510,21 +604,34 @@ evidence of what was granted to the original entity. Editing it in place would
 leave grants to two different legal entities in one repository, the exact
 mixing this section exists to prevent.
 
+When the new project is a legal successor rather than unrelated, its first
+`project_connected` event carries `successor_of: <old-project-id>`. The old
+project records the reciprocal successor reference in a later append-only event;
+neither link changes the recipient or acceptance evidence already recorded.
+
 **Repository naming keys on the project slug**, not the org, so a second
 recipient in the same org does not collide. The slug defaults to the org name
-for the first project:
+with a trailing `-cla` removed (§6.10.3) for the first project:
 
 ```
-acme/acme-cla-records     first project, slug defaults to org name
-acme/projx-cla-records    second recipient in the same org
+acme-cla/acme-cla-records     first project; slug defaults to the org
+                              with its trailing -cla removed
+acme-cla/projx-cla-records    second recipient, same org, explicit slug
 ```
+
+**Deferred for v1.** `dracla install` provisions one pair and defaults the
+recipient slug from the organization name, with a trailing `-cla` removed
+(§6.10.3). The multi-recipient case
+above is not dropped, and costs nothing to add later: `<recipient-slug>-cla-*`
+is the rule either way, so a second recipient is a different value of the slug
+rather than a different naming scheme.
 
 Costs of combining, both accepted for a single-recipient org:
 
 - Read access to the pair exposes signer data across everything it covers.
-- A substantive version activation applies to the whole scope at once. The
-  `supersedes_coverage` flag (D10) confines this to genuinely substantive
-  changes, but within a pair it is all-or-nothing.
+- A substantive version activation applies to every current acceptance for the
+  agreement at once. The `supersedes_coverage` flag (D10) confines this to
+  genuinely substantive changes, but within a pair it is all-or-nothing.
 - A later spin-out to a different recipient means splitting records, which is
   harder than transferring a repository.
 
@@ -535,28 +642,32 @@ Costs of combining, both accepted for a single-recipient org:
 The project page lives at a stable, registry-derived path — `/p/<slug>` — which
 is what badges and check outputs link to (`REQ-PORTAL-1`, `REQ-PORTAL-2`).
 
-1. Contributor opens the project page. The agreement, recipient, version, scope,
-   and required fields are readable **before** login (§6.6), as `REQ-AGR-3`
+1. Contributor opens the project page. The agreement, recipient, version, and
+   required fields are readable **before** login (§6.6), as `REQ-AGR-3`
    requires; authentication via `dracla-records` OAuth is needed only to see
    personal status or to act.
-2. Portal renders the complete agreement, recipient, version, scope, required
-   fields, the project privacy policy link (`REQ-SEC-3`), and a retention
+2. Portal renders the complete agreement, recipient, version, required fields,
+   the project privacy policy link (`REQ-SEC-3`), and a retention
    statement — evidence is retained after revocation. `REQ-SEC-7` requires this
    on the signing flow, not only on revocation, and per-project retention and
-   correction procedures come from `config/project.json`.
+   correction procedures come from `config/project.json`. Any legal-scope
+   language comes from the agreement text itself.
 3. Contributor submits an affirmative action with the required fields.
 4. Handler validates, commits the acceptance event, and materializes coverage
    (§5.4).
 5. If a PR context was carried in the browser-bound `state` (§8.2), the handler
    re-evaluates that specific pull request (`REQ-CHECK-4`) — no global rescan.
-   Failure here is retried, and the reconciler's scheduled pass re-drives any
+   Failure here is retried, and the enforcer's scheduled sweep re-drives any
    pull request left unevaluated; the contributor cannot re-request the check
    themselves, since GitHub restricts that to users with write access.
 
 **The status a viewer sees is their own, and is read by session.** The portal
-never accepts a user id parameter — an authenticated endpoint answering "is user
-N covered?" is the lookup `REQ-PORTAL-5` forbids, merely gated. The viewer's
-subject comes from the verified session, exactly as on the write path.
+never accepts a user id parameter. `REQ-PORTAL-5` forbids the unauthenticated
+version of that lookup outright; this design also declines the *authenticated*
+version for viewers without records-repo authorization, on §8.4's aggregation
+argument — §6.3's graded disclosure, gated on the same authorization as the
+dashboard, is the one deliberate exception. The viewer's subject comes from the
+verified session, exactly as on the write path.
 
 **During the materialization window** the portal reads canonical, not the
 projection, and labels the state *recorded, taking effect*. `REQ-PORTAL-1`
@@ -569,18 +680,37 @@ Corrections require a fresh signing flow producing a new event linked via
 
 ### 6.2 Revocation (`REQ-REV-1..5`)
 
-Same portal, same authentication. The confirmation screen states that
-revocation changes coverage for future decisions but neither deletes the record
-nor withdraws already-granted rights, and repeats the retention statement
-(`REQ-SEC-7`). A revocation event is appended carrying `revokes: <event_id>` —
-the acceptance it revokes, as `REQ-REV-3` requires — and the projection flips to
-`revoked`. Re-signing appends a new acceptance and never mutates the revoked
-event.
+The portal lists status and actions separately for each agreement; v1 exposes
+no cross-project, cross-agreement, or cross-recipient revoke-all action. The
+confirmation screen identifies the project, agreement, and immutable legal
+recipient. It states that revocation affects future merge decisions in every
+repository where that tuple is enforced, including repositories added later,
+but neither deletes evidence nor withdraws rights already granted, and it
+repeats the retention statement (`REQ-SEC-7`).
+
+The form binds a fresh idempotency key to the complete coverage tuple and the
+current canonical head. On submission, the handler rechecks that head, appends
+one revocation event, and folds it as a canonical-order cutoff over every
+earlier acceptance of every version for the tuple. A retry with the same key
+returns the original result. Reusing the key with changed data is a conflict.
+If a later acceptance lands after confirmation but before append, the stale
+revocation is rejected and the contributor must confirm again.
+
+The success screen says that revocation succeeded, names the project,
+agreement, and recipient, and explains that the earlier acceptances remain in
+history but no longer cover future merge decisions. It immediately offers
+**Restore coverage**, which opens the active agreement with the tuple already
+selected and still requires the contributor to read it and assent again. That
+fresh acceptance restores coverage only from its own canonical position; it
+never mutates an acceptance or the revocation.
 
 ### 6.3 Pull request check (`REQ-CHECK-1`, `REQ-CHECK-2`)
 
 ```
 pull_request opened / synchronize
+  -> registry route is a multiple-project conflict             -> action_required (§7)
+  -> registry route is pending or unavailable                  -> temporarily unavailable (§7)
+  -> repository is verified unmanaged                          -> no DraCLA check (§7)
   -> resolve subjects:
         PR opener
         every commit author        (GitHub-resolved user ID)
@@ -589,25 +719,34 @@ pull_request opened / synchronize
   -> commit listing incomplete (pagination bound or >250)  -> action_required
   -> any subject unresolved to a user ID                   -> action_required
   -> any subject in inflight.ops                           -> in_progress  (§5.4)
+  -> any project-wide operation in inflight.ops            -> in_progress  (§5.4)
+  -> drop subjects exempt in exemptions.json — after the
+     freshness guard, so a pending exemption change still
+     holds its subject                                       (§6.8)
+  -> read agreements/active.json
   -> map subjects to shards, fetch each distinct shard once   (D9)
   -> for each subject: row = shard[user_id][agreement_id]
-        if row.pending_effective_at and now >= it:
-              the pending version is operative              (§6.5)
         row.decision == "covered"                          -> ok
-        AND this repository ∈ row.scope                    -> ok
+        AND row.version ∈ active.accepted_versions          -> ok  (§6.5)
      any subject failing either test  -> failure / action_required
   -> all subjects ok -> success
 ```
 
-**Scope is evaluated, not merely recorded.** `REQ-CONFIG-3` requires the
-effective scope to be captured with every acceptance, and both the event and
-the shard row carry it — but a check that never compares the pull request's
-repository against that scope leaves the requirement unimplemented. Widening a
-project's scope would otherwise make contributors instantly "covered" for
-repositories they never agreed to. Coverage is evaluated against the scope
-**recorded with the acceptance**, so a scope expansion does not retroactively
-extend consent; §6.5 handles re-consent for scope changes the same way it
-handles substantive version changes.
+**One agreement per project, in v1.** A project has one CLA; change arrives
+as *versions* of it (§6.5), not as a second agreement. The check therefore
+evaluates each subject against exactly the agreement named by
+`agreements/active.json`. The `(user_id, agreement_id)` keying and the event
+schema deliberately reserve room for more than one — entity and corporate
+agreements are the anticipated case, and they are *alternatives* to the
+individual one, not conjuncts — but how several agreements combine is a rule
+this design defers along with entity support (`REQ-CONFIG-4`, §13) rather than
+one the enforcement gate should improvise.
+
+**Enforcement scope is routing, not signer evidence.** `REQ-CONFIG-3` decides
+whether this repository is routed to the project before this flow starts.
+Acceptances do not copy that configuration, and changing it neither changes the
+legal grant nor triggers re-consent. The agreement text is the only source of
+legal scope; DraCLA does not interpret it.
 
 **Any bound fails closed.** `REQ-CHECK-2` requires every commit to be
 evaluated, and the GitHub pull request commits endpoint truncates at 250
@@ -616,8 +755,11 @@ from the §9 CPU budget, or the API limit — the result is *action required*, n
 a pass on a partially enumerated subject set.
 
 Public surfaces disclose only *CLA satisfied*, *action required*, or
-*temporarily unavailable*. Exact reasons appear only in the authenticated
-portal (`REQ-CHECK-1`, `REQ-PORTAL-3`, `REQ-PORTAL-5`).
+*temporarily unavailable*. Detail follows the explicit tiers in
+`REQ-PORTAL-6`. The sole extra public sentence is §7's repository-local
+conflict message: the repository is covered by more than one CLA project and
+an administrator must resolve it. It never names a matching project or scope
+entry or exposes signer status or private configuration.
 
 **Exemptions are consulted here.** `REQ-CHECK-2` allows project configuration to
 exempt non-human accounts. Exemption events materialize into `exemptions.json`
@@ -649,14 +791,22 @@ already entitled to see:
 | Viewer | Sees |
 |---|---|
 | Anyone authenticated | Their own subject status in this pull request, and nothing about others |
-| Write access on the contributing repo | Aggregate only: counts by reason — *n* uncovered, *n* unresolved identity, *n* awaiting activation |
+| Write access on the contributing repo | Aggregate only: counts by reason — *n* uncovered, *n* unresolved identity, *n* on an insufficient agreement version |
 | Read access on the records repo (`REQ-SEC-6`) | Named subjects and per-subject reasons |
 
 The middle row is what makes the result actionable for a maintainer without
 becoming a per-user lookup: a maintainer learns *what to do* (ask the
 contributor to sign, or issue an override) without learning any specific
 person's CLA status. Naming subjects requires the same authorization as the
-dashboard, because it is the same disclosure.
+dashboard, because it is the same disclosure. Even that tier shows only GitHub
+numeric IDs and login snapshots with coverage reasons; legal names, email
+addresses, signer fields, and raw evidence never appear in a pull-request view.
+
+For a private contributing repository, `worker-portal` cannot check the middle
+row with its records credential. It asks `worker-enforce` for a signed yes/no
+permission result bound to the viewer, repository, and short expiry. No token
+crosses the boundary, and the response carries no repository data beyond that
+authorization bit. This preserves D3 while making the tier implementable.
 
 #### 6.3.1 Co-authored-by trailers do not block
 
@@ -718,11 +868,11 @@ author a commit as `<TARGET_ID+x@users.noreply.github.com>` still makes that use
 a subject and still reads their coverage off the public check state. This cannot
 be removed while the check remains useful, because the check's whole purpose is
 to publish a boolean about a subject set the pull request author influences.
-Mitigations bound it: per-account and per-IP rate limiting on check creation for
-pull requests whose opener is not the sole subject, no reason detail on any
-public surface, and the fact that forged authorship is visible in the commit list
-and blocked by signed-commit rules. Stated as residual rather than claimed
-met.
+Mitigations bound it: counters keyed by the GitHub identity of the pull-request
+opener and by project, no reason detail on any public surface, and the fact that
+forged authorship is visible in the commit list and blocked by signed-commit
+rules. DraCLA has no IP-based rate-limit logic. The oracle remains residual
+risk rather than a claimed closure.
 
 **Concurrent evaluations are conditioned on the head SHA.** Two `synchronize`
 deliveries for the same pull request can race, and a late-completing stale
@@ -734,9 +884,11 @@ sitting on a covered pull request with nothing to re-trigger it.
 ### 6.4 Authoritative merge-group check (`REQ-CHECK-3`)
 
 On `merge_group.checks_requested`, the enforcer re-resolves subjects for the
-merge candidate, applies the freshness guard (§5.4), and reports on the
-merge-group commit. This result — not the ordinary PR check — is the CLA
-decision for landing. The PR check is documented as early feedback only.
+merge candidate, applies the freshness guard (§5.4), evaluates coverage exactly
+as §6.3 — exemptions, active-version currency, and enforcement routing included
+— and reports on the merge-group commit. This result — not the ordinary PR
+check — is the CLA decision for landing. The PR check is documented as early
+feedback only.
 
 **Subject resolution must map back to pull requests.** `REQ-CHECK-3` requires
 evaluating "the merge candidate's current pull requests **and** commits", and a
@@ -776,67 +928,79 @@ constrains everyone except principals the repository's own rules exempt.
 
 ### 6.5 Agreement activation (`REQ-AGR-1`, `REQ-AGR-2`, D10)
 
-**Publishing and activating are separate acts.** Publishing records an immutable
-version — content, digest, commit OID, scope — and invalidates nothing.
-Activating makes a version the one contributors must have accepted. A project
-correcting a typo publishes the corrected version and simply does not activate
-it, which resolves the editorial case with no flag and no amendment. The
-`supersedes_coverage` flag (D10) therefore governs only what an *activation*
-does to prior acceptances:
+**An agreement is published by reference, and snapshotted.** `REQ-AGR-1` asks
+for "the exact agreement content **or an immutable content reference**", and the
+reference is the better primitive: the project keeps its legal document where it
+already lives — a file at a commit SHA in its own repository, or a gist revision
+— and DraCLA records a pointer to it rather than becoming its custodian.
 
-- `supersedes_coverage: true` — every prior acceptance stops providing coverage
-  at the effective time; contributors must re-sign.
-- `supersedes_coverage: false` — prior acceptances continue to provide coverage.
+```
+publish:
+  fetch the immutable ref     github.com/acme/acme/blob/<sha>/ICLA.md
+  compute and verify digest
+  commit agreement_published  { ref, digest, content_commit_oid,
+                                recipient, published_at }
+  snapshot the text           agreements/icla/v3.md
+```
 
-DraCLA never inspects agreement text to decide which applies; the project
-declares it on the `agreement_activated` event, consistent with `REQ-AGR-4`.
+Each of the three does a distinct job:
 
-**The flag lives in the event, not in `v3.meta.json`.** A coverage-determining
-input sitting in a mutable file that the content digest does not cover would let
-someone retroactively change who is covered, with no attribution and no
-append-only guarantee — undermining `REQ-AGR-1`'s immutability. The `agreements/`
-tree is a convenience for human reading; the events are canonical.
+| | |
+|---|---|
+| **ref** | Provenance. Immutability is content-addressed, so the pointer cannot drift, and anyone can verify the snapshot against the original. |
+| **snapshot** | Durability. A gist or repository can be deleted; a legal record that then points at nothing fails `REQ-REC-5`'s requirement that records be readable without DraCLA. This is where a pointer-only design — CLA Assistant's, for instance — leaves a gap. |
+| **digest** | Binding. A later force-push at the source becomes detectable rather than silent. |
 
-**Currency rule.** A subject is current for agreement `A` if their accepted
-version is the active version, **or** no activation carrying
-`supersedes_coverage: true` has taken effect since their accepted version was
-active. This is the rule the reconciler and the Worker apply when computing
-`decision` (§5.3); stating it matters because a v1→v2 editorial→v3 substantive
-→v4 editorial chain is otherwise readable two ways.
+The snapshot lands in the adopter's own records repository (D4, D4a), so custody is
+unchanged: DraCLA writes it, the adopter owns it. Unlike signer data, the
+agreement is public by construction — `REQ-AGR-3` requires contributors to read
+it *before* authenticating — so there is no confidentiality reason to route it
+around the portal. §6.6's agreement endpoint already serves it unauthenticated.
 
-**Staged activation.** An activation may carry a future `effective_at`. Between
-publication and that time the portal shows affected contributors what is coming
-and lets them sign early — recorded in `pending_version` /
-`pending_effective_at` (§5.3), so an early signer is neither treated as
-uncovered before the flip nor as still-covered under the old version after it.
+**Publishing and activating are separate acts.** Publishing records an
+immutable version — recipient, reference, digest, content commit OID, and
+snapshot — and invalidates nothing. The OID is the `<sha>` the reference names,
+recorded as its own field because `REQ-REC-4` requires it alongside the digest
+(§5.1); a reader must not have to parse it out of a URL. Any number of versions
+may be published, but the portal offers none of them for signing until one is
+active.
 
-**The flip needs no scheduler.** Nothing in the Worker or the push-driven
-reconciler fires at a time, and relying on a periodic job would leave a window
-between `effective_at` passing and the shards being rewritten in which
-contributors still pass under a superseded agreement — a `REQ-AGR-2` violation,
-not merely staleness.
+Activation is immediate and selects exactly one active, signable version. Its
+append-only event carries `supersedes_coverage`:
 
-The row already carries `pending_version` and `pending_effective_at` (§5.3), so
-the enforcer closes the window itself: if `now >= pending_effective_at`, the
-pending version is the operative one. That is a timestamp comparison, not a rule
-engine, so it does not breach the thin-edge rule of §9 — the decision was still
-precomputed, the edge only observes that it has come due.
+- `true` replaces `accepted_versions` with only the newly active version;
+  contributors with older acceptances must re-sign.
+- `false` adds the newly active version to the existing `accepted_versions`
+  set. It preserves acceptances that were current immediately before the
+  activation, but cannot revive a version removed by an earlier superseding
+  activation.
 
-The reconciler rewrites the shards to match on its next run, which is
-housekeeping rather than the mechanism. Activation still opens an in-flight
-marker covering the affected subjects, so a partially applied rewrite fails
-closed rather than passing half of them.
+The flag lives in the event, not in `v3.meta.json`. DraCLA never inspects
+agreement text to choose it. The `agreements/` tree is a convenience for human
+reading; the events are canonical.
 
-**Scope changes follow the same path.** Widening or narrowing project scope is
-coverage-affecting in exactly the way a version change is, and §6.3 evaluates
-against the scope recorded with each acceptance. A scope change is therefore an
-activation too: `supersedes_coverage: true` if re-consent is required, otherwise
-prior acceptances keep their recorded scope and the new repositories are simply
-uncovered until contributors sign.
+**The transition uses the ordinary freshness guard and is O(1).** The portal:
 
-A blanket grace period was rejected: it lets contributions land under an
-agreement the project has already replaced, which is the outcome versioned
-agreements exist to prevent.
+1. validates that the version is published and the actor is authorized;
+2. opens a project-wide entry in `inflight.json`;
+3. appends `agreement_activated` to canonical;
+4. updates `agreements/active.json` by compare-and-swap and advances
+   `source.json` to the canonical commit; and
+5. closes the marker.
+
+While the marker is open, every check for the project is indeterminate and
+cannot pass. A crash after the canonical append is completed by replay; a crash
+before it is cleared as an orphan. No subject shard is rewritten, no scheduler
+is involved, and there is no pending or early-signature state.
+
+The contributor page reads the canonical active version. A project with no
+activation has no signable agreement. A published inactive version has no
+signing route, so a contributor cannot accept an agreement before it is active.
+
+**Enforcement-scope activation is not agreement activation.** A scope change
+uses the requested/activated publication protocol in §7 after the required
+owner authorization. It decides where DraCLA checks run; it does not change
+agreement version currency, alter a legal grant, or require re-consent.
 
 ### 6.6 Dashboard and exports (`REQ-DASH-1..5`, `REQ-REC-5`)
 
@@ -852,7 +1016,7 @@ agreement, carrying only what the mandated filters need:
 
 ```
 github_user_id, login_snapshot, login_as_of,
-agreement_id, version, scope,
+agreement_id, version, enforcement_scope,
 status: current | exempt | revoked | superseded | indeterminate,
 accepted_at, revoked_at
 ```
@@ -902,8 +1066,11 @@ The pull request surface is a **comment posted by `dracla-enforcer`**, which is
 why that App needs `pull_requests: write` (§4). It carries one of the three
 generic states, the same fixed string table as the check output (§6.3), and a
 link to the authenticated portal. It encodes no coverage detail, no subject
-identity, and no subject count (`REQ-PORTAL-3`, `REQ-PORTAL-5`). The comment is
-updated in place rather than appended, so a pull request accumulates one.
+identity, and no subject count (`REQ-PORTAL-3`, `REQ-PORTAL-5`). The only
+exception is the bounded multiple-project conflict sentence from §7; the
+comment still reveals none of the matching project identifiers or entries. The
+comment is updated in place rather than appended, so a pull request accumulates
+one.
 
 **Wording rules** (`REQ-PORTAL-4`). Every state is legible from text alone —
 colour is never the only signal, and each badge carries its state in its alt
@@ -919,24 +1086,48 @@ Every administrative action is an append-only event with an `actor`, authorized
 the same way and through the same portal — there is no separate admin console
 and no source-code edit, which `REQ-OPS-4` requires.
 
-| Action | Event | Effect |
-|---|---|---|
-| Publish a version | `agreement_published` | Preserves an immutable version; invalidates nothing |
-| Activate a version | `agreement_activated` | Sets the required version; `supersedes_coverage` decides re-signing (§6.5) |
-| Change scope | `agreement_activated` | Same path; scope is coverage-affecting (§6.5) |
-| Exempt a non-human account | `exemption` (`kind: bot`) | Materializes to `exemptions.json`; consulted by §6.3 |
-| Exempt a human account | `exemption` (`kind: human`) | Same, plus a recorded basis and instrument reference — see below |
-| Withdraw an exemption | `exemption_revoked` | Append-only; the original is preserved |
-| Override a check | `override` | Keyed `(pr_number, subject_user_id, tree_digest)` (§6.4) |
-| Edit project config | `config_updated` | Required fields, privacy policy, retention text (resolved YAML, §6.9) |
+| Action | Event | Minimum live authorization | Effect |
+|---|---|---|---|
+| Connect a project or explicit successor | `project_connected` | `admin` on records; GitHub authorizes configuring every bound App installation | Records immutable project and recipient identity, plus `successor_of` when applicable |
+| Publish a version | `agreement_published` | `admin` on records | Records the immutable recipient, reference, digest, and snapshot (§6.5) |
+| Activate a version | `agreement_activated` | `admin` on records | Selects the active signable version immediately; `supersedes_coverage` decides currency (§6.5) |
+| Bind, widen, narrow, or remove a repository scope | `enforcement_scope_requested`, then `enforcement_scope_activated` | `admin` on that contributing repository | Publishes one reconciled routing generation; evidence is preserved (§7) |
+| Bind, widen, narrow, or remove an organization selector | `enforcement_scope_requested`, then `enforcement_scope_activated` | owner of that organization | Publishes one reconciled routing generation; evidence is preserved (§7) |
+| Inspect a multiple-project conflict | none (read-only) | `admin` on the affected contributing repository | Shows only the affected repository, matching project IDs and scope entries, and required resolution authorities (§7) |
+| Exempt a non-human account | `exemption` (`kind: bot`) | `admin` on records | Materializes to `exemptions.json`; consulted by §6.3 |
+| Exempt a human account | `exemption` (`kind: human`) | `admin` on records | Same, plus a recorded basis and instrument reference — see below |
+| Withdraw an exemption | `exemption_revoked` | `admin` on records | Append-only; the original is preserved |
+| Override a check | `override` | `maintain` on contributing repository | Keyed `(pr_number, subject_user_id, tree_digest)` (§6.4) |
+| Request administrative retry | `retry_requested` | `write` on contributing repository | Re-evaluates only the named pull request or merge group |
+| Edit project config | `config_updated` | `admin` on records | Required fields, privacy policy, retention text (resolved YAML, §6.9) |
 
-**Authorization is concrete**, where §8.1 #5 previously said only "a separate
-check". The actor must currently hold **admin** permission on the canonical
-records repository, verified per request with a **user-to-server** token via
-`GET /repos/{owner}/{repo}` and inspecting `permissions.admin` — never with the
-installation token, which would answer unconditionally. `REQ-SEC-6`'s currency
-rule applies, so this is re-verified at the moment of the action rather than
-read from the session.
+**Authorization is action-specific.** Records-side actions use the actor's
+user-to-server token to check the resource and minimum permission in the table,
+never the records installation token that would answer for the App itself. The
+event records stable numeric actor ID, login snapshot, exact operation,
+resource, required authority, observed authorization result or evidence, and
+check time. Authorization is rechecked when the action occurs; a session or
+permission on another project is not enough. Read-only conflict inspection is
+authorized separately and grants neither mutation nor signer-record access.
+Install and repository-scoped credential rotation use the administrator's own
+credentials and require `admin` on every affected repository. App operations
+use whatever exact authorization GitHub currently requires for that operation
+rather than an invented uniform installation permission (§6.10).
+
+Narrowing or removing scope never removes acceptance, revocation, agreement, or
+administrative evidence. It records the authorized request before staging and
+records activation before the prepared routing generation can pass a check.
+Every later resolution mutation is checked independently; permission to inspect
+a conflict is not permission to resolve it.
+
+The records App cannot inspect a private contributing repository. For a
+contributing-side row, `worker-portal` sends the authenticated numeric user
+identity and requested resource to `worker-enforce` over the
+service-authenticated boundary. The enforcer uses its installation's repository
+permission or organization-membership endpoint and returns the resource, exact
+operation, required authority, observed result or evidence, and check time. No
+user or installation token crosses the boundary; the records event stores that
+result as authorization evidence.
 
 **Human exemptions carry an asserted basis.** Exempting a bot is a statement
 about identity plumbing — the account holds no authorship claim and the work
@@ -975,19 +1166,33 @@ Python, distributed on PyPI, run without installation:
 
     uvx dracla install
 
-The CLI is not merely an installer. It is the configuration and reporting
-surface, and it reads the canonical repository **directly**, with the
+The CLI is not merely an installer. It is the reporting surface, and it reads
+the canonical repository **directly**, with the
 maintainer's own credentials and no DraCLA service in the path:
 
-| Command | Purpose |
-|---|---|
-| `dracla install` | Provision the repo pair, seed config, agreement, reconcile workflow, coverage deploy key (§9) |
-| `dracla config` | Required signer fields, confirmation labels, agreement, scope, recipient |
-| `dracla publish` / `dracla activate` | Agreement lifecycle (§6.5) |
-| `dracla status <user>` | Coverage for one contributor |
-| `dracla export --json --csv` | Portable formats (`REQ-REC-5`) |
-| `dracla verify` | Replay canonical locally and check the projection matches |
-| `dracla audit <pr>` | Why a check decided what it did |
+**The CLI provisions and reports. It does not administer.**
+
+| Command | Purpose | Status |
+|---|---|---|
+| `dracla install github.org=<org>` | Provision the repo pair and the workflow. One override; everything else is configured in the portal (§6.10.3) | designed — implementation removed pending this redesign |
+| `dracla config show` | Print the resolved configuration the portal wrote | designed |
+| `dracla status <user>` | Coverage for one contributor | designed |
+| `dracla export --json --csv` | Portable formats (`REQ-REC-5`) | designed |
+| `dracla reconcile` / `dracla verify` | Replay canonical and check the projection matches | designed — M2 |
+| `dracla audit <pr>` | Why a check decided what it did | designed |
+| `dracla rotate-key` | Replace the coverage deploy key (§6.10.2) | designed |
+
+**Agreements are managed in the portal, not here** (§6.8). Publishing and
+activating a version are attributable events, and the portal is where
+authorization is checked live against current GitHub permissions
+(`REQ-SEC-6`) and an `actor` is recorded. A CLI running under a personal access
+token is a weaker attribution story for an act with legal weight, and §6.8
+already states there is no separate admin console. A CLI surface for agreements
+may follow if there is demand; it is not the first-class path.
+
+Only `install` is specified here. A first attempt was implemented without
+§6.10 and removed after review rather than patched; its reimplementation
+follows this design.
 
 Two things this buys beyond convenience. `REQ-REC-5` requires records to be
 readable **without** DraCLA; a CLI that reads the repository directly is the
@@ -1007,9 +1212,6 @@ a single organization may hold several repo pairs — one per legal recipient
 dracla status --all              coverage across every project in the workspace
 dracla export --all              one export per project, or a merged view
 dracla verify --all              replay and check every projection
-dracla publish icla@v4 --recipients acme-foundation
-                                 roll an agreement across the projects that
-                                 share a recipient
 ```
 
 The workspace is a local file listing the projects the maintainer administers.
@@ -1024,35 +1226,443 @@ because the maintainer holds credentials for each project, whereas a federated
 hosted view would mean one surface aggregating several projects' signer PII.
 
 **Config composition.** Those projects share almost everything and differ in
-recipient, agreement, and scope. The CLI composes their configurations with
+recipient, agreement, and enforcement scope. The CLI composes their configurations with
 [Hydra](https://hydra.cc) on the 1.4 development line, so a base configuration
 is defined once and each recipient is an override rather than a copy — which is
 where composition starts paying for itself rather than being ceremony over a
 single file. Hydra 1.4 sets the floor at Python 3.10 for the CLI; `core` has no
 such constraint, since it depends on nothing.
 
-**Composition stays on the client.** The administrator authors YAML and Hydra
-composes it locally; `dracla config` then writes the **resolved** result to
-`config/project.json`. What is committed is therefore inert: no `defaults:`, no
-`${...}` interpolation, no config-group references, and no dependency on the
+**Composition stays on the client.** Hydra composes the CLI's *own*
+configuration locally (§6.10.3), and whatever reaches `core` is a resolved plain
+dict. `config/project.json` is materialized by the portal from the initial
+`project_connected` event and later `config_updated` events (§6.8), not by the
+CLI — but the same rule governs it: what is committed is inert. No `defaults:`,
+no `${...}` interpolation, no config-group references, and no dependency on the
 composition engine to know what it says.
 
 JSON for the committed artifact because it is machine-consumed — the Worker
 serves the agreement and required fields from it (§6.6) and parses it natively.
-Human readability is the CLI's job (`dracla config show`), not the wire
-format's; that is precisely what D12 makes the CLI for.
+Human readability is `dracla config show`'s job, not the wire format's; that is
+precisely what D12 makes the CLI for. It reads that file — it does not write it.
 
 Canonical **events** are JSON for the same reason (§5.1): machine-written,
 machine-read, and the format an external reader parses.
 
 **Agreement and config delivery.** The portal is static and the agreement,
-recipient, scope, required fields, and confirmation labels live in the private
-canonical repo. A read-only Worker endpoint serves them with the records
-installation token, without requiring login — `REQ-AGR-3` requires the agreement
-be readable before acceptance. It is cached at the edge keyed by
+immutable recipient, required fields, and confirmation labels live in the
+private canonical repo. Enforcement scope is routing configuration and is not
+presented as part of the grant. A read-only Worker endpoint serves the signing
+payload with the records installation token, without requiring login —
+`REQ-AGR-3` requires the agreement be readable before acceptance. It is cached at the edge keyed by
 `(project, agreement_version)`, which is safe because the payload is
 project-public by construction and contains no signer data. Its traffic belongs
 in the A3 envelope.
+
+---
+
+### 6.10 `dracla install` (design before implementation)
+
+A first implementation of this command was written without this section and
+removed after review. Four of its defects were decisions absent from the design
+rather than mistakes in code, so those are decided here first.
+
+#### 6.10.1 Branch layout
+
+**`events` is the records repository's default branch.** In steady state it
+holds `config/project.json`, `agreements/`, `events/`, and
+`.github/workflows/` — everything the reconciler reads. At install time it holds
+the README and the workflow: there are no events yet, no agreement, and no
+configuration, because install publishes none of them (§6.10.3).
+
+`auto_init` creates the owner-configured default branch, whose name DraCLA does
+not control. Install creates the repository empty, uses the Contents API to
+create the mandatory README root commit on GitHub's initial default branch,
+reads that branch name, and immediately renames it to `events`. An earlier
+design claimed the Git references API could make `events` the first ref of an
+empty repository; GitHub does not permit creating that first ref directly.
+
+This is forced rather than chosen. GitHub reads a `push:` workflow from the
+branch being pushed, but runs `schedule:` workflows only from the *default*
+branch. §5.4 requires the reconciler to fire on both — on each event, and daily
+for orphan clearing. A workflow satisfying both can therefore live on only one
+branch, and that branch must be the default.
+
+It also keeps `REQ-REC-3`'s one-logical-event-per-commit rule intact rather than
+straining it, because project connection, configuration changes, and agreement
+changes *are* events (`project_connected`, `config_updated`,
+`agreement_published`, `agreement_activated`, §6.8). The only commits that are
+not events are the branch's bootstrap, whose mandatory root
+contains the README and whose second commit seeds the workflow before any event
+(§6.10.3.1). Baseline revision 4 requires that README root and has consumers
+identify events by recorded path. It is invisible to
+replay by construction: events are identified by their `events/**` paths in
+the tree (§5.1), never by commit position, so nothing that reads the record
+needs to distinguish bootstrap commits from anything.
+
+`derived/` (index and exports) stays on a **separate branch**, so regenerating
+it never appends non-event commits to canonical ancestry.
+
+| Branch | Holds | Written by |
+|---|---|---|
+| `events` (default) | README | `dracla install` — first bootstrap commit (§6.10.3.1) |
+| | workflow | `dracla install` — second bootstrap commit |
+| | config | the portal, from `project_connected` and `config_updated` events (§6.8, §6.10.3) |
+| | agreements | the portal — the `agreement_published` event and its snapshot (§6.5, §6.8) |
+| | events | the signing path (§5.4) |
+| `derived` | index, JSON and CSV exports | the reconciler |
+
+#### 6.10.2 The coverage deploy key
+
+The reconciler runs in canonical and must write the projection in coverage. A
+deploy key is the right credential because it is per-repository by construction:
+it can write that one repository and nothing else.
+
+| | |
+|---|---|
+| Generated by | the CLI, on the administrator's machine, never leaving it except as below |
+| Public half | added to the **coverage** repository as a write-capable deploy key |
+| Private half | stored as an Actions secret on the **canonical** repository |
+| Verification manifest | canonical stores a non-secret generation id, public-key fingerprint, deploy-key id, and `created_at` in `.dracla/coverage-key.json`; it is written only after the stored private half succeeds at a challenge write |
+| Rotation | `dracla rotate-key` adds a successor, updates the Actions secret, completes and verifies a challenge write, records the successor manifest, then deletes the predecessor; the manifest timestamp enforces the policy window (§8.1.2) |
+| Re-install | compares the titled public key with the manifest and dispatches the same challenge using the unreadable Actions secret; a missing manifest, mismatched public half, or failed or unverifiable challenge forces rotation rather than trusting secret metadata |
+
+Storing the private half in canonical's Actions secrets is repository
+*settings*, not repository *contents*, so `REQ-SEC-4`'s prohibition on secrets
+in records repositories is not breached. That distinction is deliberate and is
+recorded in §8.1.2.
+
+**Install must not seed a workflow it cannot satisfy, or a credential nothing
+uses.** Until `dracla reconcile` exists (M2), install seeds a placeholder
+workflow that states its own absence and creates **no** deploy key. A workflow
+invoking a subcommand that does not exist is worse than no workflow, because it
+reports failure on the first signature rather than at install time; and a
+write-capable deploy key that nothing consumes is a live credential with no
+purpose. Both arrive together in M2, when `dracla install` re-run on an existing
+pair upgrades the workflow and provisions the key.
+
+#### 6.10.3 What install collects, and what it does not
+
+**One org, one pair, one override.**
+
+```
+dracla install github.org=hydra-ecosystem-cla
+```
+
+`github.org` names the **dedicated** organization (§6.10.4), not the one holding
+the project's code.
+
+Hydra-style `key=value` rather than a positional argument or a flag, uniform
+with the rest of the CLI. That is not decoration: it is what makes the deferred
+second-recipient case a *value* rather than a syntax change.
+
+```
+dracla install github.org=hydra-ecosystem-cla                v1
+dracla install github.org=foundation-cla recipient.slug=projx    later, additive
+```
+
+Install's inputs are overrides onto a small config tree, of which exactly one
+key is required today:
+
+```yaml
+github:
+  org: ???                                   # required; the DEDICATED org
+recipient:
+  slug: ${dracla_recipient:${github.org}}    # org minus a trailing -cla
+```
+
+`???` rather than a value: there is no sensible default for which organization
+gets the repositories, so it is reported as missing rather than guessed. The
+slug goes through a resolver rather than a plain `${github.org}` interpolation
+because a plain one performs no strip, which is what produced
+`acme-cla-cla-records`.
+
+The repositories are `<recipient.slug>-cla-records` and
+`<recipient.slug>-cla-coverage`.
+
+**The prefix is the recipient slug, defaulted from the organization name with a
+trailing `-cla` removed.** The organization is the dedicated one (§6.10.4), so it
+is conventionally `<project>-cla`; the recipient is `<project>`. Without the
+strip, `github.org=acme-cla` would produce `acme-cla-cla-records`, doubling a
+word the organization name already carries. The strip affects only the
+*default* — an explicit `recipient.slug` is taken as given. The suffix is matched
+case-insensitively, because GitHub logins are: `ACME-CLA` and `acme-cla` name the
+same organization and must not produce different repository names.
+
+The strip is one suffix, not a loop, and does not apply when nothing precedes it.
+An organization named exactly `cla` keeps its slug, and `foo-cla-cla` yields
+`foo-cla` — both still produce a doubled word. Neither is worth more machinery:
+the rule exists for the conventional `<project>-cla` shape, and anything else is
+one explicit `recipient.slug` away from whatever the adopter wants.
+
+It is not a disambiguation device that happens to look like one — it is §5.5's
+naming rule with the slug defaulted, which is why overriding `recipient.slug` is
+the whole of what a second recipient needs:
+
+```
+github.org=hydra-ecosystem-cla
+  hydra-ecosystem-cla/hydra-ecosystem-cla-records    v1 — slug defaulted
+  hydra-ecosystem-cla/projx-cla-records              later — explicit slug
+```
+
+No migration, no rename, no inconsistent second case. Deferring multiple
+recipients costs nothing later precisely because the naming never assumed one.
+It also reads correctly in a local clone directory or a cross-organization
+listing, which `cla-records` would not.
+
+Install collects only what requires the administrator's own credentials and
+therefore cannot be deferred: **where to create the repositories**. Everything
+else is project configuration, and the portal is a better place for all of it:
+
+| Deferred to the portal | Why |
+|---|---|
+| Recipient legal name | `REQ-CONFIG-2` data, recorded in the initial `project_connected` event with an `actor` — stronger provenance than a command-line flag, the same argument that moved agreements (§6.5) |
+| Enforcement scope | The portal can list the organization's repositories to tick, rather than having the operator type them and hope |
+| Privacy policy URL | `REQ-SEC-3` needs it before *signing*, not before provisioning |
+| Required fields, confirmation labels | Form design, validated live |
+| Retention statement | A paragraph of prose; a text area, not a shell argument |
+| Agreement | Published by reference in the portal (§6.5) |
+
+**Install therefore writes no `config/project.json`.** The absence of a
+`project_connected` event is how the portal recognizes a repository as
+provisioned-but-unconfigured, so no stub is needed — and the recipient's
+immutability (§5.5) begins at that event rather than at a flag someone typed
+once.
+
+**One recipient per organization, for now.** §5.5 permits several when the legal
+recipient differs; v1 provisions one and defaults its slug from the organization
+name. The case is deferred rather than dropped, and deferring it is free: both
+the naming rule and the routing layer key on the recipient slug, so the second
+one is a new value, not a new shape.
+
+#### 6.10.3.1 Sequence
+
+Install is **idempotent and re-runnable**; a partial run is the expected failure
+and re-running is the recovery. It is not transactional — GitHub offers no way
+to make it so — so each step is individually safe to repeat, and the order puts
+the cheapest failures first.
+
+```
+1. preflight the organization        may block (6.10.4)
+2. confirm with the operator         unless force=true or dry_run=true
+3. create both repositories EMPTY    auto_init: false; read back to verify
+                                     both are private
+4. PUT the records README via the    creates GitHub's initial default branch
+   Contents API                      and the mandatory root commit
+5. read and rename that branch       Branch Rename API -> `events`; verify it
+                                     is now the default branch
+6. seed the workflow                 idempotent; identical content is skipped
+7. initialize the coverage           its own `coverage` branch: README,
+   projection                        source.json, inflight.json,
+                                     agreements/active.json
+                                     (§5.3) — each seeded only when absent, so
+                                     live state is never overwritten
+8. print the two App install links
+```
+
+**Reuse requires provenance, per repository.** Re-running finishes only a
+repository this command made: the records repository must carry its `events`
+branch rooted at the DraCLA genesis README, and the coverage repository its
+`coverage` branch likewise — the branch install creates first, holding the
+file it writes first. A name collision without that — whatever branches it
+has — is refused, because a branch merely *named* `events` is not provenance
+and the repository's existing collaborators would be able to read signer data.
+
+**Why empty rather than `auto_init`.** `auto_init` hides the provenance and
+content of the root commit behind repository creation. Starting empty lets
+install make the exact mandatory README root itself. GitHub still chooses the
+initial branch name, so install reads and renames that branch rather than
+assuming `main` or trying to create an impossible first Git ref.
+
+**Bootstrapping needs the Contents API plus Branch Rename, not the Git Data
+API.** GitHub's Git references endpoint cannot create the first branch in an
+empty repository. `PUT /contents/README.md` initializes the repository with the
+required root commit; install then reads the created default branch and renames
+it to `events` through the branch rename endpoint. Subsequent commits use the
+Git Data API.
+
+A consequence: the Contents API writes one path per commit, so the branch begins
+with two bootstrap commits rather than one — the README, then the workflow.
+Both carry no events, and `REQ-REC-3`'s one-logical-event-per-commit rule
+applies to the events that follow them.
+
+**Install does not write the registry entry.** The registry lives in DraCLA's
+own organization (§7), and the CLI runs as the adopting administrator, who has
+neither the credentials nor any business writing there.
+
+The entry is written when the administrator **connects** in the portal — an
+explicit act, not a side effect of installing an App:
+
+```
+1. dracla install github.org=acme-cla    repos exist, owned by the adopter
+2. install the two Apps                  GitHub consent; the Setup URL callback
+                                         stores nothing and only directs the
+                                         administrator to Connect
+3. portal: Connect                       the administrator authenticates,
+                                         DraCLA verifies they administer the
+                                         org the slug names, the org holding
+                                         the records, and the owner of every
+                                         enforcement-scope entry (§7), and that both Apps
+                                         are installed on repositories of the
+                                         right shape, then writes the entry
+                                         with a binding record per enforcement-scope
+                                         entry (§7)
+4. same session: configure               recipient, enforcement scope, privacy
+                                         policy, required fields; publish any
+                                         agreement versions, then activate one
+                                         when it should become signable (§6.5)
+```
+
+Making this deliberate rather than automatic is what allows the slug claim of §7
+to be verified at all. An entry created as a side effect of an App installation
+cannot establish that whoever claimed `acme` administers `acme`, which is the
+look-alike-portal attack §7 exists to prevent. A connect step can, because there
+is an authenticated human whose organization permissions can be checked.
+
+The install links carry no token, and the callback is trusted for nothing.
+GitHub documents that its `installation_id` can be spoofed, so the callback
+does not persist it. Connect independently lists the authenticated
+administrator's installations from GitHub and verifies them there; an App
+installed straight from its GitHub page — no CLI-printed link involved —
+connects identically.
+
+R5's "registry entry written last" therefore still holds, and holds more
+strongly: the project is not routable until someone has proved they own it.
+
+**Install never produces a signable project, by design.** Configuration,
+agreement publication, and activation happen in the portal, so install finishes
+by directing the operator there rather than implying the project is ready. An earlier
+implementation exited successfully and printed a portal URL after provisioning
+nothing signable; separating the two operations removes that confusion rather
+than patching it.
+
+#### 6.10.4 Effective-reader boundary
+
+The requirement is about **who can actually read**, not whether GitHub labels a
+repository private. The default hosted shape provisions both repositories into
+an organization created for this purpose — `<org>-cla` by convention — because
+that makes the reader set small and auditable.
+
+```
+acme            the project: contributing repositories
+acme-cla        records and coverage, both private
+```
+
+GitHub base permissions are a **floor**: repository settings can raise a
+member's access and never lower it. An organization whose default is `read`
+therefore exposes signer evidence to every member. Base permission must be
+`none`, and that alone is not sufficient: every organization owner, team,
+outside collaborator, direct collaborator, and service principal that can read
+the records repository must be an authorized records reader or necessary
+records service principal.
+
+**Who belongs in it.** With the base permission at `none` (below), it is
+**ownership** of the dedicated organization that carries access, not membership:
+`default_repository_permission` governs what *members* get by default, while
+owners hold admin on every repository in the organization and that cannot be
+lowered. So the owner set is the access control that matters once install is
+done, and it should be the people who would use that evidence if the agreement
+were tested — the legal recipient (`REQ-CONFIG-2`), their counsel, and whoever
+administers agreement versions (§6.8) — not the project's maintainers by
+default. Being a committer is not a reason to see who signed and with what
+address, and `REQ-SEC-6` derives dashboard access from the ability to read the
+records repository, so the owner set is the **floor** of that permission — the
+part that cannot be lowered. It is not the whole of it: a team granted read
+(below) joins the same set, and with it the dashboard and §6.3's named-subject
+tier.
+
+**When more people need access than should be owners**, grant a team read on
+the records repository rather than adding owners or raising the base
+permission. Ownership carries administrative control of the whole organization,
+which is far more than reading signer data requires, and raising the base
+permission re-opens exactly what §6.10.4 exists to close. A team is the only one
+of the three that grants the access without granting anything else:
+
+```
+gh api -X PUT /orgs/<org>/teams/<team>/repos/<org>/<slug>-cla-records \
+  -f permission=pull
+```
+
+Install does not create that team. Who should read signer data is not a
+provisioning decision, and creating it would need permissions install otherwise
+has no use for.
+
+Install and the periodic verifier enumerate effective access, present every
+principal to the operator, and refuse until the operator records that all are
+authorized. A later new reader fails verification closed. A dedicated
+organization is the simple default, but an existing organization is conforming
+when it has base permission `none` and every unavoidable owner and reader is
+authorized.
+
+**Both repositories, not just records.** Keeping coverage in the project's
+primary organization is tempting — it would give the enforcer a single
+installation — but the coverage projection is a complete
+`user_id -> covered?` directory. Exposing it to every member of a large
+organization is a smaller leak than exposing names and emails, but it is the
+same kind, and `REQ-PORTAL-5` forbids exactly that lookup. "No signer-derived
+data in the permissive organization at all" is a cleaner invariant than "only
+the booleans leak".
+
+The cost is that `dracla-enforcer` spans two organizations — contributing
+repositories in one, coverage in the other — and therefore has two installation
+ids. §7 models installations as a set for this reason.
+
+**What install does about it**
+
+For an organization owner, install checks base permission, organization owners,
+and every effective repository reader. It refuses when base permission is not
+`none` or any reader is not authorized. There is no visibility-only override:
+
+```
+gh api -X PATCH /orgs/acme-cla -f default_repository_permission=none
+```
+
+A personal account is an accepted shape, not an exemption. A user account has
+no organization owners, membership, or base permission. The same verifier
+checks the owner and every collaborator on both private repositories; all must
+be authorized. The invariant is identical across personal, dedicated-org, and
+other-org custody shapes.
+
+**Encryption was considered and rejected.** Encrypting signer fields would hide
+them from members with `read`, and `REQ-SEC-2` permits it as an option. It fails
+on key custody. Any key must be unreachable by those members yet reachable by
+the reconciler, which runs unattended; Actions secrets satisfy both until the
+derived artifacts are considered, because `derived/export.json` and the
+dashboard index carry legal names and live in the same repository. Encrypting
+those too puts the key in the Worker, and in the hosted deployment that means
+the operator holds every adopter's key. Either the encryption is pointless or
+the custody is worse than what it replaced.
+
+Underneath: unattended automation cannot hold a secret away from whoever
+administers the machine it runs on, and a CLA system needs unattended replay.
+Key loss would also destroy records whose entire purpose is to remain provable
+years later — a failure mode that does not currently exist.
+
+#### 6.10.5 Module boundaries
+
+The removed implementation reached through `GitHubHost` into its private
+transport at six call sites, because the `GitHost` protocol (§5.2) models
+append-only records and says nothing about creating repositories or reading
+organization settings.
+
+Administration is therefore its own surface — repository creation, visibility,
+deploy keys, organization settings — separate from the records protocol and
+substitutable in tests. Nothing in the CLI mutates `sys.path`; `core` is a
+sibling package in the same distribution.
+
+#### 6.10.6 What the tests must cover
+
+The four blocking findings were all **seams**: modules individually plausible
+and never exercised together. The workflow template passed five tests while
+invoking a subcommand that did not exist. Unit coverage would not have caught
+any of them, so these properties are asserted across modules:
+
+- every `dracla` subcommand a generated artifact invokes is registered
+- `dry_run=true` issues no write of any kind
+- everything the reconciler reads is seeded on the branch it checks out
+- a created repository is read back and confirmed private
+- the organization gate blocks, and there is no override past it — including
+  under `dry_run` and `force`, neither of which is a way through it
 
 ---
 
@@ -1063,10 +1673,17 @@ One shared stateless deployment serves all projects; no function per project.
 ```
 dracla/dracla-registry            <- its own repository, not a monorepo dir
   project: acme
-    records:  acme/acme-cla-records
-    coverage: acme/acme-cla-coverage
-    scope:    acme/*, acme-labs/widget
-    installations: { records: …, enforcer: … }
+    records:  acme-cla/acme-cla-records      <- dedicated org (§6.10.4)
+    coverage: acme-cla/acme-cla-coverage
+    enforcement_scope:                       <- the CODE repos
+      - entry: acme/*
+        request_event: 8b8c…        # canonical request with actor and org-owner evidence
+      - entry: acme-labs/widget
+        request_event: 9c9d…        # canonical request with actor and repo-admin evidence
+    registry_generation: 42
+    installations:
+      records:  [ … ]        # a set, not one id — see below
+      enforcer: [ … ]
     claimed_by_org: acme
     claim_verified_at: 2026-08-18T…
 ```
@@ -1076,56 +1693,343 @@ directly: tokens cannot be path-scoped, so a credential able to write
 `registry/` inside the monorepo could also write `api/` and `core/` — making
 security-critical routing data writable by anything that can touch the
 codebase. It also must not be public, since it enumerates every adopter, their
-private repository names, scope, and installation ids. `CODEOWNERS` and required
-review apply to it.
+private repository names, enforcement scope, and installation ids.
 
-**Slug claims are verified and immutable.** A slug may only be claimed by an
-installer who administers the org it names, every org and repository in `scope`
-must be covered by that same installation, and claims are first-come and never
-transferred silently. Without this, self-serve install plus a user-chosen slug
+Human registry changes use pull requests with `CODEOWNERS` and required review.
+The one exception is the registry installation of `dracla-records`: branch
+rules explicitly allow only that App to bypass review for the portal's fixed,
+validated operations. Force pushes and branch deletion remain forbidden. The
+App necessarily has repository-wide `contents: write`, so review does not
+protect against compromise of that automated writer; the security boundary is
+its narrow API, live authorization checks, overlap validation, fast-forward
+compare-and-swap, and permanent canonical administrative event. A human pull
+request must reference the same kind of prior canonical request event. For an
+administrative mutation, registry sync may prepare that exact generation but
+refuses to publish it when the request is absent, describes different content,
+or lacks the matching canonical activation event. GitHub-side reconciliation
+generations follow §7.1's separate observation path because no administrator
+changed a selector. Thus human review protects human changes, while the
+automated path is explicitly trusted and audited rather than falsely claimed to
+have been reviewed.
+
+**Slug claims are verified and immutable, at connect time.** The claim is
+established when an administrator connects in the portal (§6.10.3.1), not as a
+side effect of installing an App — that is the only point at which there is an
+authenticated human whose organization permissions can be checked. A slug may
+only be claimed by someone who administers the organization it names — which is
+the **project's** organization, not the dedicated records one. The two are
+different (§6.10.4), and both are checked, for different reasons: the slug names
+the project because that is the name a contributor sees in a signing URL and so
+the name worth impersonating, while the dedicated organization is merely where
+the repositories were put. Claiming `acme` therefore requires administering
+`acme`, whatever the records live in.
+
+**What an enforcement-scope entry means.** An entry in a project's enforcement
+scope routes that repository's pull requests to this project — a repository in
+no project's enforcement scope receives no check at all — names this project's
+agreement as the one its contributors are asked to sign, and directs their signatures into this
+project's records repository. It grants the project no access to the
+repository: every permission comes from the enforcer installation, which the
+repository's organization controls and can restrict or remove. And it blocks
+nothing by itself — merges are gated only once that repository's own
+administrators make the check required. The current enforcement scope decides
+only which repositories are checked. It is not copied into acceptances and does
+not define or change the agreement's legal reach. An entry is therefore
+effective only where three consents meet:
+the organization installed the enforcer, a repository administrator or
+organization owner bound the applicable entry (below), and the repository's
+administrators required the check.
+
+**Enforcement scope is bound by the exact action matrix** (`REQ-CONFIG-5`,
+`REQ-SEC-6`). An entry is `owner/name` or `owner/*`; the owner segment is a
+literal account name, and anything else is rejected at write. Binding,
+widening, narrowing, or removing a repository entry requires current `admin`
+on that repository. The same four operations on `owner/*` require current
+organization-owner authority. There is no records-admin shortcut for removal.
+
+Every mutation first appends an `enforcement_scope_requested` event containing
+a stable change ID, the complete desired scope, the prior active scope and
+generation, and the actor, exact operation, affected resource, required
+authority, observed result or evidence, and check time. A request is durable
+authorization and intent, **not effective configuration**. Only a later
+`enforcement_scope_activated` event enters the current-scope fold. It
+immutably references the request plus the exact prepared registry commit and
+generation. If preparation cannot complete before activation, an
+`enforcement_scope_abandoned` event closes the request and the old scope remains
+current. The same change ID and idempotency key make every retry resume or
+return the same state rather than create a second change.
+
+§7's state machine performs the handoff. It rechecks the same live authority,
+stages and validates the registry and KV generation, and publishes a signed
+repository-local pending marker before activation. The old scope remains the
+canonical scope while that marker and the affected KV keys are actively
+revalidated through Cloudflare's cache tiers. After the configured convergence
+interval, the workflow rechecks authority, appends the activation event, and
+publishes the prepared generation while the marker continues to fail the
+affected repositories closed. The coordinator removes the marker only after
+the new signed witness has converged and then re-evaluates affected open pull
+requests. Once activation is recorded it may not be abandoned: failure to
+publish leaves affected repositories unavailable until reconciliation completes
+that exact generation. This is a repository-local, eventually consistent
+handoff, not an atomic global KV switch. Scope changes never delete or alter
+acceptance, revocation, agreement, or administrative evidence and never require
+a contributor to re-sign.
+
+An `owner/*` entry is standing consent for present and future repositories —
+the same semantics as installing an App on all repositories — and the
+organization keeps two continuing controls regardless:
+the enforcer installation itself, whose coverage every enforcement-scope entry requires
+and which the org can restrict or remove unilaterally, and per-repository
+required-check configuration, without which nothing blocks. Without the owner
+check, anyone whose installation access merely *covered* an unclaimed
+repository could bind it into their own project and have the App direct that
+repository's contributors to sign their agreement at a genuine portal — the
+same attack this section closes for slugs, through the side door.
+
+Different authorized people may add different scope entries in separate portal
+actions; no one actor needs authority over every owner. Each action is complete
+only for its named repository or organization selector and carries its own
+canonical authorization event. This supports federated enforcement scope
+without turning one administrator's permission into authority over another
+owner.
+
+Every org and repository in `enforcement_scope` must be covered by the enforcer
+installation, and claims are first-come and never transferred silently.
+First-come is enforced by the write, not by a scan: the portal lands registry
+commits under the same fast-forward conflict discipline as §5.2, and a claim that
+loses the race re-validates against the new head and fails because the slug
+is taken. Without this, self-serve install plus a user-chosen slug
 lets an attacker claim `acme` and operate a look-alike signing portal on the
 legitimate domain, under a genuine OAuth consent screen, collecting real legal
 names and emails into their own repository. §7's token/repo binding rule cannot
 catch that on its own, because a poisoned entry naming the attacker's own
 installation and repositories is internally consistent.
 
-**Runtime lookup.** The repository is the source of truth; Workers KV is the
-runtime index the handlers actually read, because fetching the registry from
-GitHub on every webhook would spend a subrequest and CPU on the hot path, and
-bundling it at deploy time would require a redeploy per adopter.
+**One coordination domain, one project per repository.** A coordination domain
+is one deployment plus its authoritative registry: the shared hosted service is
+one domain, and each independent self-hosted deployment is another. Every
+registry mutation atomically validates the complete selector set and refuses a
+repository binding or organization selector that would overlap another
+project. A move is always two visible operations: remove the old binding and
+wait until that generation is active, then bind the new project. DraCLA never
+creates simultaneous membership or chooses a winner by precedence.
 
-To keep KV genuinely derived rather than the de facto authority:
+### 7.1 One routing and reconciliation state machine
 
-- Entries carry a generation counter and are **signed**; the Worker verifies the
-  signature and rejects an entry it cannot verify.
-- The KV write is driven from a verified registry commit, never directly from
-  the install request handler.
-- The reconcile schedule re-derives KV from the repository and repairs drift,
-  the same rule the coverage projection follows (`REQ-REC-6`).
-- Offboarding deletes the KV entry explicitly; deleting the repository entry
-  alone would leave the shared Worker routing for a departed project.
-- Rate-limit counters live in a **separate** KV namespace from routing, since
-  per-request counters are not rebuildable from git and would otherwise falsify
-  the derivation claim.
+Repository routing combines four things that change independently:
+
+1. canonical per-project events are the authority for administrator-approved
+   selectors;
+2. GitHub is the authority for a repository's numeric identity, current owner
+   and name, existence, and current enforcer installation;
+3. an immutable registry generation is the coordination-domain snapshot that
+   combines those selectors with the observed GitHub facts and their match
+   result; and
+4. signed KV entries plus one signed witness are the runtime projection of one
+   published registry generation, and signed repository-local pending sidecars
+   block only routes crossing that publication boundary.
+
+The registry coordinator runs in `worker-portal`, which holds the records App
+credential, registry write access, and routing-signing key. It never receives
+the enforcer App key. `worker-enforce` verifies lifecycle webhooks and can read
+current contributing-repository facts with that App. It sends only the verified
+repository ID and delivery trigger to the coordinator, and answers the
+coordinator's fresh observation request over §6.8's service-authenticated
+boundary with the repository ID, owner/name, existence, installation ID,
+observed permission result, and check time. The response is bound to that exact
+request and cannot authorize a registry mutation by itself. Conversely,
+`worker-enforce` reads only the signed published routing projection; it receives
+neither registry access nor a records-App token.
+
+No layer is silently substituted for another. A prepared registry generation
+records the exact canonical request event IDs it used, the GitHub repository
+ID, owner/name snapshot and installation ID it observed, and the resulting
+state. The later canonical activation event points to that immutable generation;
+the generation does not point back to the activation event, which would create
+a circular identity. For a GitHub-side change with no administrative scope
+mutation, the generation instead records the lifecycle delivery or
+scheduled-observation evidence. This history is operational routing evidence,
+not CLA evidence and not signer data.
+
+Each known repository has exactly one derived state:
+
+| State | Meaning | Request behavior |
+|---|---|---|
+| `active(project, generation)` | Exactly one project matches; repository identity and one current enforcer installation are verified; the signed entry and witness name the same generation | Use only that project's route and credentials |
+| `conflict(matches, generation)` | More than one project matches after a GitHub-side change | Fail closed; publish only the bounded conflict result below |
+| `pending(change, prior_generation)` | An authorized DraCLA change or observed GitHub change is crossing the publication boundary | Only the affected repository fails closed as temporarily unavailable |
+| `unavailable(reason, generation)` | GitHub facts, installation binding, signatures, freshness, or generation agreement cannot be established | Fail closed; retry and reconcile automatically |
+| `unmanaged(generation)` | The existing repository was verified to match no project | Create no DraCLA check and perform no project access |
+
+A deleted repository has no runtime route. Its numeric-ID tombstone remains in
+the registry generation so restoration is observed and matched again rather
+than silently inheriting the deleted name's route.
+
+`unmanaged` does not edit GitHub branch rules. Before activating a removal or
+offboarding, the portal warns when the DraCLA check is still required and gives
+the repository administrator the exact rule to remove. If they leave it
+required, its absence continues to block merges; DraCLA never fabricates a
+passing final check merely to offboard itself.
+
+**DraCLA-side change protocol.** A bind, widen, narrow, remove, move, or
+offboarding action follows one recoverable sequence:
+
+1. append the authorized `enforcement_scope_requested` event described above;
+2. verify current GitHub facts, installation coverage, and the complete
+   selector set, then commit an immutable **prepared** registry
+   generation referencing the request and stage its signed KV entries under
+   generation-qualified keys; neither is routable yet;
+3. put a signed `routing-pending:<repository_id>` sidecar for every affected
+   repository, actively revalidate the affected KV reads, and wait the
+   configured convergence interval; locations that see the sidecar fail only
+   that repository closed, locations that have not seen it continue using the
+   still-canonical old route, and unaffected repositories continue normally;
+4. recheck the request's same live authority and append
+   `enforcement_scope_activated`, binding the request and fresh authorization
+   evidence to the exact registry commit and generation; and
+5. publish the signed witness for that generation and actively revalidate the
+   witness and affected route keys, keep each pending sidecar through a second
+   convergence interval, then delete the sidecars and re-evaluate affected open
+   pull requests. Only then may the generation's `active`, `conflict`, or
+   `unmanaged` results serve normal traffic.
+
+A failure before step 3 leaves the old generation active. A failure after step
+3 but before activation leaves only the affected repositories unavailable; the
+request may be completed or explicitly abandoned, after which the coordinator
+deletes its sidecars and the prior witness remains authoritative. A lingering
+deleted sidecar causes extra repository-local fail-closed time and is safe. A
+failure after activation cannot make the old route canonical again: affected
+repositories remain pending until the same prepared generation is published and
+its sidecars are cleared. A rollback after activation is a new, independently
+authorized scope change. Canonical replay folds only activation events, so it
+always names the generation that is allowed to become active; request and
+abandonment events remain audit evidence without changing current scope.
+
+**GitHub-side change protocol.** Creation, rename, transfer, ownership change,
+deletion, restoration, or App installation restriction/removal can change the
+match or make it unverifiable without a DraCLA administrator action. The
+enforcer lifecycle webhook is a doorbell; scheduled reconciliation is the
+backstop. Either path re-reads current GitHub state, creates a new immutable
+registry generation when the observed facts or match result changed, stages
+generation-qualified KV entries, publishes the affected-repository pending
+sidecars, actively revalidates the affected keys, and publishes the new
+witness. The sidecars remain through the convergence interval; the coordinator
+then deletes them and re-evaluates affected open pull requests. There is no
+administrative canonical event because no DraCLA selector changed. Failure to
+read or uniquely bind current GitHub state produces `unavailable`, never an
+intentional choice to reuse a possibly stale route.
+
+An `owner/*` selector is standing consent for future repositories, so a newly
+created repository may move directly from unknown to `active` after current
+GitHub facts and installation coverage are verified. A rename or transfer is
+matched by current owner/name but correlated by numeric repository ID. A
+restored repository is re-evaluated from scratch. A missed lifecycle webhook is
+therefore a delay, not a different algorithm.
+
+**Conflict reporting is the one no-project token exception.** When the derived
+state is `conflict`, DraCLA has deliberately selected no CLA project. The
+conflict entry nevertheless carries the affected numeric repository ID and the
+one current `dracla-enforcer` installation verified to cover it. A dedicated
+repository-control route may mint that installation's token without choosing a
+project, re-verify the token/repository binding, and use it only to:
+
+- write the fixed public check/comment: **action required: this repository is
+  covered by more than one CLA project; an administrator must resolve it**; and
+- recheck `admin` on that repository for the authenticated conflict inspector.
+
+That capability cannot read either project's records or coverage repository,
+cannot mint a records-App token, and cannot authorize a resolution mutation.
+If one current covering enforcer installation cannot be established, no token
+is guessed: the required check remains absent or non-passing, the repository
+stays unavailable, and reconciliation plus operator alerting continue.
+
+The public result reveals no project identifier, scope entry, signer status, or
+private configuration. After the separate `admin` check, the conflict tool
+shows only the affected repository, matching project identifiers, matched scope
+entries, and the authority required for each possible resolution. Each remove,
+narrow, or new binding is then authorized separately using the matrix above.
+Permission to inspect is not permission to mutate. Only the affected repository
+fails closed and every unaffected repository continues normally. No conflict or
+resolution changes CLA evidence or asks anyone to re-sign.
+
+### 7.2 Runtime publication and freshness
+
+Workers read KV rather than GitHub or the registry on the request path. A route
+entry is keyed by `(generation, repository_id)`, carries the registry commit OID
+and derived state, and is signed with a key held in Worker secrets. The separate
+signed witness carries the published registry OID, generation, the verified
+activation event ID for an administrative generation, `refreshed_at`, and
+`expires_at`. A separately signed `routing-pending:<repository_id>` sidecar
+names the prior and prepared generations and the change or observation that
+caused it. A request accepts an `active` route only when the entry and witness
+signatures verify, the repository ID and generations match, the activation
+event binds that administrative generation, no visible pending sidecar blocks
+that repository, and the witness has not expired. GitHub-observation-only
+generations carry their immutable observation evidence instead of an activation
+event.
+
+The initial hosted deployment uses a 15-minute maximum witness age and refreshes
+it every five minutes. An unchanged reconciliation refreshes only the witness;
+it does not rewrite entries. This defends against a principal that can write KV
+but cannot read Worker secrets and bounds an undetected missed update. It does
+not defend against Worker compromise, which §8.3 already owns.
+
+Workers KV has no synchronous global purge for its built-in edge cache. A
+`put` or `delete` actively revalidates internal cache tiers, but another network
+location may briefly retain its prior value or a cached negative lookup. The
+configured convergence interval is an operational wait derived from the KV read
+cache TTL plus margin, not proof that every Cloudflare location has refreshed.
+The handoff therefore uses repository-local sidecars, explicit convergence
+waits, and post-convergence pull-request re-evaluation instead of claiming an
+atomic switch. A location that retains a deleted sidecar fails closed for
+longer. A location that temporarily retains both the old witness and a negative
+sidecar lookup can briefly evaluate the still-cached route; the final
+reconciliation replaces any resulting stale check on an open pull request but
+cannot undo a merge completed during that window. The 15-minute witness expiry
+remains a backstop for missed repair, not the normal routing-change mechanism.
+Routing changes are rare administrative or repository-lifecycle operations, so
+this localized repair workflow is preferred to adding a strongly consistent
+database to the request path.
+
+Registry pushes and GitHub lifecycle events wake the same reconciliation code;
+their payloads are discarded after signature verification and current sources
+are re-read. The schedule runs the same full derivation and repairs drift. If
+GitHub or the registry cannot be read, affected state becomes or remains
+`unavailable`; the witness is not refreshed, so any unobserved stale route also
+fails closed on expiry. Request Workers never fetch GitHub synchronously, and
+no repair asks a contributor to sign again.
+
+Rate-limit counters live in a separate KV namespace because per-request
+counters are not rebuildable from git and would otherwise falsify the routing
+derivation claim.
 
 Isolation rules:
 
-- Every request resolves to exactly one project before any repo access.
-- Repo handles come from the registry entry, never from request input.
-- The installation token used must belong to that project's installation; a
-  token/repo mismatch is a hard failure, not a fallback.
-- A contributing repo in no project's scope receives no check.
-- **Every authorization decision is scoped to the resolved project**, and no
-  authorization result is cached across projects. A session carries identity
-  only; an `authorized: true` flag reused across a tenant boundary is the most
-  likely way to build a cross-tenant read, so authorization is recomputed per
-  project per request.
-- Scopes across projects must not overlap. A contributing repository resolving
-  to two projects is a configuration error rejected at registry write, not a
-  precedence rule at request time.
+- An `active` coverage or records request resolves exactly one project before
+  project-repository access. Repository handles come from its signed registry
+  entry, never request input.
+- Its installation token must belong to one of that project's recorded
+  installations and cover the exact repository; a mismatch is a hard failure,
+  not a fallback. Plural is expected because records and contributing
+  repositories may have different owners and installation IDs.
+- The repository-control exception above resolves only a repository and one
+  verified enforcer installation. It is available solely for fixed
+  `conflict`, `pending`, or `unavailable` check output and the conflict-admin
+  probe; it never creates project or records authority.
+- Every project authorization is recomputed for that project and request. A
+  session carries identity only; no authorization result is cached across
+  projects.
+- An `unmanaged` repository receives no DraCLA check. A repository with an
+  uncertain match or installation is `unavailable`, not unmanaged.
+- A write-created overlap is rejected before preparation. A GitHub-side overlap
+  produces `conflict`, never a precedence rule.
+
+Independent domains share no registry, so global uniqueness across them is
+impossible and unsupported double-targeting is stated in operator
+documentation.
 
 **Multiple recipients in one org share an installation.** §5.5 separates repo
-pairs per legal recipient, but auto-provisioning installs `dracla-records` at
+pairs per legal recipient, but the administrator installs `dracla-records` at
 org level, so one installation token can reach both pairs and their separation
 is software-only — the arrangement D3 exists to reject. This is an accepted
 limitation of the hosted model, not a solved problem: GitHub does not offer two
@@ -1145,7 +2049,7 @@ never moved (`REQ-OPS-6`).
 
 | Concern | Mechanism | Req |
 |---|---|---|
-| Signer PII exposure | Projection carries no PII (unconditional); enforcer not installed on canonical (org-controlled, asserted by the reconciler — §4) | `REQ-SEC-2` |
+| Signer PII exposure | Projection carries no names or addresses (unconditional; its personal-data position is §8.4); enforcer not installed on canonical (org-controlled, asserted by the enforcer's scheduled sweep — §4) | `REQ-SEC-2` |
 | Session state | Short-lived **encrypted** (AEAD) cookies with `kid`; no application database | `REQ-OPS-2`, `REQ-SEC-4` |
 | CSRF / replay | Single origin, `__Host-` prefix, `SameSite=Lax`, browser-bound single-use OAuth `state` (§8.2, §9) | `REQ-SEC-4` |
 | Webhook authenticity | Signature verification; duplicate deliveries idempotent | `REQ-SEC-5` |
@@ -1169,8 +2073,8 @@ confused-deputy.
 | 4 | **IDOR on identity** — acting as another user | Subject is read from the verified session, never from the request body (§8.2) |
 | 5 | **Privilege confusion** — a contributor submitting override or exemption events | Admin events require a separate authorization check against current GitHub permissions |
 | 6 | **Cross-tenant aim** — steering the installation token at another project | Repo handles come only from the registry entry (§7) |
-| 7 | **Budget exhaustion** — burning the shared daily ceiling | Per-project rate accounting keyed by user ID; WAF rate limiting; split routes (§9); risk R7 |
-| 8 | **Clickjacking** the accept button — defeating `REQ-SIGN-2`'s affirmative action by UI redress | `frame-ancestors 'none'` and `X-Frame-Options: DENY` on the portal, delivered via Pages `_headers`; the agreement itself renders in a sandboxed frame the portal owns (§9) |
+| 7 | **Budget exhaustion** — burning the shared daily ceiling | Authenticated-user and project accounting; signature verification before downstream work; paid hosted capacity; residual anonymous quota risk R9 (§9) |
+| 8 | **Clickjacking** the accept button — defeating `REQ-SIGN-2`'s affirmative action by UI redress | `frame-ancestors 'none'` and `X-Frame-Options: DENY` on the portal, delivered by whichever origin serves the portal assets (§9); the agreement itself renders in a sandboxed frame the portal owns (§9) |
 
 ### 8.1.1 Principals beyond the contributor
 
@@ -1185,7 +2089,7 @@ agreement content on a separate cookieless origin in a sandboxed frame (§9), by
 verified slug claims (§7), and by allowlist sanitization plus CSP as defense in
 depth rather than as the boundary.
 
-**Compromised Worker.** Covered in §9's three-Worker split; the residual is
+**Compromised Worker.** Covered in §9's two-Worker split; the residual is
 stated in §8.3 rather than claimed away.
 
 **DraCLA operator.** Fully trusted in the hosted deployment. See §8.3.
@@ -1196,15 +2100,18 @@ stated in §8.3 rather than claimed away.
 body is parsed or routed, using constant-time comparison, with a per-App secret
 selected by the receiving route — a single route that tries both secrets would
 let the records App's secret inject `merge_group` events. `sha1=` signatures are
-rejected. Deliveries are deduplicated on `X-GitHub-Delivery` and rejected
-outside a bounded age window; GitHub signatures carry no timestamp or nonce, so
-a captured delivery is otherwise replayable forever.
+rejected. GitHub signs the body but supplies no authenticated timestamp or
+nonce, so DraCLA makes no age claim. `X-GitHub-Delivery` deduplication is a
+short-lived optimization, not a freshness proof. Every valid delivery re-reads
+current GitHub and DraCLA state, conditions writes on the current head, and
+uses operation idempotency so a delayed, duplicated, or replayed body is either
+the same harmless result, a currently valid operation, or a conflict.
 
 **Cached installation tokens** carry `contents: write` on a project's PII repo.
 They are encrypted at rest in KV, namespaced per project, and their KV keys are
 derived from registry-resolved values only — never from request input.
 
-**Coverage deploy key rotation.** The deploy key seeded into canonical's Actions
+**Coverage deploy key rotation** (`REQ-SEC-9`). The deploy key seeded into canonical's Actions
 secrets is the one credential that writes the projection outside the App
 boundary D3 establishes, and deploy keys do not expire. It is rotated on a fixed
 schedule and on any maintainer offboarding, and the reconciler fails loudly if
@@ -1214,6 +2121,28 @@ therefore confers the ability to forge the project's enforcement decision, which
 adopter documentation must state. Repo *settings* secrets are not repo
 *contents*, so this does not breach `REQ-SEC-4`'s prohibition on storing secrets
 in records repositories; the distinction is deliberate and recorded here.
+Rotation itself is the **project administrator's** act: DraCLA deliberately
+holds no credential that can touch an adopter's settings (§4), so
+`dracla rotate-key` — the CLI, running as the administrator (§6.10.2) — mints
+and stages a successor, and the reconciler consumes it on its next run.
+
+**The other long-lived credentials** — `REQ-SEC-9` obligates every one DraCLA
+provisions or requires, not only the deploy key:
+
+| Credential | Holder | Rotation | Departure response | Reach if leaked |
+|---|---|---|---|---|
+| Coverage deploy key | Adopter canonical Actions secrets | Administrator runs `dracla rotate-key` (§6.10.2); fixed schedule, or on offboarding | Adopter **maintainer** departure rotates it (above) | Forge one project's coverage, hence its merge gate |
+| Session AEAD keys | `worker-portal` secrets, identified by `kid` | Add a successor, encrypt new cookies with it while accepting both keys for one maximum session TTL, then remove the predecessor | DraCLA **operator** departure rotates it and invalidates outstanding sessions at the end of the overlap | Decrypt and forge every hosted portal session issued under that key |
+| GitHub App OAuth client secret | `dracla-records` App config and `worker-portal` secrets | Add a successor at GitHub, deploy it alongside the predecessor, complete a test OAuth exchange, then revoke the predecessor | DraCLA **operator** departure rotates it | Complete or interfere with OAuth exchanges; it does not mint installation tokens without the App private key |
+| Cached installation-token encryption keys | `worker-portal` secrets, identified by `kid` in each cache value | Add a successor, encrypt new cache entries with it, accept the predecessor only until every cached installation token has expired, then remove it | DraCLA **operator** departure rotates it and purges the token cache | Decrypt cached `contents: write` installation tokens for adopter records repositories |
+| App private keys, both Apps | DraCLA operators | GitHub Apps hold two keys concurrently: add successor, redeploy, revoke predecessor — no downtime | DraCLA **operator** departure rotates both | Mint installation tokens for every adopter |
+| Webhook secrets, per App | App config + Worker secrets | Stage the new secret beside the old on the same App's route, update App config, drop the old — two secrets of one App on its own route, so the rule above against a single route trying both *Apps'* secrets is untouched | Operator departure rotates both | Forge webhook deliveries to that App's route |
+| KV entry signing key | `worker-portal` secrets; public verification keys in `worker-enforce` configuration | Add the new key beside the retiring one and verify against either; the reconcile schedule's full re-derivation re-signs every entry, then the retiring key is dropped (§7) | Operator departure rotates it | Forge cross-project routing consumed by the honest enforcer and therefore misapply one project's coverage to another repository; token/repository binding still prevents access outside the named installation and repository |
+| Cloudflare deployment and KV API tokens | DraCLA deployment secret store, scoped separately by environment and capability | Issue a least-privilege successor, deploy and reconcile KV with it, then revoke the predecessor | DraCLA **operator** or CI administrator departure rotates every token they could read | Deploy Worker code or read/write the bindings and KV namespaces permitted by that token |
+
+The last column is the reach documentation `REQ-SEC-9` requires; the deploy
+key's fuller statement — what a holder could forge and that write on
+canonical can exfiltrate it — stands in the paragraph above.
 
 **No OAuth scopes are requested, and no scope tiering exists.** An earlier
 draft proposed minimal scopes for contributors and elevated `repo` scope on
@@ -1351,7 +2280,125 @@ Independent event signatures and external checkpoints remain available as the
 optional future hardening `REQ-REC-4` anticipates, and they are what would
 narrow this.
 
-### 8.4 Observability (`REQ-OPS-5`, `REQ-SEC-2`)
+### 8.4 Data protection
+
+DraCLA collects legal names and email addresses, which are personal data. This
+section states the design's position so an adopter's counsel has something to
+assess. It is not legal advice, and the lawful basis is the adopter's to
+determine.
+
+**Roles.** The adopting project — specifically the legal recipient named in
+`REQ-CONFIG-2` — is the **controller**: it decides why the data is collected and
+what happens to it. In the shared hosted deployment the operator is a
+**processor**, because a contributor types their name into the operator's Worker
+before it reaches the adopter's repository. `REQ-SEC-2` anticipates this ("a
+hosted serverless endpoint MAY process signer data transiently but MUST NOT
+retain it outside the project's records repository") without naming the
+relationship it creates: a processing agreement between operator and adopter.
+
+Self-hosting removes the processor entirely — the adopter is controller and
+operator both. That is a substantive reason to self-host beyond the trust
+argument of §8.3.
+
+**Erasure, and why the records are append-only anyway.** `REQ-REC-3` makes the
+records append-only — a rule DraCLA enforces, not a physical impossibility
+(§8.3 bounds it) — which collides directly with a right to erasure. The design's position is that a CLA record is retained for the
+establishment, exercise, and defence of legal claims — the agreement exists to be
+provable years later, possibly in a dispute — and that this is what the common
+exemption for such processing is for.
+
+Two things follow, and both are already in the design rather than bolted on:
+
+- Revocation exists and works (§6.2). A contributor can withdraw coverage for
+  future contributions at any time; what they cannot do is unmake evidence of a
+  grant already made.
+- `REQ-SEC-7` requires both the signing and revocation flows to say that
+  evidence is retained afterwards, so this is disclosed before consent rather
+  than discovered later.
+
+An adopter whose counsel disagrees cannot be accommodated by configuration: the
+append-only record is the product. That should be known before adoption, not
+after.
+
+**Minimization.** `REQ-SEC-1` collects only fields the agreement and project
+policy require, and forbids collecting an IP address merely because a workflow
+can observe it. Rate limiting keys on GitHub user ID rather than IP for the same
+reason (§8.4.1).
+
+**The coverage projection.** It carries no names or email addresses, which is
+what lets the enforcement path answer without reading them (§5.3). It is not
+free of personal data, and its privacy does not rest on secrecy — per-subject
+coverage is already disclosed publicly. DraCLA writes a check run on the pull
+request, and on a public repository that conclusion is world-readable. A
+sole-author pull request therefore already reveals its opener's coverage, and
+§6.3 documents how a crafted pull request can make anyone a subject.
+
+What privacy protects is **aggregation**. A check run discloses one subject at a
+time, only for people who opened a pull request, and only to someone willing to
+crawl and correlate. The projection discloses every user against every agreement
+in a single fetch, and it is a *superset*: someone who signed early and never
+contributed, or who signed and never opened a pull request, appears only there.
+It also carries fields no check run exposes — `reason`, `since`, and for
+exemptions `kind`, `basis`, `instrument_ref`, and `asserted_by`.
+
+That is the recognised aggregation harm: individually available facts become a
+different exposure once assembled. It is also what makes §5.3's enforcement rule
+principled rather than arbitrary — probe one subject at a time, never enumerate.
+
+**This does not weaken `D2` or `D3`.** Their rationale is what the enforcement
+credential can *reach*, not what the projection *contains*. Names, email
+addresses, confirmation text, and entity evidence remain absent from coverage,
+and that absence is the whole of what the two-repository split rests on.
+
+**Considered and rejected.**
+
+*Moving the projection into canonical*, so there is one repository. GitHub
+permissions are per repository with no path scoping, so `dracla-enforcer` — a
+public App anyone can install — would gain read on `events/**` and
+`derived/export.csv`. That is the mirror image of the rule already stated at
+§5.1, and it trades an aggregation exposure for a direct PII one.
+
+*Row-level encryption of the projection* — HMAC-derived shard and row keys,
+per-row AEAD, key in Worker secrets. Rejected on cost rather than soundness.
+§6.10.4 already closes the live-ACL threat by requiring a dedicated
+organization, and the key must also live in canonical's Actions secrets for the
+reconciler, so it does not defend against the write-on-canonical population the
+deploy key already exposes. The residual benefit is leaked clones and backups
+only, bought with a new secret, generation tags in shard files, and history
+truncation. Worth recording: rotation would have been cheap, because the
+projection is derived and rotating is just a rebuild — that did not carry the
+cost.
+
+The tier difference is accepted deliberately: the projection is less protected
+than canonical, and that is proportionate, because per-subject coverage is
+already disclosed by every public check run. What its privacy protects is the
+aggregate (above); names and addresses are not in it at all.
+
+*Encrypting canonical records* to remove the need for a dedicated organization.
+Rejected: key revocation is impossible against an append-only log
+(`REQ-REC-3`), so a departing administrator keeps the ability to decrypt
+permanently, where removing them from the organization is instant. `REQ-SEC-6`
+also derives dashboard access from the ability to read the records repository,
+which encryption breaks.
+
+**Where the data lives.** Canonical records sit in a private repository in a
+dedicated organization the adopter owns (§6.10.4), on GitHub. The portal and
+enforcement tiers run on Cloudflare. Both are US-headquartered, so an adopter
+subject to transfer rules assesses that against their own obligations; DraCLA
+adds no further destination, and adds no storage of its own.
+
+**Breach.** The organization-permission gate (§6.10.4) exists partly here: an
+organization default that lets every member read signer names and addresses is
+not merely untidy, it is personal data exposed to people with no need for it,
+which is the kind of thing that becomes reportable. That is why install refuses
+rather than warns.
+
+**Subject access.** A contributor can see their own record through the portal
+(`REQ-PORTAL-1`). An adopter answering a broader request has `dracla export`
+(§6.9) and the records repository itself, both readable without DraCLA
+(`REQ-REC-5`).
+
+### 8.4.1 Observability (`REQ-OPS-5`, `REQ-SEC-2`)
 
 Signer PII passes through the Worker in the sign request body, so the default
 posture of every observability tool is the risk. `REQ-SEC-2` forbids signer data
@@ -1392,8 +2439,8 @@ Actions        Python core: replay, reconcile, index, exports
 The Worker tier is deliberately thin: it authenticates, reads packed coverage
 shards, and writes events and check runs. All replay, verification, index, and
 export logic lives in the Python core running in Actions, and §5.3's `decision`
-field is precomputed so the edge compares scope and reads a boolean rather than
-re-implementing the rule engine. This keeps the platform replaceable
+field is precomputed so the edge reads a boolean and performs one active-version
+membership test rather than re-implementing the rule engine. This keeps the platform replaceable
 (`REQ-OPS-2`).
 
 **Single origin.** The shell and the API are served from **one origin** per
@@ -1423,19 +2470,27 @@ merge-group checks across all adopters. The deployment is therefore split into
 
 ```
 worker-enforce    webhook secret + enforcer App key + coverage read
+                  + signed-routing verification keys
                   most exposed (anonymous internet), least privileged
 worker-portal     OAuth client secret + session key + records App key
+                  + registry write + routing-signing key
 ```
 
 There is no third Worker because there is no third App: provisioning runs in the
 CLI on the administrator's machine (D11), so no isolate holds
-`administration`/`workflows`/`secrets` write. The install-flow routes that remain
-in `worker-portal` only record installation ids arriving on the Setup URL
-redirect, which needs no privilege.
+`administration`/`workflows`/`secrets` write. The Setup URL route in
+`worker-portal` persists nothing: it only directs the browser to Connect, which
+authenticates and discovers installations independently (§6.10.3).
 
-This does not make compromise harmless — `worker-portal` still reaches signer
-PII — but it stops the most exposed surface from holding the keys that forge the
-merge gate, which the single-isolate design did not.
+This split is asymmetric, not complete compromise containment.
+`worker-enforce` compromise can forge checks but cannot read canonical signer
+PII. `worker-portal` compromise can read or forge canonical evidence and, through
+its routing-signing key, can misroute the honest enforcer into applying one
+project's coverage to another repository; the enforcer's token/repository check
+still prevents access outside the named installation and repository. What the
+split prevents is either Worker directly possessing both App private keys and
+both repository classes. It does not claim that either Worker compromise leaves
+merge-gate integrity intact; §8.3's hosted-operator trust bound remains.
 
 **Published limits** (verified 18 August 2026):
 
@@ -1502,19 +2557,23 @@ than to amend `REQ-OPS-3`.
 fails open — "Bypasses the Worker. Requests behave as if no Worker is
 configured" — or fails closed with a 1027 error. Fail-open would silently drop
 webhooks and let a pull request proceed with no CLA evaluation at all. Routes
-MUST be configured **fail closed**, so GitHub retries delivery.
+MUST be configured **fail closed** so an absent required check blocks rather
+than passing unevaluated. GitHub does **not** automatically redeliver failed
+webhook deliveries; recovery is the scheduled enforcer sweep, or an authorized
+manual redelivery after service returns.
 
 **But be accurate about what exhaustion looks like.** An earlier draft said the
 check "remains `queued`". That holds only if a check run already exists. If the
 Worker never ran for `pull_request.opened`, **no check run exists** — absent,
 not queued. A required-but-absent check does block the merge queue, which is the
 safe direction, but it shows the contributor nothing, offers no retry
-affordance, and does not self-heal: GitHub's redelivery retries are finite and
-`check_run.rerequested` routes to the same dead Worker. The reconciler runs in
-Actions, unaffected by the Worker budget, and its scheduled pass (§5.4) detects
-in-scope pull requests with no check and creates one carrying the *temporarily
-unavailable* state and its retry text. That is what makes `REQ-CHECK-5`'s
-explanation requirement satisfiable during a total edge outage.
+affordance, and does not self-heal through GitHub: failed webhook deliveries are
+not automatically redelivered, and `check_run.rerequested` routes to the same
+dead Worker. The enforcer's scheduled sweep (§5.4), once the service and its
+request budget are available, detects in-scope pull requests with no check and
+creates one carrying the *temporarily unavailable* state and its retry text.
+That is what eventually makes `REQ-CHECK-5`'s explanation requirement visible;
+during a total edge outage the required-but-absent check can only block.
 
 **Exhaustion is reachable by an outsider, and this is the sharpest availability
 risk in the design.** `dracla-enforcer` is a public App, so anyone can install
@@ -1522,33 +2581,49 @@ it on a throwaway org and script pull request churn; and every request counts
 against the per-account cap whether or not its webhook signature verifies. With
 fail-closed routing that halts checks *and* signing *and* revocation for every
 adopter — so the documented remediation ("sign, and the check re-evaluates")
-is down at the same moment, and `REQ-REV-1`'s guarantee that a contributor can
-always revoke is unmet. "Per-project rate accounting" cannot help, because the
-exhausted resource is per account and the offending traffic belongs to no
-project. Controls: Cloudflare WAF and rate limiting in front of the routes,
-signature verification at the very edge, and the §9 route split so exhausting
-the webhook surface does not take the portal down with it. Risks R7 and R9.
+is down at the same moment, and the portal revocation capability `REQ-REV-1`
+requires is unavailable for the duration. "Per-project rate accounting"
+cannot help, because the exhausted resource is per account and the offending
+traffic belongs to no
+project. Signature verification at the edge avoids downstream work but cannot
+refund a counted request. DraCLA deliberately has no IP-based control, so the
+hosted mitigation is Workers Paid capacity, monitoring, and operator response;
+the outsider-exhaustion path remains residual. The §9 route split isolates
+secrets and request handlers, **not** the account-wide request quota; quota
+isolation would require separate Cloudflare accounts. Risks R7 and R9.
 
 **Default adoption path.** Shared DraCLA-operated serverless deployment
 (`REQ-OPS-1`), with records in the adopter's own org (`REQ-OPS-6`).
 
 ```
-1. admin runs:  uvx dracla install                  (their own credentials)
-     -> prompt: legal recipient, agreement, scope, project slug
-     -> check org base repository permission        <- see below
-     -> create <slug>-cla-records and <slug>-cla-coverage (both private)
-     -> restrict both to the intended readers explicitly
-     -> seed config, agreement, reconcile workflow, coverage deploy key
-     -> print the two installation links, with a signed state parameter
+1. admin runs:  uvx dracla install github.org=<org>-cla   (own credentials)
+     -> one argument: the default dedicated-org custody shape (§6.10.4). No
+        prompts for recipient, agreement, or enforcement scope — those are
+        portal actions (§6.10.3)
+     -> refuse unless every effective reader is authorized
+     -> create <slug>-cla-records and <slug>-cla-coverage, both private and
+        both created empty; the Contents API creates the mandatory README root,
+        then Branch Rename makes `events` the default branch; the coverage
+        projection is initialized on its own `coverage` branch (§5.3)
+     -> seed the reconcile workflow. No config, no agreement, no deploy key:
+        the key waits for the reconciler that consumes it (M2, §6.10.2)
+     -> print the two App install links
 
 2. admin clicks:  install dracla-records            (GitHub's own consent UI)
-     -> GitHub redirects to the Setup URL with installation_id + state
+     -> GitHub redirects to the Setup URL, which stores nothing and points the
+        administrator to Connect
 
-3. admin clicks:  install dracla-enforcer  on the repos in scope
-     -> same redirect; slug claim verified against an org they administer (§7)
+3. admin clicks:  install dracla-enforcer  on the repos in enforcement scope
+     -> same stateless redirect. The slug claim is established at connect
+        (step 4), not as a side effect of installing an App (§7)
 
-4. registry entry written last, so a half-provisioned project is never
-   routable (R5)
+4. admin connects in the portal: recipient, agreements, enforcement scope,
+   policy text
+     -> each coverage- or evidence-affecting change becomes an event with an
+        actor and authorization evidence; one agreement version is activated
+        explicitly before signing is enabled
+     -> the registry entry is written here, last, so a half-provisioned
+        project is never routable (R5)
 ```
 
 **Why the installation links rather than an API call.** A GitHub App cannot
@@ -1558,22 +2633,19 @@ it is better than anything DraCLA could build: GitHub owns the consent screen,
 the repository picker, and the permission display. The link needs no privilege
 to offer — it is an anchor.
 
-**Why provisioning is the CLI and not a third App** (D11): step 1 needs
-`administration`, `workflows`, and `secrets` write on the adopter's
-organization. Running it as the administrator means DraCLA never holds those
-permissions, so there is nothing to leave behind if an uninstall fails.
+**Why provisioning is the CLI and not a third App** (D11): provisioning needs
+`administration` and `workflows` write on the adopter's organization, and
+`secrets` write once the reconciler's key exists (M2). Running it as the
+administrator means DraCLA never holds those permissions, so there is nothing to leave behind if an uninstall fails.
 `uvx` makes it a single command with no environment to manage.
 
-**Org base permissions are checked, not assumed.** Many organizations set
-Base permissions to Read for all members, so a newly created private repository
-is readable org-wide by default — contractors and later additions included.
-`REQ-SEC-2` exempts DraCLA from application-layer encryption **on the basis that
-the private records repository is a sufficient access boundary**, and that
-sufficiency is conditional on an ACL the provisioner would otherwise never
-inspect. The install flow reads the org's base permission and, if it is anything
-but `none`, restricts the repositories explicitly and surfaces a blocking
-warning in the install flow and a persistent banner in the dashboard. This
-belongs in `REQ-VERIFY-2`'s acceptance scenarios.
+**Effective readers are checked, not assumed.** For an organization, install
+requires base permission `none` and enumerates owners, teams, collaborators,
+and service principals that can read either private repository. For a personal
+account it enumerates the owner and collaborators. Every effective reader must
+be authorized; private visibility or base permission alone never passes
+(§6.10.4). The same verification runs periodically so later ACL drift fails
+closed, as `REQ-REC-1` and `REQ-VERIFY-2` require.
 
 Adding a second legal recipient later re-runs the same flow, producing an
 additional pair (§5.5). The recipient itself is immutable once chosen.
@@ -1593,14 +2665,19 @@ dracla/dracla-example      PUBLIC   sample adopter — a contributing repo
 dracla/dracla-example-two  PUBLIC   second sample (release scope item 11)
 
 created by `dracla install`, not by hand — they are adopter repos where
-DraCLA happens to be the adopter:
-  dracla/<sample>-cla-records    PRIVATE
-  dracla/<sample>-cla-coverage   PRIVATE
+DraCLA happens to be the adopter, and so they live in a DEDICATED
+organization like anyone else's (§6.10.4), not beside the code:
+  dracla-cla/dracla-cla-records     PRIVATE
+  dracla-cla/dracla-cla-coverage    PRIVATE
 ```
 
 Two samples with **different legal recipients**, so release item 11 also
 exercises the multi-recipient case of §5.5 and the workspace composition of
-§6.9 rather than testing them as an afterthought.
+§6.9 rather than testing them as an afterthought. That needs the second pair to
+be provisioned with an explicit `recipient.slug`, which is the path §6.10.3
+defers for v1 — so this item either follows that deferral or is what lifts it.
+It cannot be reached by the defaulted slug alone, since one organization
+defaults to one pair.
 
 **DraCLA's own contribution terms are a DCO, not a CLA.** Apache-2.0 §5 already
 makes contributions inbound-equals-outbound and carries §3's patent grant, so a
@@ -1617,7 +2694,7 @@ real adopter project under enforcement. The **registry is its own private
 repository** (§7), not a monorepo directory — D2's own argument that tokens
 cannot be path-scoped applies to it, and it must not be public.
 
-**Supply chain.** The reconcile workflow seeded into every adopter's canonical
+**Supply chain (`REQ-SEC-10`).** The reconcile workflow seeded into every adopter's canonical
 repo consumes the Python core, so a mutable reference would mean one push to
 `dracla/dracla` executes attacker-chosen code inside every adopter's private
 PII repository, on a runner holding the coverage deploy key — simultaneous
@@ -1629,10 +2706,12 @@ Therefore:
 - Releases are signed, publish provenance attestation, and the workflow verifies
   it before running.
 - Version bumps are an explicit adopter action (a pull request into their own
-  repository), not a silent upgrade.
+  repository), not a silent upgrade. The same pull request records the prior
+  verified digest, and rollback restores that digest and reruns verification.
 - The published source of the hosted Worker is attested to the deployed build,
   since open-sourcing the code otherwise provides an adopter no assurance
-  whatever about what the operator is actually running (§8.3).
+  whatever about what the operator is actually running (§8.3). Health and
+  evidence endpoints expose that immutable deployed release identity.
 
 **Optional variants**
 
@@ -1657,6 +2736,56 @@ Rulesets carrying `merge_queue` and `required_status_checks` are available on a
 repository public"*. So enforcement must live where the contributing code is
 public, and the records must live where they are private — which is exactly the
 two-repository shape D2 arrived at for unrelated reasons.
+
+### 9.1 Backup and recovery (`REQ-REC-7`, `REQ-REC-4`)
+
+`REQ-REC-7` requires a documented backup and recovery procedure for the records
+repository and any keys needed to interpret protected content. `REQ-REC-4`
+additionally requires backups to preserve commit history **and recorded
+branch-head identities**, and `REQ-VERIFY-2` requires a restore-then-rebuild
+acceptance scenario. None of this existed in earlier drafts.
+
+**What is backed up**
+
+| Artifact | Why | Where |
+|---|---|---|
+| Canonical repo, full history, all branches | The only source of truth | Adopter-controlled mirror clone |
+| Backup manifest with every branch name and head OID | `REQ-REC-4`; records exactly which refs the snapshot is expected to restore | Stored and versioned with that backup snapshot |
+| Coverage repo | Derived, but restoring it avoids a full rebuild | Same mirror schedule |
+| `config/project.json`, agreements | Inside canonical | — |
+| Coverage deploy key, session keys, App private keys | Needed to resume operation, **not** to interpret records | Operator or adopter secret store, never in any records repo (`REQ-SEC-4`) |
+
+No key is required to *read* the records: `REQ-SEC-2` chose repository privacy
+over application-layer encryption, so a restored canonical repo is fully
+interpretable with git and the documented event format alone (`REQ-REC-5`).
+That is the main reason recovery is simple, and it is worth stating as a benefit
+of that earlier decision.
+
+**Snapshot manifest, not a second log.** Each backup atomically records the
+snapshot time and every backed-up branch name and head OID in a manifest stored
+with that snapshot. Recovery checks that each named commit exists and each
+restored ref equals the manifest before replay starts. This detects an
+incomplete or mismatched restore. It is not an external checkpoint and makes no
+tamper-detection claim against an administrator who controls both repository
+and backups, which is the explicit `REQ-REC-4` trust boundary. Independent
+signed checkpoints remain optional future hardening.
+
+**Recovery procedure**
+
+```
+1. restore canonical from mirror (all refs, full history)
+2. verify every restored branch and head OID against the backup manifest
+3. rebuild coverage by full replay             -> §5.4 reconciler, repair mode
+4. rebuild derived/ index and exports          -> §6.6
+5. re-point the registry entry if repo names changed
+6. invoke the enforcer sweep for open pull requests in enforcement scope
+```
+
+Steps 3–4 are the same code path the reconciler already runs, which is what
+`REQ-REC-6`'s rebuildability requirement buys: recovery is not a special
+procedure, it is the ordinary one starting from an empty projection.
+
+---
 
 ### 9.2 Capacity envelope (`REQ-OPS-3`)
 
@@ -1684,6 +2813,11 @@ DraCLA receives all 23 `pull_request` actions and acts on 4. The other 19 —
 labelling, assignment, review requests — are discarded on arrival but still cost
 a Workers request.
 
+An agreement activation costs one project-wide marker update and one
+`agreements/active.json` compare-and-swap regardless of how many contributors
+it affects (§6.5); no shard fold is required, so activation does not appear in
+the per-subject request budget.
+
 **Result** (Cloudflare requests)
 
 | Projects | Requests/day | % of Free | % of Paid | CPU s/day |
@@ -1700,8 +2834,9 @@ level.
 
 That reframes two risks. **R7** — one busy adopter consuming the shared ceiling
 — is unlikely on these numbers. **R9** — an outsider deliberately exhausting it,
-which needs no adopters at all — is the real exposure, and is addressed by WAF
-rate limiting and the route split (§9), not by capacity.
+which needs no adopters at all — is the real exposure. The hosted Paid-plan
+budget and monitoring reduce its likelihood and duration but do not prevent it;
+the two Workers' route split cannot isolate the shared account quota (§9).
 
 **The binding constraint is GitHub Actions minutes, not Cloudflare.**
 
@@ -1729,12 +2864,12 @@ Daily is defensible because only one scheduled duty is latency-sensitive:
 |---|---|
 | From-scratch verification replay | Daily or weekly — it is an integrity check |
 | Index and exports | Not scheduled at all; `REQ-DASH-5` makes them push-triggered |
-| Due activations | Not scheduled at all; the enforcer honours `pending_effective_at` directly (§6.5) |
+| Agreement activations | Not scheduled; activation is immediate and request-driven (§6.5) |
 | Orphaned marker clearing | Minutes, ideally — but the Worker clears opportunistically (§5.4), and an uncleared marker fails closed |
 
-Moving activations off the schedule also *improves* correctness: a periodic
-flip left a window in which contributors passed under a superseded agreement,
-and the edge comparison closes it to zero.
+Keeping activation off the schedule also *improves* correctness: the
+project-wide freshness marker blocks checks during the O(1) active-version
+update, leaving no clock-driven transition window.
 
 **Opportunistic orphan clearing** removes most of that latency without spending
 minutes: on any later request touching a subject with an open marker, the Worker
@@ -1744,70 +2879,23 @@ then only catches subjects nobody touches again.
 
 **Behaviour on reaching a limit** (`REQ-OPS-3` requires this stated): Cloudflare
 routes are fail-closed, so checks stop being written rather than passing
-unevaluated, and the reconciler — running in Actions, unaffected by the Worker
-budget — creates the *temporarily unavailable* check (§9). Exhausting Actions
-minutes stops reconciliation only; signing, revocation, and checks continue,
-because none of them depend on it.
-
-### 9.1 Backup and recovery (`REQ-REC-7`, `REQ-REC-4`)
-
-`REQ-REC-7` requires a documented backup and recovery procedure for the records
-repository and any keys needed to interpret protected content. `REQ-REC-4`
-additionally requires backups to preserve commit history **and recorded
-branch-head identities**, and `REQ-VERIFY-2` requires a restore-then-rebuild
-acceptance scenario. None of this existed in earlier drafts.
-
-**What is backed up**
-
-| Artifact | Why | Where |
-|---|---|---|
-| Canonical repo, full history, all branches | The only source of truth | Adopter-controlled mirror clone |
-| Recorded branch-head identities | `REQ-REC-4`; a mirror alone does not prove which head was canonical when | Signed head log, appended per reconciler run |
-| Coverage repo | Derived, but restoring it avoids a full rebuild | Same mirror schedule |
-| `config/project.json`, agreements | Inside canonical | — |
-| Coverage deploy key, session keys, App private keys | Needed to resume operation, **not** to interpret records | Operator or adopter secret store, never in any records repo (`REQ-SEC-4`) |
-
-No key is required to *read* the records: `REQ-SEC-2` chose repository privacy
-over application-layer encryption, so a restored canonical repo is fully
-interpretable with git and the documented event format alone (`REQ-REC-5`).
-That is the main reason recovery is simple, and it is worth stating as a benefit
-of that earlier decision.
-
-**Head-identity log.** A mirror preserves commits but not the claim "head was
-`X` at time `T`". Each reconciler run appends `{canonical_sha, observed_at}` to
-a log kept outside the repository, so a restore can be checked against the last
-recorded head and detect truncation. This does not defeat an administrator who
-controls the repository and every backup — `REQ-REC-4` explicitly accepts that —
-but it does detect accidental loss and partial restores, which is what backup is
-for.
-
-**Recovery procedure**
-
-```
-1. restore canonical from mirror (all refs, full history)
-2. compare head against the head-identity log; investigate any regression
-3. rebuild coverage by full replay             -> §5.4 reconciler, repair mode
-4. rebuild derived/ index and exports          -> §6.6
-5. re-point the registry entry if repo names changed
-6. re-drive checks for open pull requests in scope
-```
-
-Steps 3–4 are the same code path the reconciler already runs, which is what
-`REQ-REC-6`'s rebuildability requirement buys: recovery is not a special
-procedure, it is the ordinary one starting from an empty projection.
-
----
+unevaluated. No unavailable check can be created while the enforcer service is
+down; after service or quota recovery, its scheduled sweep creates that check
+(§9). Exhausting Actions minutes stops projection reconciliation only; signing,
+revocation, and checks continue, because none of them depend on it.
 
 ## 10. Requirement changes proposed
 
 ### 10.1 Amendments — approved and incorporated
 
-Both were approved on 18 August 2026 and are now in the baseline as
-`design/requirements.md` revision 2, section 20.
+The original two amendments were approved on 18 August 2026 in requirements
+revision 2. Revision 4, approved on 21 August 2026, replaced the staged part of
+`REQ-AGR-2` with the immediate-activation rule shown here. Requirements section
+20 preserves both decisions and identifies the supersession.
 
 | Req | Change | Where |
 |---|---|---|
-| `REQ-AGR-2` | Publishing separated from activating; an activation declares whether it invalidates prior acceptances; staged activation permitted | §6.5, D10 |
+| `REQ-AGR-2` | Publishing is separate from immediate activation; only the active version is signable; `supersedes_coverage` never revives a previously invalid acceptance | §6.5, D10 |
 | `REQ-CHECK-2` | `Co-authored-by` trailers no longer determine a public check result, and are surfaced to authorized viewers instead; exemptions extended to named human accounts with a recorded basis; rule-based exemptions must materialize as events | §6.3.1, §6.8 |
 
 The `REQ-CHECK-2` change narrows who must be covered, so its residual gap is
@@ -1844,9 +2932,11 @@ that requires acknowledgement:
 | `REQ-SEC-1` | **Resolved** — fields derive from config; rate limiting keys on user ID, not IP (§5.1, §8.4) |
 | `REQ-CHECK-3` | **Resolved** — admin bypass is documented (§6.4) |
 | `REQ-OPS-3` | **Deviation acknowledged** — the reconciler consumes metered private-repo Actions minutes on the Free baseline (§9); bounded by incremental reconciliation, and must be sized in A3 |
-| `REQ-AGR-2` | **Resolved** — activation now has a scheduled trigger (§6.5) |
+| `REQ-AGR-2` | **Resolved** — activation is immediate, inactive versions are not signable, and `accepted_versions` implements chained currency without scheduled state (§6.5) |
 | `REQ-PORTAL-5` | **Residual risk, not met in spirit** — the public check is an arbitrary-target coverage oracle by construction (§6.3). Rate-limited and documented, not closed. |
 | `REQ-CONFIG-1` | **Limitation acknowledged** — two recipients in one org share an installation, so their separation is software-only in the hosted model (§7) |
+| `REQ-REC-3` | **Resolved** — the mandatory README root is created through Contents API initialization, then the actual initial branch is renamed to `events`; events are identified by path (§6.10.1) |
+| `REQ-CONFIG-3` | **Resolved** — repository entries require current repo `admin`, organization selectors require current organization-owner authority, and one coordination domain rejects or quarantines overlap without treating enforcement configuration as legal scope (§7) |
 
 ### 10.4 Verification resolved — no amendment needed
 
@@ -1856,12 +2946,36 @@ repositories on GitHub Free, and that the same enforcement on a private
 repository requires a paid plan (§11). The conditional amendment previously
 noted here is withdrawn: the condition did not occur.
 
+**Release verification is required, not deferred.** Before any release, the
+release owner maintains `design/verification-matrix.md` with one row for every
+in-scope `MUST`, its automated test or explicitly recorded manual procedure,
+evidence reference, and pass/fail result. It also enumerates every acceptance
+scenario in `REQ-VERIFY-2`, including the concrete authorization-loss (§8.2),
+backup restore (§9.1), overlap recovery (§7), and GitHub Free (§11) criteria
+already defined here. An unmet or unverified row blocks release unless the
+requirements themselves explicitly defer it.
+
 ### 10.5 Baseline status
 
-Resolved. Both amendments in 10.1 were approved and incorporated, so the
-baseline is **Locked at revision 2** and this document is written against it.
-Requirements section 20 records each change with its rationale, affected IDs,
-and what it does not resolve, as section 19 requires.
+Resolved. The baseline is **Locked at revision 9** and this document is
+written against it. Revision 2 incorporated the two amendments of §10.1;
+revision 3 ratified rules this design had declared on its own authority —
+scope authorization (`REQ-CONFIG-5`, §7), credential lifecycle (`REQ-SEC-9`,
+§8.1.2), and the `REQ-REC-3` event-commit reading (§10.3) — through the
+requirements review loop rather than a design-proposed amendment, alongside
+the derived-data enumerability and per-App boundary amendments. Revision 4
+separates legal scope from enforcement routing, removes staged activation,
+requires the README root and credential/ACL boundaries, and closes the remaining
+identity, authorization, replay, disclosure, and supply-chain findings.
+Revisions 5 and 6 lock one agreement identifier per initial-release project,
+the complete administrative authorization evidence contract, and uniqueness
+within a coordination domain. Revision 7 defines tuple-wide, forward-looking
+revocation and its retry and restore behavior. Revision 8 adds repository-local
+fail-closed handling and administrative recovery for overlaps created by GitHub
+lifecycle changes. Revision 9 permits only the bounded public conflict message
+needed to reach that recovery path. Requirements section 20 records each change
+with its rationale, affected IDs, and what it does not resolve, as section 19
+requires.
 
 The DraCLA-hosted-records variant in §9 remains opt-in and therefore does **not**
 amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
@@ -1910,6 +3024,11 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
   Both halves of the documented Free baseline — public contributing repository
   with enforcement, private records repository without — are therefore verified
   rather than assumed.
+- **A5 — Federated enforcement scope. CLOSED by the authorization-event
+  model.** Different repository administrators and organization owners bind
+  their own entries through separate attributable actions (§7). No actor's
+  permission is reused for another owner, and routing changes only after each
+  independently authorized event lands.
 
 ---
 
@@ -1918,16 +3037,16 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
 | ID | Risk | Mitigation |
 |---|---|---|
 | R1 | ~~Co-author emails unresolvable, so co-authored PRs fail by default~~ **Closed** by `REQ-CHECK-2` rev 2 — trailers no longer block (§6.3.1) | Residual: a trailer-only co-author may contribute unsigned unless a maintainer acts on the surfaced list |
-| R2 | A substantive version activation invalidates every contributor at once | `supersedes_coverage` flag keeps editorial changes from triggering it at all; staged activation with a future `effective_at` warns and lets contributors sign early (§6.5, D10) |
-| R3 | Non-atomic write across two repos (§5.4 steps 1–3) | Pending-pointer forces fail-closed; Actions reconciler repairs |
+| R2 | A substantive version activation invalidates every contributor at once | Publish the immutable version in advance for project communication, then activate deliberately; `supersedes_coverage: false` handles non-invalidating changes, but DraCLA intentionally offers no early signing (§6.5, D10) |
+| R3 | Non-atomic write across two repos (§5.4 steps 1–3) | In-flight marker forces fail-closed; Actions reconciler repairs |
 | R4 | Index proxy carries all dashboard traffic through the serverless tier | Bound index size; cache with short TTL; include in A3 envelope |
-| R5 | Provisioning failure leaves a half-installed project | `dracla install` is idempotent and re-runnable locally; the two App installs are GitHub's own flow and resumable; registry entry written last |
+| R5 | Provisioning failure leaves a half-installed project | `dracla install` is idempotent and re-runnable locally; the two App installs are GitHub's own flow and resumable; the Setup URL callback persists nothing, and the registry entry is written last by the portal when the administrator **connects** (§6.10.3.1), so a half-provisioned project is never routable |
 | R6 | ~~10 ms Free-tier CPU exceeded on a large pull request~~ **Closed** by measurement: 1.26 ms worst case, 13% of budget (§9, A2) | Residual: a pathological pull request with very long commit messages parses in proportion to bytes; the 250-commit API ceiling bounds it |
 | R7 | ~~One busy adopter consumes the shared hosted ceiling~~ **Downgraded** by the A3 model: Free saturates near 1,400 projects, 520 if all are as busy as `cli/cli` (§9.2) | Per-project rate accounting retained as a guard; Paid raises the ceiling 3.3x |
-| R8 | Daily limit exceeded silently drops webhooks if routes fail open | Configure routes fail closed (`REQ-CHECK-5`, §9); reconciler creates the *temporarily unavailable* check the dead Worker could not |
-| R9 | `dracla-enforcer` is a public App, so an outsider can exhaust the shared per-account budget and halt checks, signing, and revocation for every adopter | WAF and rate limiting ahead of the routes; signature verification at the edge; three-Worker route split so the webhook surface cannot take the portal down (§9) |
+| R8 | Daily limit exceeded silently drops webhooks if routes fail open | Configure routes fail closed (`REQ-CHECK-5`, §9); after service recovers, the enforcer sweep creates the *temporarily unavailable* check the dead route could not |
+| R9 | `dracla-enforcer` is a public App, so an outsider can exhaust the shared per-account budget and halt checks, signing, and revocation for every adopter | Residual: signature verification limits downstream work but not counted requests; DraCLA uses no IP logic. Workers Paid capacity, monitoring, and operator response reduce impact. The two-Worker split does not isolate an account-wide quota (§9) |
 | R10 | ~~Revocation-as-griefing via co-authoring~~ **Closed** by `REQ-CHECK-2` rev 2 — an injected trailer cannot block (§6.3.1) | Residual: a griefer who authors commits under their own identity can still revoke, but only affects pull requests containing their own authored work |
-| R11 | Reconciler consumes the **adopting org's** private-repo Actions allowance (Actions bills the repo owner), shared with all their other private repos | Daily schedule (~4% including per-signing runs, vs 39–78% hourly); activations moved off the schedule entirely (§6.5); opportunistic orphan clearing in the Worker; incremental reconciliation on the ordinary path |
+| R11 | Reconciler consumes the **adopting org's** private-repo Actions allowance (Actions bills the repo owner), shared with all their other private repos | **Largely dissolved** by the dedicated-organization shape (§6.10.4), which brings its own allowance. Otherwise: daily schedule (~4% including per-signing runs, vs 39–78% hourly); activations moved off the schedule (§6.5); opportunistic orphan clearing in the Worker |
 
 ---
 
@@ -1935,19 +3054,20 @@ amend `REQ-CONFIG-1`, `REQ-OPS-6`, or principle 6.
 
 | Area | Requirements | Covered by |
 |---|---|---|
-| Project config, scope, recipient | `REQ-CONFIG-1..4` | §4, §5.1, §7, D4, D7 |
+| Project config, enforcement scope, recipient | `REQ-CONFIG-1..5` | §4, §5.1, §7, D4, D7 |
 | Agreement versions and presentation | `REQ-AGR-1..4` | §5.1, §6.1, §6.5 |
 | Individual signing | `REQ-SIGN-1..5` | §6.1, §5.1, §5.2 |
 | Revocation and re-signing | `REQ-REV-1..5` | §6.2 |
 | Entity CLAs | `REQ-ENTITY-1..5` | Deferred by `REQ-CONFIG-4`; event schema reserves the types |
 | PR enforcement | `REQ-CHECK-1..5` | §2, §6.3, §6.4, §5.4 |
-| Records | `REQ-REC-1..7` | §5.1, §5.2, §4, §6.6 |
-| Privacy and security | `REQ-SEC-1..8` | §8, §8.1, §8.2, §4, §5.3 |
-| Portal and badges | `REQ-PORTAL-1..5` | §6.1, §6.3, §6.7 |
+| Records | `REQ-REC-1..8` | §5.1, §5.2, §4, §6.6, §6.8 |
+| Privacy and security | `REQ-SEC-1..10` | §8, §8.1, §8.2, §8.4, §4, §5.3, §9.1 |
+| Portal and badges | `REQ-PORTAL-1..6` | §6.1, §6.3, §6.7 |
 | Dashboard | `REQ-DASH-1..5` | §6.6 |
 | Administrative flows | `REQ-AGR-1..2`, `REQ-CHECK-2`, `REQ-OPS-4` | §6.5, §6.8 |
 | Backup and recovery | `REQ-REC-7`, `REQ-REC-4` | §9.1 |
-| Observability and minimization | `REQ-OPS-5`, `REQ-SEC-1` | §8.4 |
-| CLI: config, reporting, portability | `REQ-REC-5`, `REQ-OPS-4` | §6.9 |
+| Data protection | `REQ-SEC-1..3`, `REQ-SEC-7`, `REQ-REC-3` | §8.4 |
+| Observability and minimization | `REQ-OPS-5`, `REQ-SEC-1` | §8.4.1 |
+| CLI: reporting, portability | `REQ-REC-5`, `REQ-OPS-4` | §6.9, §6.10 |
 | Deployment and portability | `REQ-OPS-1..6` | §2, §7, §9 |
-| Release verification | `REQ-VERIFY-1..2` | **Deferred**, and declared as such in §10.3 rather than only here. The traceability matrix and acceptance scenarios are a separate deliverable; §9.1, §8.2, and §9 name concrete pass criteria for three of the `REQ-VERIFY-2` scenarios that previously had none. |
+| Release verification | `REQ-VERIFY-1..2` | Mandatory pre-release matrix and acceptance evidence (§10.4); an unmet or unverified `MUST` blocks release |
