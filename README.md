@@ -19,10 +19,9 @@ What exists:
 
 | | |
 |---|---|
-| [`design/requirements.md`](design/requirements.md) | Locked requirements baseline, revision 2 |
+| [`design/requirements.md`](design/requirements.md) | Locked requirements baseline, revision 3 |
 | [`design/high-level-design.md`](design/high-level-design.md) | The architecture |
-| [`design/review-findings.md`](design/review-findings.md) | 81 findings from four independent adversarial reviews, all resolved |
-| [`core/`](core/) | Event model, append-only commit protocol, coverage projection — 43 unit tests, 9 integration tests against live GitHub |
+| [`core/`](core/) | Event model, append-only commit protocol, coverage projection — unit tests plus integration tests against live GitHub |
 | [`api/bench/`](api/bench/) | CPU measurements for the edge tier |
 
 What does not exist: the Workers, the portal, the dashboard, the CLI, the
@@ -43,10 +42,7 @@ badges. See §16 of the requirements for the release scope.
 
 ## Design notes worth reading
 
-The design was reviewed adversarially before implementation, and the findings
-are public in [`design/review-findings.md`](design/review-findings.md) —
-including the ones that were wrong in the first draft. If you are evaluating
-DraCLA, that file is the honest account of what it does and does not guarantee.
+The design was reviewed adversarially before implementation.
 
 Two limits are stated rather than solved:
 
