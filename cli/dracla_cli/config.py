@@ -1,182 +1,202 @@
-"""Project configuration: the resolved artifact committed to canonical.
+"""Install's configuration, composed by Hydra (§6.10.3).
 
-Design §6.9. The administrator authors YAML and Hydra composes it *on the
-client*; `dracla config` writes the resolved result as plain JSON. What lands in
-the repository is inert — no `defaults:`, no `${...}`, no config-group
-references, and no dependency on the composition engine to know what it says.
+    dracla install github.org=acme recipient.slug=projx
 
-Nothing here is imported by `core`. Composition is a client concern; core
-receives a plain dict.
+Composition is Hydra's Compose API rather than anything hand-rolled. That is not
+only about not reimplementing a config system badly — struct mode rejects
+unknown keys, the structured schema below gives type checking, `???` gives
+missing-value reporting, and the override grammar handles quoting, nesting, and
+list syntax that a naive splitter gets wrong.
+
+`core` never sees any of this: composition resolves here and what reaches the
+records repository is plain, inert data (§6.9).
 """
 
 from __future__ import annotations
 
-import json
 import re
-from dataclasses import dataclass, field, asdict
-from typing import Any
+
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from hydra import compose, initialize_config_dir
+from hydra.core.config_store import ConfigStore
+from hydra.errors import ConfigCompositionException, OverrideParseException
+from omegaconf import MISSING, OmegaConf
+from omegaconf.errors import MissingMandatoryValue, OmegaConfBaseException
 
 from .errors import CliError
 
-SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,38}$")
-CONFIG_PATH = "config/project.json"
-SCHEMA_VERSION = 1
+CONF_DIR = Path(__file__).parent / "conf"
+
+
+def _recipient_default(org: str) -> str:
+    """The recipient slug implied by a dedicated organization's name.
+
+    github.org names the organization dedicated to CLA records (§6.10.4), which
+    is conventionally `<project>-cla`. The recipient is `<project>`, so the
+    trailing `-cla` comes off — otherwise `<slug>-cla-records` doubles a word
+    the organization name already carries and you get
+    `acme-cla/acme-cla-cla-records`.
+
+    A resolver rather than a post-hoc fixup because it must apply to the
+    DEFAULT only: an explicit `recipient.slug=` replaces the interpolation
+    outright and never reaches this.
+    """
+    # Case-insensitively: GitHub logins are, so `ACME-CLA` and `acme-cla` are
+    # the same organization and must not produce different repository names.
+    # The retained part keeps its original casing.
+    return org[:-4] if org.lower().endswith("-cla") else org
+
+
+# `register_resolver` is the current API in omegaconf 2.4; `register_new_resolver`
+# is the deprecated alias there, the reverse of the 2.1 naming. `replace=True`
+# because the name is ours — `dracla_recipient` is registered nowhere else — and
+# raising at import time on a duplicate would be worse than winning it.
+OmegaConf.register_resolver("dracla_recipient", _recipient_default, replace=True)
+
+
+@dataclass
+class GitHub:
+    org: str = MISSING
 
 
 @dataclass
 class Recipient:
-    """The legal person receiving the rights granted by the agreement.
-
-    `REQ-CONFIG-2`: DraCLA must not assume the GitHub organization is the
-    recipient. Hydra's own trademarks moved from Meta Platforms to an individual
-    while the GitHub org stayed put — that is the case this field exists for.
-
-    Immutable once chosen (§5.5): past acceptances granted rights to a specific
-    entity and cannot be retroactively reassigned. Changing it is a new project.
-    """
-
-    legal_name: str
-    contact: str
-    address: str = ""
+    slug: str = MISSING
 
 
 @dataclass
-class Scope:
-    """Which repositories an agreement covers (`REQ-CONFIG-3`).
-
-    Captured with every acceptance and evaluated at check time against the
-    scope recorded *then*, not the project's current scope — so widening scope
-    does not retroactively extend consent (§6.3, DR-007).
-    """
-
-    orgs: list[str] = field(default_factory=list)
-    repos: list[str] = field(default_factory=list)
-
-    def covers(self, repository: str) -> bool:
-        if repository in self.repos:
-            return True
-        return repository.split("/", 1)[0] in self.orgs
+class InstallSchema:
+    """The structured schema. Struct mode plus this is what makes a mistyped
+    key an error instead of a silently ignored line."""
+    github: GitHub = field(default_factory=GitHub)
+    recipient: Recipient = field(default_factory=Recipient)
+    force: bool = False
+    dry_run: bool = False
 
 
-@dataclass
-class Confirmation:
-    """A checkbox the signer must tick, with its exact label.
+# GitHub account names: letters, digits, hyphens; no leading or
+# trailing hyphen. Deliberately narrow — a name that fails this is a
+# typo, and the alternative is a 404 after the operator has confirmed.
+_NAME = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?")
 
-    `REQ-SIGN-3` requires the label be preserved with the acceptance, because
-    the evidence is what the signer actually saw.
-    """
-
-    id: str
-    label: str
+cs = ConfigStore.instance()
+cs.store(name="install_schema", node=InstallSchema)
 
 
-@dataclass
-class ProjectConfig:
+@dataclass(frozen=True)
+class InstallConfig:
+    org: str
     slug: str
-    recipient: Recipient
-    scope: Scope
-    agreement_id: str = "icla"
-    required_fields: list[str] = field(default_factory=lambda: ["legal_name", "email"])
-    confirmations: list[Confirmation] = field(default_factory=list)
-    privacy_policy_url: str = ""
-    retention_statement: str = ""
-    exemption_rules: list[dict[str, Any]] = field(default_factory=list)
-    schema_version: int = SCHEMA_VERSION
+    force: bool = False
+    dry_run: bool = False
+    # The overrides as typed, so an error can suggest the user's own command
+    # back to them with one thing added, rather than a generic incantation.
+    overrides: tuple[str, ...] = ()
 
-    # --- validation -------------------------------------------------------
+    def command(self, *extra: str) -> str:
+        """The invocation that produced this config, with `extra` applied.
 
-    def validate(self) -> None:
-        if not SLUG_RE.match(self.slug):
-            raise CliError(
-                f"invalid slug {self.slug!r}",
-                hint="lowercase letters, digits and hyphens; 2-39 characters")
-        if not self.recipient.legal_name.strip():
-            raise CliError(
-                "recipient.legal_name is required",
-                hint="REQ-CONFIG-2: name the legal person receiving the rights, "
-                     "which may not be the GitHub organization")
-        if not self.scope.orgs and not self.scope.repos:
-            raise CliError(
-                "scope is empty",
-                hint="list the organizations or repositories the agreement covers")
-        if not self.required_fields:
-            raise CliError(
-                "required_fields is empty",
-                hint="at least one signer field is needed to identify the signer")
-        if not self.privacy_policy_url:
-            raise CliError(
-                "privacy_policy_url is required",
-                hint="REQ-SEC-3: the signing page must link to your privacy policy "
-                     "before acceptance")
-        if not self.retention_statement:
-            raise CliError(
-                "retention_statement is required",
-                hint="REQ-SEC-7: signing and revocation must explain that evidence "
-                     "is retained after revocation")
-        seen = set()
-        for c in self.confirmations:
-            if c.id in seen:
-                raise CliError(f"duplicate confirmation id {c.id!r}")
-            seen.add(c.id)
-            if not c.label.strip():
-                raise CliError(f"confirmation {c.id!r} has an empty label")
+        A replaced key keeps its original position rather than moving to the
+        end, so the suggestion reads as the operator's own command with one
+        thing changed — which is the point of echoing it back at all.
+        """
+        replacing = {e.split("=", 1)[0]: e for e in extra}
+        used: set[str] = set()
+        parts: list[str] = []
+        for given in self.overrides:
+            key = given.split("=", 1)[0]
+            if key in replacing:
+                parts.append(replacing[key])
+                used.add(key)
+            else:
+                parts.append(given)
+        parts.extend(e for k, e in replacing.items() if k not in used)
+        return " ".join(["dracla install", *parts])
 
-    # --- serialization ----------------------------------------------------
+    @property
+    def records_name(self) -> str:
+        return f"{self.slug}-cla-records"
 
-    def to_json(self) -> str:
-        """Resolved, sorted, stable — this is what gets committed."""
-        return json.dumps(asdict(self), indent=2, sort_keys=True) + "\n"
+    @property
+    def coverage_name(self) -> str:
+        return f"{self.slug}-cla-coverage"
 
-    @classmethod
-    def from_dict(cls, doc: dict[str, Any]) -> "ProjectConfig":
-        version = doc.get("schema_version", 1)
-        if version != SCHEMA_VERSION:
-            raise CliError(
-                f"config schema_version {version} is not supported",
-                hint=f"this dracla understands version {SCHEMA_VERSION}")
-        return cls(
-            slug=doc["slug"],
-            recipient=Recipient(**doc["recipient"]),
-            scope=Scope(**doc["scope"]),
-            agreement_id=doc.get("agreement_id", "icla"),
-            required_fields=list(doc.get("required_fields", [])),
-            confirmations=[Confirmation(**c) for c in doc.get("confirmations", [])],
-            privacy_policy_url=doc.get("privacy_policy_url", ""),
-            retention_statement=doc.get("retention_statement", ""),
-            exemption_rules=list(doc.get("exemption_rules", [])),
-        )
+    @property
+    def records_repo(self) -> str:
+        return f"{self.org}/{self.records_name}"
 
-    def records_repo(self, owner: str) -> str:
-        return f"{owner}/{self.slug}-cla-records"
-
-    def coverage_repo(self, owner: str) -> str:
-        return f"{owner}/{self.slug}-cla-coverage"
+    @property
+    def coverage_repo(self) -> str:
+        return f"{self.org}/{self.coverage_name}"
 
 
-def compose(overrides: list[str] | None = None,
-            config_dir: str | None = None) -> ProjectConfig:
-    """Compose configuration with Hydra, if it is available and configured.
+def describe(cfg: "InstallConfig") -> str:
+    """Render the resolved configuration (C2).
 
-    Hydra is optional at this layer on purpose. A single project has one config
-    and needs no composition; the value appears when one maintainer runs several
-    projects that share a base and differ only in recipient, agreement, and
-    scope (§6.9). So a missing Hydra is not an error — it just means no
-    composition.
+    A Hydra application should let an operator see what the overrides actually
+    resolved to. --dry-run reports intended *actions*; this reports the config
+    that produced them, which is what you want when an interpolated default
+    surprises you.
     """
-    if not config_dir:
-        raise CliError("no config directory given",
-                       hint="pass --config-dir, or use `dracla init` to create one")
-    try:
-        from hydra import compose as hydra_compose, initialize_config_dir
-        from omegaconf import OmegaConf
-    except ImportError as e:  # pragma: no cover - environment dependent
-        raise CliError(
-            "hydra-core is required for config composition",
-            hint="pip install hydra-core, or hand-write config/project.json") from e
+    return "\n".join([
+        f"github.org         {cfg.org}",
+        f"recipient.slug     {cfg.slug}",
+        f"force              {str(cfg.force).lower()}",
+        f"dry_run            {str(cfg.dry_run).lower()}",
+        "",
+        f"records repository   {cfg.records_repo}",
+        f"coverage repository  {cfg.coverage_repo}",
+    ])
 
-    with initialize_config_dir(config_dir=config_dir, version_base=None):
-        cfg = hydra_compose(config_name="project", overrides=overrides or [])
-    # Resolve everything now: what leaves this function must not depend on
-    # Hydra to be understood.
-    resolved = OmegaConf.to_container(cfg, resolve=True)
-    return ProjectConfig.from_dict(resolved)      # type: ignore[arg-type]
+
+def resolve(overrides: list[str]) -> InstallConfig:
+    """Compose the install configuration from overrides.
+
+    Hydra's errors are precise but framed for an application author; they are
+    translated here into something an operator can act on.
+    """
+    try:
+        # version_base is omitted deliberately: it is deprecated in Hydra 1.4
+        # and removed in 1.5, so passing it would warn on every invocation.
+        with initialize_config_dir(config_dir=str(CONF_DIR.resolve())):
+            cfg = compose(config_name="config", overrides=list(overrides))
+    except OverrideParseException as e:
+        raise CliError(
+            "could not parse an override",
+            hint=f"overrides look like key=value, e.g. github.org=acme\n"
+                 f"    {e}") from None
+    except ConfigCompositionException as e:
+        raise CliError(
+            str(e).splitlines()[0],
+            hint="install takes github.org and optionally recipient.slug. "
+                 "Recipient details, scope, and policy text are configured in "
+                 "the portal, not here.") from None
+
+    try:
+        org = cfg.github.org
+        slug = cfg.recipient.slug
+    except MissingMandatoryValue:
+        raise CliError("github.org is required",
+                       hint="dracla install github.org=YOUR-ORG") from None
+    except OmegaConfBaseException as e:
+        raise CliError(str(e)) from None
+
+    # The schema types these as `str`, which rejects null, lists and mappings —
+    # but an empty or blank string is a valid `str` and would compose repository
+    # names like `/-cla-records`. GitHub account names are also a narrow set, so
+    # anything that cannot be one is a typo worth catching before the network.
+    for key, value in (("github.org", org), ("recipient.slug", slug)):
+        if not str(value).strip():
+            raise CliError(f"{key} is empty",
+                           hint=f"dracla install github.org=YOUR-ORG")
+        if not _NAME.fullmatch(str(value)):
+            raise CliError(
+                f"{key} is not a usable GitHub name: {value!r}",
+                hint="GitHub names use letters, digits and hyphens.")
+
+    return InstallConfig(org=str(org), slug=str(slug),
+                         force=bool(cfg.force),
+                         dry_run=bool(cfg.dry_run),
+                         overrides=tuple(overrides))

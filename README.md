@@ -19,14 +19,16 @@ What exists:
 
 | | |
 |---|---|
-| [`design/requirements.md`](design/requirements.md) | Locked requirements baseline, revision 2 |
+| [`design/requirements.md`](design/requirements.md) | Locked requirements baseline, revision 3 |
 | [`design/high-level-design.md`](design/high-level-design.md) | The architecture |
-| [`design/review-findings.md`](design/review-findings.md) | 81 findings from four independent adversarial reviews, all resolved |
-| [`core/`](core/) | Event model, append-only commit protocol, coverage projection — 43 unit tests, 9 integration tests against live GitHub |
+| [`core/`](core/) | Event model, append-only commit protocol, coverage projection — unit tests plus integration tests against live GitHub |
 | [`api/bench/`](api/bench/) | CPU measurements for the edge tier |
+| [`cli/`](cli/) | `dracla install` — provisions a project's repository pair and workflow |
+| [`docs/faq.md`](docs/faq.md) | Why it is shaped this way: dedicated organizations, append-only records, no encryption |
 
-What does not exist: the Workers, the portal, the dashboard, the CLI, the
-badges. See §16 of the requirements for the release scope.
+What does not exist: the Workers, the portal, the dashboard, the badges, and
+reconciliation. The CLI's other subcommands are designed but unbuilt. See §16 of
+the requirements for the release scope.
 
 ## How it works
 
@@ -43,10 +45,7 @@ badges. See §16 of the requirements for the release scope.
 
 ## Design notes worth reading
 
-The design was reviewed adversarially before implementation, and the findings
-are public in [`design/review-findings.md`](design/review-findings.md) —
-including the ones that were wrong in the first draft. If you are evaluating
-DraCLA, that file is the honest account of what it does and does not guarantee.
+The design was reviewed adversarially before implementation.
 
 Two limits are stated rather than solved:
 

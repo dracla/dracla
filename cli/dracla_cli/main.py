@@ -1,8 +1,7 @@
 """dracla — command line entry point.
 
-Every command runs as the administrator, with their own credentials. There is no
-DraCLA service in the path (design D11, D12), which is also why `REQ-REC-5`'s
-"readable without DraCLA" holds literally: this is the tool an auditor would use.
+Every command runs as the administrator, with their own credentials, and no
+DraCLA service is in the path (D11, D12).
 """
 
 from __future__ import annotations
@@ -13,16 +12,19 @@ import subprocess
 import sys
 
 from . import __version__
-from .config import ProjectConfig, Recipient, Scope, Confirmation
-from .errors import CliError
-from .provision import Provisioner, preflight
-from .seed import Seeder
+from .admin import GitHubAdmin
+from .config import describe, resolve
+from dracla.github import GitHubError
+from dracla.githost import BlobConflict, NotFastForward, NotFound
+
+from .errors import Aborted, CliError
+from .install import InstallFailed, run
+from .workflow import RECONCILE_IMPLEMENTED
 
 PORTAL = "https://dracla.yadan.net"
 
 
 def _token() -> str:
-    """The administrator's own GitHub token."""
     for var in ("GITHUB_TOKEN", "GH_TOKEN"):
         if os.environ.get(var):
             return os.environ[var]
@@ -31,75 +33,154 @@ def _token() -> str:
                              text=True, timeout=10)
         if out.returncode == 0 and out.stdout.strip():
             return out.stdout.strip()
-    except (FileNotFoundError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError):
+        # OSError, not FileNotFoundError: `gh` present but not executable
+        # raises PermissionError, which is not a FileNotFoundError.
         pass
-    raise CliError(
-        "no GitHub credentials found",
-        hint="run `gh auth login`, or set GITHUB_TOKEN")
+    raise CliError("no GitHub credentials found",
+                   hint="run `gh auth login`, or set GITHUB_TOKEN")
 
 
-def _install_links(slug: str) -> str:
+def _isatty(stream) -> bool:
+    """.isatty() raises ValueError on a closed file object."""
+    try:
+        return stream.isatty()
+    except ValueError:
+        return False
+
+
+def install_links(slug: str) -> list[tuple[str, str]]:
     """The two App installations the administrator completes in GitHub's UI.
 
-    A GitHub App cannot install another App — installation is a user action
-    through GitHub's own UI. Offering the link is the intended flow, not a
-    workaround, and GitHub owns the consent screen, repository picker, and
-    permission display (design §9).
+    A GitHub App cannot install another App; installation is a user action
+    through GitHub's own UI. Offering the link is the intended flow, and GitHub
+    owns the consent screen, repository picker, and permission display (§9).
     """
-    return (
-        f"  1. records     https://github.com/apps/dracla-records/"
-        f"installations/new?state={slug}\n"
-        f"  2. enforcement https://github.com/apps/dracla-enforcer/"
-        f"installations/new?state={slug}\n")
+    base = "https://github.com/apps"
+    return [
+        ("records", f"{base}/dracla-records/installations/new?state={slug}"),
+        ("enforcement", f"{base}/dracla-enforcer/installations/new?state={slug}"),
+    ]
+
+
+def _check_confirmable(cfg) -> None:
+    """Refuse an invocation that could never be confirmed, before any network.
+
+    C1: prompting without a terminal used to raise EOFError and exit 0. Refusing
+    is the right answer rather than auto-confirming — this creates repositories,
+    and a script that did not pass `force=true` did not consent.
+
+    Checked here, ahead of any API call, because an invocation that cannot
+    possibly succeed should fail immediately rather than after a round trip.
+    The *prompt* itself still waits until after the organization gate (§6.10.3.1).
+    """
+    if cfg.dry_run or cfg.force:
+        return
+    # sys.stdin is None when fd 0 is closed, and .isatty() raises on a closed
+    # file object. Either way there is no terminal to ask.
+    if sys.stdin is None or not _isatty(sys.stdin):
+        raise CliError(
+            "cannot ask for confirmation: stdin is not a terminal",
+            hint="pass force=true to proceed without a prompt, e.g.\n"
+                 f"    dracla install github.org={cfg.org} force=true")
+
+
+def _confirm(cfg, warnings=()) -> bool:
+    """Prompt. Invoked by run() after the gate passes, never before.
+
+    Takes the preflight warnings so the operator sees them BEFORE answering.
+    They used to be printed after run() returned, which meant an upgrade over
+    existing repositories was approved against the words "About to create" and
+    only afterwards revealed as reuse.
+    """
+    if cfg.dry_run or cfg.force:
+        return True
+    for w in warnings:
+        print(f"warning: {w}", file=sys.stderr)
+    # stderr, not stdout: `dracla install ... > log` must not send the prompt
+    # to the file and leave the operator staring at a blank terminal while
+    # input() blocks. _check_confirmable cannot catch that — stdin IS a tty.
+    # Say what will actually happen, PER REPOSITORY. A single verb chosen from
+    # whether any warning exists announced "Reusing existing" for a repository
+    # that did not exist yet — the same defect as "About to create" on a re-run,
+    # in the other direction.
+    reused = {w.split()[0] for w in warnings}
+    for repo in (cfg.records_repo, cfg.coverage_repo):
+        verb = "reuse existing" if repo in reused else "create"
+        print(f"  will {verb} {repo} (private)", file=sys.stderr)
+    try:
+        sys.stderr.write("Continue? [y/N] ")
+        sys.stderr.flush()
+        answer = input()
+    except EOFError:
+        raise CliError("no answer given; nothing was created",
+                       hint="pass force=true to skip the prompt") from None
+    if answer.strip().lower() not in ("y", "yes"):
+        raise Aborted("cancelled; nothing was created")
+    return True
+
+
+def _print_steps(out) -> None:
+    width = max((len(s.what) for s in out.steps), default=0)
+    for step in out.steps:
+        print(f"  {step.what.ljust(width)}  {step}")
 
 
 def cmd_install(args: argparse.Namespace) -> int:
-    cfg = ProjectConfig(
-        slug=args.slug,
-        recipient=Recipient(legal_name=args.recipient, contact=args.contact),
-        scope=Scope(orgs=args.org or [], repos=args.repo or []),
-        privacy_policy_url=args.privacy_policy,
-        retention_statement=args.retention or (
-            "Agreement evidence is retained after revocation. Revocation "
-            "changes coverage for future contributions; it does not delete the "
-            "record or withdraw rights already granted."),
-        confirmations=[Confirmation("read", "I have read and accept this agreement")],
-    )
-    cfg.validate()
+    cfg = resolve(args.overrides)
+    if args.show_config:
+        print(describe(cfg))
+        return 0
 
-    prov = Provisioner(_token(), args.owner, dry_run=args.dry_run)
+    _check_confirmable(cfg)
+    admin = GitHubAdmin(_token())
 
-    for w in preflight(prov, cfg):
-        print(f"  warning: {w}\n", file=sys.stderr)
+    try:
+        # Confirmation is passed in rather than called here, so the
+        # organization gate blocks before the operator is asked to approve
+        # anything (§6.10.3.1).
+        out = run(admin, cfg, version=__version__,
+                  confirm=lambda warnings: _confirm(cfg, warnings))
+    except InstallFailed as e:
+        # B3: say what already exists, so the operator can act on the fact that
+        # re-running is the recovery.
+        if e.outcome is not None and e.outcome.steps:
+            print("completed before the failure:", file=sys.stderr)
+            _print_steps(e.outcome)
+        raise
 
-    pair = prov.provision(cfg)
-    print(f"records   {pair.records}")
-    print(f"coverage  {pair.coverage}")
-    if pair.created:
-        print(f"created   {', '.join(pair.created)}")
+    # Warnings were shown before the prompt (see _confirm); repeat them here
+    # only when there was no prompt to show them at.
+    if cfg.dry_run or cfg.force:
+        for warning in out.warnings:
+            print(f"warning: {warning}", file=sys.stderr)
+    _print_steps(out)
 
-    seeder = Seeder(_token(), pair.records, dry_run=args.dry_run)
-    print(f"events    {seeder.ensure_events_branch()}")
-    print(f"config    {seeder.seed_config(cfg)}")
-    print(f"workflow  {seeder.seed_workflow(pair.coverage, __version__)}")
+    print()
+    print("Next:")
+    step = 0
+    for label, url in install_links(cfg.slug):
+        step += 1
+        print(f"  {step}. install the {label} App")
+        print(f"     {url}")
+    step += 1
+    print(f"  {step}. connect at {PORTAL}/connect")
+    print()
+    print("Connecting is where the project is registered and configured — "
+          "recipient,")
+    print("scope, privacy policy, and the agreement itself. Until then this "
+          "project")
+    print("is provisioned but not yet able to accept signatures.")
+    print()
+    print("If any step above failed, re-run the same command: install is "
+          "idempotent,")
+    print("and re-running is the intended recovery.")
 
-    if args.agreement:
-        text = open(args.agreement, encoding="utf-8").read()
-        print(f"agreement {seeder.seed_agreement(cfg, text, args.version)}")
-    else:
-        print("agreement skipped — pass --agreement to publish one")
-
-    print("\nNext, install the two GitHub Apps (GitHub shows the consent screen):")
-    print(_install_links(cfg.slug))
-    print(f"Then the project page will be {PORTAL}/p/{cfg.slug}")
-    return 0
-
-
-def cmd_config_show(args: argparse.Namespace) -> int:
-    from dracla.github import GitHubHost                # noqa: PLC0415
-    host = GitHubHost(repo=args.records, token=_token())
-    content, _ = host.read("main", "config/project.json")
-    print(content)
+    if not RECONCILE_IMPLEMENTED:
+        print()
+        print("Note: reconciliation is not implemented yet (M2). A placeholder "
+              "workflow")
+        print("was seeded; re-run install after upgrading dracla to enable it.")
     return 0
 
 
@@ -110,28 +191,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"dracla {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
-    i = sub.add_parser("install", help="provision a project's repository pair")
-    i.add_argument("--owner", required=True, help="GitHub org or user to own the repos")
-    i.add_argument("--slug", required=True, help="project slug, e.g. acme")
-    i.add_argument("--recipient", required=True,
-                   help="legal person receiving the granted rights "
-                        "(need not be the GitHub org)")
-    i.add_argument("--contact", required=True, help="contact for the recipient")
-    i.add_argument("--org", action="append", help="org in scope (repeatable)")
-    i.add_argument("--repo", action="append", help="repo in scope (repeatable)")
-    i.add_argument("--privacy-policy", required=True, help="URL of your privacy policy")
-    i.add_argument("--retention", help="retention statement shown before signing")
-    i.add_argument("--agreement", help="path to the agreement text to publish")
-    i.add_argument("--version", dest="version", default="v1", help="agreement version")
-    i.add_argument("--dry-run", action="store_true", help="show what would happen")
+    i = sub.add_parser(
+        "install",
+        help="provision a project's repository pair and workflow",
+        description="Provision the repository pair. Takes Hydra-style "
+                    "overrides, e.g. dracla install github.org=acme")
+    i.add_argument("overrides", nargs="*", metavar="KEY=VALUE",
+                   help="Hydra overrides. github.org=ORG is required. "
+                        "recipient.slug=SLUG defaults to the org; "
+                        "dry_run=true and force=true modify execution.")
+    i.add_argument("--show-config", action="store_true",
+                   help="print the resolved configuration and exit, without "
+                        "contacting GitHub")
     i.set_defaults(func=cmd_install)
-
-    c = sub.add_parser("config", help="inspect project configuration")
-    csub = c.add_subparsers(dest="config_command", required=True)
-    cs = csub.add_parser("show", help="print the resolved config from canonical")
-    cs.add_argument("--records", required=True, help="owner/name of the records repo")
-    cs.set_defaults(func=cmd_config_show)
-
     return p
 
 
@@ -142,10 +214,23 @@ def main(argv: list[str] | None = None) -> int:
     except CliError as e:
         print(f"error: {e}", file=sys.stderr)
         if e.hint:
-            print(f"  {e.hint}", file=sys.stderr)
+            print(file=sys.stderr)
+            for line in e.hint.splitlines():
+                print(f"  {line}" if line else "", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         return 130
+    except (GitHubError, NotFound, BlobConflict, NotFastForward) as e:
+        # core's transport errors are not CliError — they are raised at a
+        # service, not a person. Without this they reach the operator as a
+        # traceback: an expired GITHUB_TOKEN, an org that needs SAML SSO
+        # authorization, or a rate limit all looked like a crash.
+        print(f"error: GitHub refused the request: {e}", file=sys.stderr)
+        print(file=sys.stderr)
+        print("  check that your token is valid and authorized for this",
+              file=sys.stderr)
+        print("  organization: gh auth status", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

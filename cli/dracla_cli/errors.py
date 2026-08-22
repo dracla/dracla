@@ -1,17 +1,15 @@
-"""CLI-facing errors.
+"""Errors shown to a person, not raised at a service.
 
-These are printed to a human, not raised at a service, so they carry what to do
-next rather than a stack trace.
+Each carries what to do next, because the alternative is a traceback and a
+support question.
 """
 
 
 class CliError(Exception):
-    """A failure the user can act on."""
-
     def __init__(self, message: str, *, hint: str | None = None):
         super().__init__(message)
         self.hint = hint
 
 
 class Aborted(CliError):
-    """The user declined a confirmation."""
+    """The operator declined a confirmation."""
