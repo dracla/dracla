@@ -56,8 +56,20 @@ class GitHubHost:
     timeout: float = TIMEOUT_SECONDS
     max_attempts: int = MAX_ATTEMPTS
     sleep = staticmethod(time.sleep)      # injectable so tests need not wait
+    clock = staticmethod(time.time)
 
     # --- transport --------------------------------------------------------
+
+    def request(self, method: str, path: str,
+                body: dict | None = None) -> dict | list:
+        """Public transport: authenticated, retried, timed out.
+
+        The records protocol is not the only caller. Repository and organization
+        administration needs the same auth, retry, and timeout policy and none
+        of the GitHost protocol, and it previously reached into `_req` to borrow
+        them — a real dependency left undeclared. This is that dependency, named.
+        """
+        return self._req(method, path, body)
 
     def _req(self, method: str, path: str, body: dict | None = None) -> dict | list:
         """One API call, with a socket timeout and retries on transient faults.
@@ -68,7 +80,9 @@ class GitHubHost:
         outcomes that must NOT be retried — 404, 409, 422 non-fast-forward — are
         protocol signals and are raised immediately.
         """
-        url = path if path.startswith("http") else f"{API}{path}"
+        if not path.startswith("/") or path.startswith("//"):
+            raise ValueError("GitHub API path must be relative and start with '/'")
+        url = f"{API}{path}"
         data = json.dumps(body).encode() if body is not None else None
         last: Exception | None = None
 
@@ -92,9 +106,12 @@ class GitHubHost:
                     raise BlobConflict(raw) from None
                 if e.code == 422 and "fast forward" in raw.lower():
                     raise NotFastForward(raw) from None
-                if e.code in TRANSIENT_STATUS or self._is_rate_limited(e):
+                rate_limited = self._is_rate_limited(e, raw)
+                if e.code in TRANSIENT_STATUS or rate_limited:
                     last = GitHubError(e.code, raw)
-                    self._backoff(attempt, e)
+                    self._backoff(
+                        attempt, e,
+                        secondary=self._is_secondary_rate_limit(e, raw))
                     continue
                 raise GitHubError(e.code, raw) from None
             except (urllib.error.URLError, TimeoutError, OSError) as e:
@@ -108,19 +125,47 @@ class GitHubHost:
                              f"{self.max_attempts} attempts: {last}")
 
     @staticmethod
-    def _is_rate_limited(e: urllib.error.HTTPError) -> bool:
-        if e.code not in (403, 429):
+    def _is_rate_limited(e: urllib.error.HTTPError, body: str = "") -> bool:
+        if e.code == 429:
+            return True
+        if e.code != 403:
             return False
         return (e.headers.get("X-RateLimit-Remaining") == "0"
-                or e.headers.get("Retry-After") is not None)
+                or e.headers.get("Retry-After") is not None
+                or GitHubHost._is_secondary_rate_limit(e, body))
 
-    def _backoff(self, attempt: int, e: urllib.error.HTTPError | None) -> None:
-        """Honour Retry-After when GitHub sends it; otherwise exponential."""
+    @staticmethod
+    def _is_secondary_rate_limit(e: urllib.error.HTTPError,
+                                 body: str) -> bool:
+        message = body.lower()
+        return (e.code in (403, 429)
+                and ("secondary rate limit" in message
+                     or "abuse detection" in message))
+
+    def _backoff(self, attempt: int, e: urllib.error.HTTPError | None,
+                 *, secondary: bool = False) -> None:
+        """Honour GitHub's rate-limit clocks before ordinary exponential delay."""
         delay = None
         if e is not None:
             retry_after = e.headers.get("Retry-After")
-            if retry_after and retry_after.isdigit():
-                delay = float(retry_after)
+            if retry_after:
+                try:
+                    delay = max(0.0, float(retry_after))
+                except ValueError:
+                    pass
+            if delay is None and e.headers.get("X-RateLimit-Remaining") == "0":
+                reset = e.headers.get("X-RateLimit-Reset")
+                if reset:
+                    try:
+                        # GitHub specifies an epoch second and asks clients to
+                        # wait until after it, hence the one-second margin.
+                        delay = max(0.0, float(reset) - self.clock()) + 1.0
+                    except ValueError:
+                        pass
+        if delay is None and secondary:
+            # GitHub's guidance says at least one minute when a secondary-limit
+            # response has no Retry-After, increasing between further attempts.
+            delay = 60.0 * 2 ** (attempt - 1)
         if delay is None:
             delay = min(2 ** (attempt - 1), 8) * (0.5 + random.random())
         self.sleep(delay)
@@ -131,11 +176,38 @@ class GitHubHost:
     # --- GitHost ----------------------------------------------------------
 
     def head(self, ref: str) -> str | None:
+        """The ref's sha, or None if it does not exist.
+
+        An **empty repository** answers 409 "Git Repository is empty" rather
+        than 404, and `_req` maps 409 to BlobConflict — so that one message
+        means "no such ref" too. It is matched on, rather than treating every
+        409 that way, because a conflict has other causes and none of them
+        mean the ref is absent.
+
+        This matters because repositories are deliberately created empty (design
+        §6.10.3.1) so that the first branch created is the one that should be
+        default. Before that, nothing ever asked an empty repository for a ref.
+        """
         try:
             r = self._req("GET", f"/repos/{self.repo}/git/ref/heads/{self._branch(ref)}")
             return r["object"]["sha"]                     # type: ignore[index]
         except NotFound:
             return None
+        except BlobConflict as e:
+            # 409 is not exclusively "empty". Only the empty-repository message
+            # means "no ref"; any other conflict — a repository GitHub is still
+            # processing, for instance — must NOT be reported as an absent ref.
+            # A false None here is silent and expensive: history() would return
+            # [], the chain head would read as GENESIS, and the next event would
+            # be keyed off the wrong parent and fork the subject's chain.
+            if "repository is empty" in str(e).lower():
+                return None
+            # Matching GitHub's wording is not guaranteed — the status is
+            # documented, the message is not. If it ever changes, this raises
+            # and install stops before bootstrapping, which is the direction to
+            # fail in: the alternative reads a live repository as empty. Fix it
+            # by widening the match, not by widening the except.
+            raise
 
     def read(self, ref_or_sha: str, path: str) -> tuple[str, str]:
         """Return (content, blob_sha). blob_sha is the CAS token for put()."""
