@@ -1,4 +1,4 @@
-"""Protocol tests. Each case reproduces a finding from design/review-findings.md.
+"""Protocol tests for defects identified during design review.
 
 These are written as regression tests for defects the review found in the
 *design*, before any of it was built. A test that fails here means the design
