@@ -21,6 +21,7 @@ What exists:
 |---|---|
 | [`design/requirements.md`](design/requirements.md) | Locked requirements baseline, revision 2 |
 | [`design/high-level-design.md`](design/high-level-design.md) | The architecture |
+| [`docs/architecture.md`](docs/architecture.md) | Human-readable architecture overview and diagrams |
 | [`design/review-findings.md`](design/review-findings.md) | 81 findings from four independent adversarial reviews, all resolved |
 | [`core/`](core/) | Event model, append-only commit protocol, coverage projection — 43 unit tests, 9 integration tests against live GitHub |
 | [`api/bench/`](api/bench/) | CPU measurements for the edge tier |
