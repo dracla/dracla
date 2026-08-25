@@ -1,4 +1,8 @@
-"""Coverage projection and the in-flight marker (design §5.3, §5.4).
+"""Legacy plaintext coverage and in-flight-marker protocol spike.
+
+Revision 13 uses 32 encrypted shards, one prepared-operation cell, and a
+coverage decision fence. Retained only for earlier concurrency experiments;
+do not use it as a production projection.
 
 The marker is the mechanism that lets the merge-group check honestly be called
 authoritative, so its ordering is load-bearing:

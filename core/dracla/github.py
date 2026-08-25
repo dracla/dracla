@@ -11,9 +11,11 @@ The mapping from protocol to API is where the correctness lives:
                               is why append.py rebuilds on the reloaded head's
                               base tree (DR-006).
 
-  put(base_blob_sha=...)   -> PUT contents with `sha`. That IS a
-                              compare-and-swap: a stale blob sha returns 409.
-                              This is the shard precondition of section 5.3.
+  put(base_blob_sha=...)   -> PUT contents with `sha`. That historical
+                              content-level experiment rejects a stale blob
+                              sha with 409. Revision 13 operations/coverage
+                              transitions instead require branch-wide GraphQL
+                              `createCommitOnBranch(expectedHeadOid)` CAS.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ API = "https://api.github.com"
 TIMEOUT_SECONDS = 20
 TRANSIENT_STATUS = {500, 502, 503, 504}
 MAX_ATTEMPTS = 4
+INHERENTLY_RETRY_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
 class GitHubError(Exception):
@@ -61,24 +64,30 @@ class GitHubHost:
     # --- transport --------------------------------------------------------
 
     def request(self, method: str, path: str,
-                body: dict | None = None) -> dict | list:
-        """Public transport: authenticated, retried, timed out.
+                body: dict | None = None, *,
+                retry_safe: bool | None = None) -> dict | list:
+        """Public authenticated transport with an explicit retry boundary.
 
         The records protocol is not the only caller. Repository and organization
-        administration needs the same auth, retry, and timeout policy and none
-        of the GitHost protocol, and it previously reached into `_req` to borrow
-        them — a real dependency left undeclared. This is that dependency, named.
+        administration needs the same auth and timeout policy and none of the
+        GitHost protocol. Reads retry by default. Mutations do not: callers may
+        opt in only when their operation-level identity and reconciliation make
+        a lost-response retry safe.
         """
-        return self._req(method, path, body)
+        method = method.upper()
+        if retry_safe is None:
+            retry_safe = method in INHERENTLY_RETRY_SAFE_METHODS
+        return self._req(method, path, body, retry_safe=retry_safe)
 
-    def _req(self, method: str, path: str, body: dict | None = None) -> dict | list:
+    def _req(self, method: str, path: str, body: dict | None = None, *,
+             retry_safe: bool = True) -> dict | list:
         """One API call, with a socket timeout and retries on transient faults.
 
-        Retrying is safe here only because the protocol above is idempotent:
-        section 5.2 probes for the event path before writing, and put() carries a
-        blob-sha precondition, so a duplicated request cannot double-apply. The
-        outcomes that must NOT be retried — 404, 409, 422 non-fast-forward — are
-        protocol signals and are raised immediately.
+        Internal GitHost callers use operations whose repeated API calls are
+        content-addressed, conditionally applied, or reconciled by the protocol.
+        The public request() boundary defaults mutations to one attempt. The
+        outcomes that must never be retried — 404, 409, and non-fast-forward 422
+        — are protocol signals and are raised immediately.
         """
         if not path.startswith("/") or path.startswith("//"):
             raise ValueError("GitHub API path must be relative and start with '/'")
@@ -86,7 +95,8 @@ class GitHubHost:
         data = json.dumps(body).encode() if body is not None else None
         last: Exception | None = None
 
-        for attempt in range(1, self.max_attempts + 1):
+        attempts = self.max_attempts if retry_safe else 1
+        for attempt in range(1, attempts + 1):
             req = urllib.request.Request(url, data=data, method=method)
             req.add_header("Authorization", f"Bearer {self.token}")
             req.add_header("Accept", "application/vnd.github+json")
@@ -109,6 +119,8 @@ class GitHubHost:
                 rate_limited = self._is_rate_limited(e, raw)
                 if e.code in TRANSIENT_STATUS or rate_limited:
                     last = GitHubError(e.code, raw)
+                    if attempt == attempts:
+                        break
                     self._backoff(
                         attempt, e,
                         secondary=self._is_secondary_rate_limit(e, raw))
@@ -118,11 +130,15 @@ class GitHubHost:
                 # Connection reset, DNS blip, socket timeout. Transient by
                 # nature; two integration tests were lost to exactly this.
                 last = e
+                if attempt == attempts:
+                    break
                 self._backoff(attempt, None)
                 continue
 
+        if isinstance(last, GitHubError):
+            raise last
         raise GitHubError(0, f"{method} {path} failed after "
-                             f"{self.max_attempts} attempts: {last}")
+                             f"{attempts} attempts: {last}")
 
     @staticmethod
     def _is_rate_limited(e: urllib.error.HTTPError, body: str = "") -> bool:
@@ -286,7 +302,7 @@ class GitHubHost:
 
     def put(self, ref: str, path: str, content: str,
             *, base_blob_sha: str | None) -> None:
-        """Write under a blob-sha precondition. Stale sha -> 409 -> BlobConflict."""
+        """Historical content-CAS helper; not revision-13 branch-wide CAS."""
         body: dict = {
             "message": f"put {path}",
             "content": base64.b64encode(content.encode()).decode(),

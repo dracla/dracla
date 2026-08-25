@@ -26,9 +26,10 @@ class NotFastForward(Exception):
 
 
 class BlobConflict(Exception):
-    """Content update rejected: the supplied base blob sha is stale.
+    """Historical content update rejected: the base blob sha is stale.
 
-    Real GitHub answers 409. This is the shard compare-and-swap of §5.3.
+    Real GitHub answers 409. Revision 13 uses a branch-head CAS for operations
+    and coverage transitions instead of this old per-file primitive.
     """
 
 
@@ -157,7 +158,7 @@ class FakeGitHost:
 
     def put(self, ref: str, path: str, content: str,
             *, base_blob_sha: str | None) -> None:
-        """Write a file under a blob-sha precondition (§5.3 shard CAS).
+        """Historical file write under a blob-sha precondition.
 
         base_blob_sha None means "must not exist".
         """

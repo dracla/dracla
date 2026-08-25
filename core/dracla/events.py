@@ -1,8 +1,8 @@
-"""Event envelope and identifier derivation.
+"""Legacy plaintext event spike and identifier derivation.
 
-Implements design/high-level-design.md §5.1. The identifier derivation is the
-part worth reading carefully: DR-015 established that the obvious choices each
-break a MUST, so the inputs here are chosen to satisfy both at once.
+Revision 13 replaced this storage shape with encrypted canonical artifacts and
+a broader event schema. Retained only for earlier protocol tests; do not use it
+to write project data.
 """
 
 from __future__ import annotations
@@ -73,10 +73,11 @@ def idempotency_key(
 
 
 def event_id(idem_key: str) -> str:
-    """event_id is a pure function of the idempotency key.
+    """Legacy event_id is a pure function of the idempotency key.
 
-    That equivalence is what lets §5.2's path-existence probe *be* the
-    idempotency-key check REQ-REC-3 asks for, with no second index.
+    It lets this spike locate an occupied key by path. Revision 13 additionally
+    authenticates the encrypted event and compares its operation fingerprint;
+    path existence alone is not an idempotent-success decision.
     """
     return _h(idem_key)
 

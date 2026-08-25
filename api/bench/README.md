@@ -1,5 +1,10 @@
 # A2 benchmark — enforcer check path CPU
 
+Status: **historical lower bound only.** This fixture predates revision-13 key
+unwrap, authenticated decryption, 32-shard reads, merge-group queue-entry
+resolution, decision-fence publication, and continuous-team work. It does not
+close A2; the real-account probes listed in HLD §11 remain release blockers.
+
 Answers one question: does the enforcer's per-check CPU fit inside the
 Cloudflare Workers Free limit of 10 ms? CPU excludes I/O wait, so awaiting
 GitHub is free; what counts is signing, hashing, and parsing.
@@ -18,8 +23,8 @@ measurement.
 | HMAC-SHA256 webhook verify | below timer resolution |
 | `JSON.parse` 100 commits (215 KB) | 0.190 ms |
 | `JSON.parse` 250 commits (540 KB) | 0.470 ms |
-| **End-to-end, typical PR (10 commits), token cached** | **0.26 ms — 3%** |
-| **End-to-end, large PR (100 commits), token cached** | **0.50 ms — 5%** |
+| **End-to-end, typical PR (10 commits), warm-isolate token** | **0.26 ms — 3%** |
+| **End-to-end, large PR (100 commits), warm-isolate token** | **0.50 ms — 5%** |
 | **End-to-end, large PR (100 commits), cold key** | **1.04 ms — 10%** |
 | **End-to-end, worst case (250 commits), cold key** | **1.26 ms — 13%** |
 
@@ -55,15 +60,20 @@ unresolved rather than closed.
 reading CPU-time percentiles from Workers analytics under actual traffic. That
 remains open.
 
-## What this changes
+## What this does and does not establish
 
-The design previously called CPU "the binding constraint on Free". It is not:
-the worst realistic check uses 13% of the budget, and that is with a cold key on
-a 250-commit pull request, which is also the GitHub pagination ceiling.
+For the removed plaintext path, the measured 250-commit fixture used 13% of the
+budget. That is useful lower-bound evidence, not a conclusion about the current
+encrypted ordinary or merge-group path. Revision 13 adds key unwrap,
+authenticated decryption, the 32-shard maximum, publication coordination,
+event-wide check-run filtering, and continuous-team work; A2 remains open until
+those exact paths are measured on a real account.
 
-KV token caching remains worthwhile — it avoids re-minting installation tokens
-against GitHub's rate limits — but it is no longer load-bearing for CPU. Cold
-minting costs about 0.4 ms.
+A warm isolate may reuse an unexpired installation token from process-local
+memory, which avoids re-minting against GitHub's rate limits, but no result may
+depend on that reuse. Revision 13 forbids persisting installation tokens in KV
+or another durable cache. Cold minting in this historical fixture costs about
+0.4 ms.
 
 The payload shapes in `fixtures.mjs` are sized from real GitHub responses; the
 numbers are only as good as those shapes, and a genuinely pathological pull

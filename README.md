@@ -19,22 +19,24 @@ What exists:
 
 | | |
 |---|---|
-| [`design/requirements.md`](design/requirements.md) | Locked requirements baseline, revision 3 |
-| [`design/high-level-design.md`](design/high-level-design.md) | The architecture |
-| [`core/`](core/) | Event model, append-only commit protocol, coverage projection — unit tests plus integration tests against live GitHub |
-| [`api/bench/`](api/bench/) | CPU measurements for the edge tier |
+| [`design/requirements.md`](design/requirements.md) | Locked requirements baseline, revision 13 |
+| [`design/high-level-design.md`](design/high-level-design.md) | Locked and reviewed architecture |
+| [`core/`](core/) | Pre-revision-13 protocol experiments and GitHub transport |
+| [`api/bench/`](api/bench/) | Pre-encryption CPU lower-bound measurements |
+| [`docs/roadmap.md`](docs/roadmap.md) | Remaining implementation and release-verification work |
 
-What does not exist: the Workers, the portal, the dashboard, the CLI, the
-badges. See §16 of the requirements for the release scope.
+What does not exist: the conforming installer, reconciler, Workers, portal,
+dashboard, reporting CLI, or badges. The earlier two-repository installer was
+removed because it would write plaintext state and seed executable workflow
+content in locations forbidden by the reviewed design.
 
 ## How it works
 
-- **Records are git.** Every signature, revocation, and agreement publication is
-  one commit on an append-only branch in a private repository the *project*
-  owns. Commit ancestry is the authoritative order. Nothing is ever rewritten.
-- **Two repositories per project.** Canonical records hold signer data; a
-  PII-free projection holds coverage. The component that reads pull requests can
-  reach the second and not the first.
+- **Records are encrypted git artifacts.** Every private canonical and derived
+  artifact uses authenticated application-layer encryption in repositories the
+  project owns.
+- **Three repositories per project.** Records, coverage, and protected control
+  code have separate custody and capabilities.
 - **No database.** A static frontend and stateless serverless endpoints; derived
   state is reproducible from the canonical events.
 - **Works on GitHub Free.** Verified, not assumed — including that merge queue

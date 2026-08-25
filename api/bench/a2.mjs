@@ -1,9 +1,10 @@
-// A2: does the enforcer's check path fit in the Workers Free CPU limit?
+// Historical A2 lower-bound fixture; this is not the revision-13 check path.
 //
 // Free allows 10 ms CPU per invocation. CPU excludes I/O wait, so awaiting
 // GitHub is free — what counts is signing, hashing, and parsing. Design §9
-// names RS256 token minting and commit-listing parse as the two candidates,
-// with KV token caching as the mitigation. This measures both.
+// named RS256 token minting and commit-listing parse as two candidates. This
+// historical fixture measures cold minting and optional warm-isolate reuse;
+// revision 13 forbids persisting installation tokens in KV.
 
 import { commitListing, coverageShard, webhookBody } from "./fixtures.mjs";
 
@@ -30,7 +31,7 @@ async function msAsync(fn, iters) {
 const row = (label, v, note = "") =>
   console.log("  " + label.padEnd(46) + v.toFixed(3).padStart(8) + " ms   " + note);
 
-console.log("\nA2 — enforcer check path CPU (Workers Free limit: 10 ms)\n");
+console.log("\nA2 historical lower bound (Workers Free limit: 10 ms)\n");
 
 // --- 1. RS256: the GitHub App JWT -----------------------------------------
 const kp = await subtle.generateKey(
@@ -53,9 +54,9 @@ const signMs = await msAsync(async () => {
   await subtle.sign("RSASSA-PKCS1-v1_5", kp.privateKey, claim);
 }, 200);
 row("sign (warm key)", signMs);
-row("cold path: import + sign", importMs + signMs, "<- no KV cache");
+row("cold path: import + sign", importMs + signMs, "<- no warm token");
 row("warm path: sign only", signMs, "<- module-scope key");
-row("cached path: neither", 0, "<- KV-cached token, §9");
+row("warm-token path: neither", 0, "<- process-local token only");
 
 // --- 2. Webhook HMAC ------------------------------------------------------
 console.log("\n2. Webhook signature verification");
@@ -79,12 +80,13 @@ row(`coverage shard, 500 users (${(shard.length/1024).toFixed(0)} KB)`,
 row("webhook body (0.4 KB)", ms(() => JSON.parse(webhookBody()), 2000));
 
 // --- 4. Subject resolution ------------------------------------------------
-console.log("\n4. Subject resolution (§6.3)");
+console.log("\n4. Legacy author/trailer parsing (trailers are display-only in revision 13)");
 const trailer = /^Co-authored-by:\s*.*<([^>]+)>/gim;
 for (const n of [100, 250]) {
   const parsed = JSON.parse(commitListing(n));
-  row(`resolve ${n} commits: authors + trailer scan`, ms(() => {
+  row(`parse ${n} commits: authors + trailer notices`, ms(() => {
     const subjects = new Set();
+    let trailerMentions = 0;
     for (const c of parsed) {
       if (c.author?.id) subjects.add(c.author.id);
       const m = c.commit.message.matchAll(trailer);
@@ -92,18 +94,18 @@ for (const n of [100, 250]) {
         const em = hit[1];
         const plus = em.indexOf("+");
         if (em.endsWith("@users.noreply.github.com") && plus > 0)
-          subjects.add(Number(em.slice(0, plus)));
+          trailerMentions++;
       }
     }
-    return subjects.size;
+    return subjects.size + trailerMentions;
   }, 100));
 }
 
 // --- 5. Whole path --------------------------------------------------------
 console.log("\n5. End-to-end check path (CPU only, I/O excluded)");
-for (const [label, n, cached] of [
-  ["typical PR (10 commits), token cached", 10, true],
-  ["large PR (100 commits), token cached", 100, true],
+for (const [label, n, warmToken] of [
+  ["typical PR (10 commits), warm-isolate token", 10, true],
+  ["large PR (100 commits), warm-isolate token", 100, true],
   ["large PR (100 commits), cold key", 100, false],
   ["worst case (250 commits), cold key", 250, false],
 ]) {
@@ -111,7 +113,7 @@ for (const [label, n, cached] of [
   const total = await msAsync(async () => {
     await subtle.sign("HMAC", hmacKey, body);          // verify webhook
     JSON.parse(webhookBody());                          // parse event
-    if (!cached) {
+    if (!warmToken) {
       const k = await subtle.importKey("pkcs8", pkcs8,
         { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
       await subtle.sign("RSASSA-PKCS1-v1_5", k, claim); // mint JWT
@@ -123,7 +125,7 @@ for (const [label, n, cached] of [
     JSON.stringify({ conclusion: "success", output: { title: "CLA satisfied" } });
     return subjects.size;
   }, 50);
-  const verdict = total < 10 ? "OK" : "OVER LIMIT";
+  const verdict = total < 10 ? "LEGACY UNDER" : "LEGACY OVER";
   row(label, total, `<- ${verdict} (${(total / 10 * 100).toFixed(0)}% of budget)`);
 }
-console.log();
+console.log("\nRevision-13 A2 remains open; this fixture is not release evidence.\n");

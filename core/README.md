@@ -1,12 +1,17 @@
 # dracla core
 
-Python core for DraCLA: the event model, the append-only commit protocol, and
-the coverage projection. Runs in GitHub Actions (the reconciler) and behind the
-signing endpoints.
+Python protocol experiments for DraCLA's event model, append-only commit
+behavior, coverage projection, and GitHub transport.
 
-Status: **protocol spike.** This implements and tests the mechanisms that
-`design/high-level-design.md` §5.1–5.4 specify, against a deterministic fake
-git host. It is not the product.
+Status: **legacy protocol spike.** The current revision-13 HLD replaced the
+plaintext event/projection layout, 256-shard projection, and old in-flight
+marker protocol represented here. This code is not a conforming storage or
+enforcement implementation and must not be used to write project data.
+
+The still-relevant pieces are the Git fast-forward/CAS experiments and GitHub
+transport behavior. New implementation must use the encrypted formats,
+32-shard profile, prepared-operation cell, and decision fence in the reviewed
+HLD.
 
 Why a fake host: the properties worth testing are concurrent — two writers
 racing a ref update, a crash between two writes, a lost shard row. Those cannot
@@ -44,7 +49,9 @@ What it confirms on the live API:
 - a **descendant whose tree drops a file** is accepted — DR-006's premise, so
   the retry really must rebuild on the reloaded head's base tree
 - `commit()` builds on the parent's tree, closing that path
-- `PUT contents` with a stale blob sha is a genuine compare-and-swap (409)
+- the historical `PUT contents` helper rejects a stale blob sha with 409; the
+  revision-13 coverage protocol instead uses branch-wide GraphQL
+  `expectedHeadOid`
 - `append_event` is idempotent on replay, and recovers both events after a real
   422 forced mid-append
 
@@ -55,11 +62,15 @@ honouring `Retry-After`. This was not speculative hardening: an integration run
 lost two tests to connection timeouts, which is the same fault that would
 otherwise surface as a failed signature.
 
-Retrying is safe only because the layer above is idempotent — section 5.2 probes
-for the event path before writing and `put()` carries a blob-sha precondition, so
-a duplicated request cannot double-apply. Protocol signals (404, 409, 422
-non-fast-forward) are raised immediately and never retried; retrying a 422 would
-mask a lost race rather than recover from it.
+Internal retries are safe only where the layer above is content-addressed,
+conditional, or explicitly reconciles a lost response. The public transport
+therefore retries reads by default but performs mutation requests once unless a
+caller explicitly declares its operation-level retry safe. Protocol signals
+(404, 409, 422 non-fast-forward) are raised immediately and never retried;
+retrying a 422 would mask a lost race rather than recover from it. In the
+historical append spike, an event-path probe and blob-sha precondition supply
+the narrower safety tested here; revision 13 additionally requires authenticated
+operation-fingerprint checks and branch-wide coverage CAS.
 
 ## Is the fake faithful?
 

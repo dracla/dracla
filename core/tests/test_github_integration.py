@@ -1,8 +1,11 @@
-"""Conformance tests: the same protocol behaviours, against the live GitHub API.
+"""Live GitHub tests for retained transport and Git semantics.
 
 The fake in githost.py encodes a model of GitHub. These tests check the model is
 right, which is the one thing the unit suite structurally cannot do — if the
 model is wrong, every unit test passes and production still loses events.
+
+The event payloads are from the historical plaintext spike. These tests do not
+establish revision-13 format or state-machine conformance.
 
 Opt-in. Set both, then run:
 

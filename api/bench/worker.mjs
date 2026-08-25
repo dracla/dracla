@@ -1,4 +1,4 @@
-// A2 measured inside workerd, the actual Workers runtime.
+// Historical A2 lower bound measured inside workerd, the Workers runtime.
 // Same operations as bench/a2.mjs, so the two numbers are comparable.
 import { commitListing, coverageShard, webhookBody } from "./fixtures.mjs";
 
@@ -42,9 +42,9 @@ export default {
         await msAsync(async () => JSON.parse(s), 200)]);
     }
 
-    for (const [label, n, cached] of [
-      ["e2e typical PR (10), token cached", 10, true],
-      ["e2e large PR (100), token cached", 100, true],
+    for (const [label, n, warmToken] of [
+      ["e2e typical PR (10), warm-isolate token", 10, true],
+      ["e2e large PR (100), warm-isolate token", 100, true],
       ["e2e large PR (100), cold key", 100, false],
       ["e2e worst case (250), cold key", 250, false],
     ]) {
@@ -52,7 +52,7 @@ export default {
       out.push([label, await msAsync(async () => {
         await subtle.sign("HMAC", hmacKey, body);
         JSON.parse(webhookBody());
-        if (!cached) {
+        if (!warmToken) {
           const k = await subtle.importKey("pkcs8", pkcs8,
             { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
           await subtle.sign("RSASSA-PKCS1-v1_5", k, claim);
@@ -68,8 +68,10 @@ export default {
 
     const lines = out.map(([l, v]) =>
       "  " + l.padEnd(40) + v.toFixed(3).padStart(8) + " ms" +
-      (l.startsWith("e2e") ? `   ${v < 10 ? "OK" : "OVER"} (${(v/10*100).toFixed(0)}% of budget)` : ""));
+      (l.startsWith("e2e") ? `   ${v < 10 ? "LEGACY UNDER" : "LEGACY OVER"} (${(v/10*100).toFixed(0)}% of budget)` : ""));
     return new Response(
-      "A2 in workerd (Workers Free CPU limit: 10 ms)\n\n" + lines.join("\n") + "\n");
+      "A2 historical lower bound in workerd (Workers Free CPU limit: 10 ms)\n\n" +
+      lines.join("\n") +
+      "\n\nRevision-13 A2 remains open; this fixture is not release evidence.\n");
   },
 };

@@ -1,8 +1,9 @@
-"""Protocol tests for defects identified during design review.
+"""Tests for the retained pre-revision-13 protocol experiments.
 
-These are written as regression tests for defects the review found in the
-*design*, before any of it was built. A test that fails here means the design
-document and the code have diverged on something a reviewer already caught.
+They preserve useful Git and concurrency evidence, but passing them does not
+establish conformance with the encrypted event format, 32-shard projection,
+prepared-operation cell, decision fence, or operation-fingerprint contract in
+the current design.
 """
 
 from __future__ import annotations
@@ -68,7 +69,7 @@ class TestIdentifiers(unittest.TestCase):
         self.assertNotEqual(first.event_id, again.event_id)
 
     def test_event_id_is_a_function_of_the_idempotency_key(self):
-        """Path existence is therefore the REQ-REC-3 idempotency-key check."""
+        """The legacy path locates one key; revision 13 also checks fingerprint."""
         ev = make_event(1)
         self.assertEqual(ev.event_id, E.event_id(ev.idempotency_key))
 
@@ -622,9 +623,8 @@ class TestPublicTransport(unittest.TestCase):
     """`request()` is API, not an accident.
 
     Administration outside the GitHost protocol — creating repositories, reading
-    organization settings — needs this transport's auth, retry, and timeout
-    policy and none of the protocol. Callers previously reached into `_req` to
-    borrow it, which made a real dependency invisible to anyone changing it.
+    organization settings — needs this transport's auth and timeout policy and
+    an explicit choice about whether operation-level retry is safe.
     """
 
     def test_request_is_public_and_delegates(self):
@@ -632,13 +632,17 @@ class TestPublicTransport(unittest.TestCase):
         host = GitHubHost(repo="o/r", token="t")
         seen = {}
 
-        def fake_req(method, path, body=None):
-            seen.update(method=method, path=path, body=body)
+        def fake_req(method, path, body=None, *, retry_safe=True):
+            seen.update(method=method, path=path, body=body,
+                        retry_safe=retry_safe)
             return {"ok": True}
 
         host._req = fake_req                        # type: ignore[method-assign]
         self.assertEqual(host.request("POST", "/x", {"a": 1}), {"ok": True})
-        self.assertEqual(seen, {"method": "POST", "path": "/x", "body": {"a": 1}})
+        self.assertEqual(seen, {
+            "method": "POST", "path": "/x", "body": {"a": 1},
+            "retry_safe": False,
+        })
 
     def test_request_carries_the_retry_policy(self):
         """It must not become a bare urlopen that skips retries and timeouts.
@@ -678,6 +682,65 @@ class TestPublicTransport(unittest.TestCase):
             G.urllib.request.urlopen = original
         self.assertEqual(calls["n"], 2, "a transient fault must be retried")
         self.assertEqual(seen["timeout"], host.timeout)
+
+    def test_mutating_request_does_not_retry_without_explicit_safety(self):
+        import io as _io
+        import urllib.error
+        from dracla import github as G
+        from dracla.github import GitHubError, GitHubHost
+
+        host = GitHubHost(repo="o/r", token="t")
+        delays = []
+        host.sleep = delays.append                   # type: ignore[method-assign]
+        calls = {"n": 0}
+
+        def urlopen(req, timeout=None):
+            calls["n"] += 1
+            body = '{"message":"bad gateway"}'
+            raise urllib.error.HTTPError(
+                "u", 502, body, {}, _io.BytesIO(body.encode()))
+
+        original = G.urllib.request.urlopen
+        G.urllib.request.urlopen = urlopen
+        try:
+            with self.assertRaises(GitHubError) as caught:
+                host.request("POST", "/repos/o/r/actions/workflows/x/dispatches",
+                             {"ref": "main"})
+        finally:
+            G.urllib.request.urlopen = original
+        self.assertEqual(calls["n"], 1)
+        self.assertEqual(delays, [], "one-shot mutations must not back off")
+        self.assertEqual(caught.exception.status, 502)
+
+    def test_mutating_request_can_opt_into_protocol_safe_retries(self):
+        import urllib.error
+        from dracla import github as G
+        from dracla.github import GitHubHost
+
+        host = GitHubHost(repo="o/r", token="t")
+        host.sleep = lambda _d: None                 # type: ignore[method-assign]
+        calls = {"n": 0}
+
+        class FakeResp:
+            def read(self): return b'{"ok": true}'
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def urlopen(req, timeout=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise urllib.error.URLError("response lost")
+            return FakeResp()
+
+        original = G.urllib.request.urlopen
+        G.urllib.request.urlopen = urlopen
+        try:
+            result = host.request("POST", "/x", {"operation": "stable"},
+                                  retry_safe=True)
+        finally:
+            G.urllib.request.urlopen = original
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(calls["n"], 2)
 
     def test_request_rejects_urls_outside_the_github_api_origin(self):
         from dracla import github as G

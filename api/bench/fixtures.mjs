@@ -49,7 +49,9 @@ export function commitListing(n) {
   return JSON.stringify(commits);
 }
 
-// A packed coverage shard: 1/256 of a project's contributors (§5.3).
+// The legacy packed coverage shard: 1/256 of a project's contributors. The
+// revision-13 design uses 32 encrypted shards; this fixture is a historical
+// plaintext lower bound only.
 export function coverageShard(users) {
   const doc = {};
   for (let i = 0; i < users; i++) {

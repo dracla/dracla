@@ -1,4 +1,10 @@
-"""Append-only commit protocol (design §5.2, REQ-REC-3).
+"""Legacy plaintext append-only protocol experiment.
+
+Revision 13 keeps the non-forced fast-forward/reload/rebuild property tested
+here, but replaces this event identity and retry shape with authenticated
+encrypted events, operation fingerprints, event-coupled side artifacts, and a
+durable prepared-operation state machine. Do not use this module to write
+project data.
 
 One logical event per commit, single parent, fast-forward only, no merges.
 Commit ancestry is the authoritative order; timestamps never resolve it.
@@ -61,8 +67,10 @@ def append_event(
         attempts += 1
         head = host.head(ref)
 
-        # Idempotency probe. Because event_id is a pure function of the
-        # idempotency key, path existence *is* the key check REQ-REC-3 wants.
+        # Historical simplification: path existence represents an idempotent
+        # retry in this spike. Revision 13 must authenticate/decrypt the event
+        # and compare its operation fingerprint before returning conflict or
+        # idempotent success; path existence alone is insufficient.
         if head is not None and host.exists(head, event.path):
             return AppendResult(sha=head, attempts=attempts, idempotent=True)
 
