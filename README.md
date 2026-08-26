@@ -1,5 +1,7 @@
 # DraCLA
 
+[![ecosystem: cli.dev](https://cli.dev/img/badges/cli-dev-ecosystem.svg)](https://cli.dev)
+
 A project-neutral, GitHub-native system for administering Contributor License
 Agreements.
 
