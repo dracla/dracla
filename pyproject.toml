@@ -20,8 +20,8 @@ classifiers = [
 ]
 
 # hydra-core returns with the CLI for client-side composition (design §6.9).
-# The core package currently has no runtime dependencies.
-dependencies = []
+# Keep the conformance kernel's JCS implementation exact and release-tested.
+dependencies = ["rfc8785==0.1.4"]
 
 [project.urls]
 Homepage = "https://github.com/dracla/dracla"
