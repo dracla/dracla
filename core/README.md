@@ -4,9 +4,11 @@ Python core for DraCLA: the event model, the append-only commit protocol, and
 the coverage projection. Runs in GitHub Actions (the reconciler) and behind the
 signing endpoints.
 
-Status: **protocol spike.** This implements and tests the mechanisms that
-`design/high-level-design.md` §5.1–5.4 specify, against a deterministic fake
-git host. It is not the product.
+Status: **migration in progress.** The existing event, projection, append, and
+GitHub modules remain a protocol spike and are not the product. The
+`dracla.conformance` package is the revision-13 replacement kernel; new code
+must enter through its tested artifact contracts rather than extending the
+legacy plaintext formats.
 
 Why a fake host: the properties worth testing are concurrent — two writers
 racing a ref update, a crash between two writes, a lost shard row. Those cannot
@@ -17,9 +19,9 @@ tests exercise the real failure mode rather than a mock of it.
 
 Run:
 
-    python3 -m unittest discover -s core/tests -t . -v
-
-No third-party dependencies, by design — stdlib only.
+    python3 -m venv .venv
+    .venv/bin/python -m pip install -e .
+    .venv/bin/python -m unittest discover -s core/tests -t . -v
 
 ## Integration tests against live GitHub
 
@@ -29,7 +31,7 @@ against the real API:
 
     export DRACLA_ITEST_REPO=owner/name
     export GITHUB_TOKEN=$(gh auth token)
-    python3 -m unittest core.tests.test_github_integration -v
+    .venv/bin/python -m unittest core.tests.test_github_integration -v
 
 Opt-in — skipped unless both variables are set. Each test creates its own ref
 under `dracla-itest/` and deletes it in teardown; no existing branch is touched.
