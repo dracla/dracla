@@ -42,7 +42,12 @@ Signs, revokes, and authorizes the dashboard. Never sees a contributing repo.
 | Contents | Read and write | Append events to canonical; materialize coverage (§5.2, §5.4) |
 | Metadata | Read | Mandatory; also backs the `REQ-SEC-6` dashboard check via `GET /repos/{owner}/{repo}` with a user-to-server token |
 
-**Organization permissions:** none.
+**Organization permissions**
+
+| Permission | Access | Why |
+|---|---|---|
+| Members | Read | Observe only configured continuous reader or exemption teams (§4, §5.4) |
+
 **Account permissions:** none.
 
 > Deliberately **not** requesting *Email addresses: read*. `REQ-SEC-1` forbids
@@ -79,7 +84,11 @@ org's admin control over installation scope and DraCLA cannot enforce it.
 | Pull requests | Read and **write** | Post and update the PR comment (`REQ-PORTAL-3`). Read alone cannot — this was a real gap in an earlier draft. |
 | Metadata | Read | Mandatory |
 
-**Organization permissions:** none.
+**Organization permissions**
+
+| Permission | Access | Why |
+|---|---|---|
+| Members | Read | Observe organization-wide enforcement-scope selectors (§4, §7) |
 
 **Events to subscribe**
 
