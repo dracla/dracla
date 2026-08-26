@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "source": "Node.js crypto AES-256-GCM",
+  "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "kid_hex": "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+  "nonce_hex": "a0a1a2a3a4a5a6a7a8a9aaab",
+  "project_id": "project-alpha",
+  "repository_role": "records",
+  "branch": "events",
+  "path": "config/project.enc.json",
+  "plaintext_utf8": "{\"agreement\":\"v1\",\"enabled\":true}",
+  "aad_utf8": "{\"algorithm\":\"A256GCM\",\"artifact_kind\":\"project-config\",\"envelope_version\":1,\"kid\":\"8PHy8_T19vf4-fr7_P3-_w\",\"logical_id\":\"events:config/project.enc.json\",\"project_id\":\"project-alpha\",\"schema_version\":1}",
+  "ciphertext_base64url": "nTodSjeuZ9IHC_PxPVi271KAe3X81iAA-WoEvAvZAGSvnAQcPIJHSlxwi6GhFczyrg",
+  "envelope_utf8": "{\"algorithm\":\"A256GCM\",\"artifact_kind\":\"project-config\",\"ciphertext\":\"nTodSjeuZ9IHC_PxPVi271KAe3X81iAA-WoEvAvZAGSvnAQcPIJHSlxwi6GhFczyrg\",\"envelope_version\":1,\"kid\":\"8PHy8_T19vf4-fr7_P3-_w\",\"logical_id\":\"events:config/project.enc.json\",\"nonce\":\"oKGio6Slpqeoqaqr\",\"project_id\":\"project-alpha\",\"schema_version\":1}"
+}
