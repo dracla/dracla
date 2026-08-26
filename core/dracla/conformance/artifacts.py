@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import base64
-import binascii
 import hashlib
 import re
 from dataclasses import dataclass
 
 from .canonical import MAX_SAFE_INTEGER, canonical_json
+from .encoding import Base64UrlError, base64url_decode, base64url_encode
 
 SCHEMA_VERSION = 1
 RECORDS = "records"
@@ -102,17 +101,13 @@ def _validate_path(path: str) -> None:
 
 def _decode_base64url(value: str, *, decoded_bytes: int, label: str) -> bytes:
     try:
-        decoded = base64.b64decode(
-            value + "=" * (-len(value) % 4), altchars=b"-_", validate=True
+        return base64url_decode(
+            value, expected_length=decoded_bytes, label=label
         )
-    except (ValueError, binascii.Error) as error:
-        raise ArtifactIdentityError(f"{label} is not unpadded base64url") from error
-    encoded = base64.urlsafe_b64encode(decoded).rstrip(b"=").decode("ascii")
-    if encoded != value or len(decoded) != decoded_bytes:
+    except Base64UrlError as error:
         raise ArtifactIdentityError(
             f"{label} must be canonical base64url for {decoded_bytes} bytes"
-        )
-    return decoded
+        ) from error
 
 
 def _validate_shard(value: str) -> None:
@@ -177,7 +172,7 @@ def segment(value: str) -> str:
     if type(value) is not str or not value:
         raise ArtifactIdentityError("segment input must be a non-empty string")
     digest = hashlib.sha256(value.encode("utf-8")).digest()
-    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    return base64url_encode(digest)
 
 
 def _positive_safe_integer(value: int, *, label: str) -> int:
@@ -210,4 +205,4 @@ def override_key(
         "tree_oid": tree_oid,
     }
     digest = hashlib.sha256(canonical_json(value)).digest()
-    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    return base64url_encode(digest)
