@@ -1,154 +1,188 @@
 # Development milestones
 
-Maps work to the release scope in `design/requirements.md` §16. Each milestone
-names the scope items it closes, so "done" is defined by the requirements rather
-than by feeling finished.
+This roadmap follows the locked revision-13 requirements and the reviewed
+high-level design. The requirements and HLD are authoritative when this summary
+is incomplete; implementation does not silently resolve a design conflict.
 
-`REQ-VERIFY-1` makes an unverified `MUST` a release blocker, so the traceability
-matrix is filled in as each milestone lands — not reconstructed at the end.
-
----
-
-## M0 — Foundations
-
-| | |
-|---|---|
-| **Status** | Mostly done |
-| **Closes** | none directly; everything depends on it |
-
-- [x] Requirements baseline locked (revision 2)
-- [x] High-level design, reviewed adversarially, 81 findings resolved
-- [x] Core: event model, append-only protocol, coverage projection
-- [x] GitHub client, verified against the live API
-- [x] A2 (edge CPU), A3 (capacity), A4 (merge queue on Free)
-- [x] Apache-2.0, public repository
-- [x] **Domain / origin** — `dracla.yadan.net`, one origin for shell and API (§9)
-- [ ] **Cloudflare account** — Workers, Pages, Secrets, KV
-- [ ] **Two GitHub Apps** created per `docs/github-apps.md` (needs the domain
-      first, for callback and Setup URLs)
-
-The three unchecked items are the only ones that need the project owner.
+`REQ-VERIFY-1` makes an unverified `MUST` a release blocker, so the release
+traceability matrix grows with the implementation rather than being
+reconstructed at the end.
 
 ---
 
-## Track A — no external dependencies
-
-Runs immediately, in parallel with everything blocked on the domain.
-
-### M1 — CLI: provisioning and configuration
+## M0 — Reviewed baseline and owner prerequisites
 
 | | |
 |---|---|
-| **Closes** | §16 item 1 (partly), foundation for item 11 |
-| **Needs** | nothing |
+| **Status** | Design complete; external setup remains |
+| **Closes** | No release-scope item directly; every implementation track depends on it |
 
-- `dracla install` — create the repo pair, seed config, agreement, reconcile
-  workflow, coverage deploy key; print the two installation links
-- `dracla config` — Hydra composition on the client, resolved JSON committed
-- `dracla publish` / `dracla activate` — agreement lifecycle (§6.5)
-- Workspace file for multi-project operation (§6.9)
-- Integration-tested against a real org, the way `core/` already is
+- [x] Requirements locked at revision 13
+- [x] High-level design locked, adversarially reviewed, and cleanly attested
+- [x] Legacy protocol and GitHub-transport spikes retained as experiments
+- [x] A1 edge platform, A4 merge-queue baseline, and A5 coordination model closed
+- [x] Hosted shell/API origin selected: `https://dracla.cli.dev`
+- [ ] Cloudflare account resources: Workers, Pages, Secrets, KV, and Durable Objects
+- [ ] Three GitHub Apps created per `docs/github-apps.md`
 
-**Why first:** the Workers cannot be tested against anything until a provisioned
-pair exists, so this is on the critical path for M3 and M4 regardless.
-
-### M2 — Reconciler
-
-| | |
-|---|---|
-| **Closes** | §16 item 8 |
-| **Needs** | M1 |
-
-- Actions workflow seeded into canonical, daily schedule (§9.2)
-- Replay, verify the projection, repair, clear orphaned markers
-- Dashboard index and JSON/CSV exports to `derived/` (§5.1)
-- CSV formula neutralization, JSON keeping canonical values (`REQ-SEC-8`)
-- `dracla verify` runs the same replay locally
-
-Mostly wiring existing core into a workflow.
+The existing `core/` code is a plaintext protocol spike, not the revision-13
+implementation. Its transport and test techniques may be reused selectively;
+its event, projection, shard, and trust assumptions are not release code.
 
 ---
 
-## Track B — needs the domain and Apps
+## Track A — implementation without hosted-account dependencies
 
-### M3 — Enforcement
+These milestones can start before Cloudflare and the Apps exist. They produce
+testable libraries, local tools, and the pinned control artifact, but they do
+not claim that end-to-end installation or signing is available.
 
-| | |
-|---|---|
-| **Closes** | §16 items 3, 4, 6 |
-| **Needs** | M0 complete, M1 for a test target |
-
-- `worker-enforce`: webhook verification, subject resolution, scope evaluation,
-  check runs
-- Merge-group path, the authoritative decision (§6.4)
-- Freshness guard, in-flight marker (§5.4)
-- Overrides and exemptions consulted (§6.3)
-
-**Before M4** deliberately: this is the riskier half and where all the protocol
-interaction lives. Better to meet surprises early.
-
-### M4 — Signing
+### M1 — Conformance kernel
 
 | | |
 |---|---|
-| **Closes** | §16 items 2, 5, 7 |
-| **Needs** | M0, M3 |
+| **Needs** | M0 reviewed documents |
 
-- `worker-portal`: OAuth with browser-bound state (§8.2), encrypted session,
-  KV-backed token store, logout
-- Sign, revoke, re-sign; opportunistic orphan clearing
-- Re-evaluate the originating pull request after signing
-- Static portal: agreement review, own status, the three actions
+- Revision-13 event schemas, semantic validation, replay, idempotency, and
+  authorization-operation vocabulary (§5.1–§5.4)
+- Canonical JSON, identity/AAD construction, authenticated envelopes, wrapped
+  key files, prepared-operation cells, decision fences, and bounded shards (§4)
+- Checked-in fixed-key golden vectors shared by Python and TypeScript, including
+  tamper, wrong-context, non-canonical, and payload-to-path rejection (§6.10.6)
+- Focused replacement of legacy spike behavior only where the reviewed design
+  defines the conforming successor
 
-### M5 — Surfaces
+### M2 — CLI and administration seams
 
 | | |
 |---|---|
-| **Closes** | §16 items 9, 10 |
-| **Needs** | M4 |
+| **Needs** | M1 artifact contracts |
 
-- Dashboard shell plus the authorizing index proxy (§6.6)
-- Badges as static assets; pull request comment (§6.7)
-- PR-scoped view with graded disclosure (§6.3)
+- Restore the `dracla` package entry point and client-side Hydra composition
+  with release-declared provenance and dependency constraints (§6.9)
+- A substitutable GitHub administration surface, separate from the append-only
+  records transport: account/repository discovery, creation, visibility,
+  branches, deploy keys, Actions secrets, and workflow dispatch (§6.10.5)
+- Exact owner/project-slug normalization and plans for the records, coverage,
+  and control repositories (§6.10.3)
+- `dry_run=true` with zero writes, explicit confirmation/force behavior,
+  idempotent resume state, and collision refusal
+- Cross-module tests proving every generated CLI command exists and every
+  emitted artifact satisfies the shared contracts
+
+This milestone builds the CLI framework and repeatable provisioning planner.
+It does not call a placeholder reconciler or pretend the hosted key-wrap and
+challenge paths exist.
+
+### M3 — Pinned control workflow and reconciler
+
+| | |
+|---|---|
+| **Needs** | M1; M2 administration seam for integration tests |
+| **Closes** | §16 item 8 when integrated and verified |
+
+- Real pinned reconcile command, workflow, provenance manifest, digest pins,
+  upgrade/rollback contract, and verification manifest (§9)
+- Canonical replay; projection, index, reader-state, marker, and decision-fence
+  verification and repair
+- Explicit hosted export jobs and local streaming JSON/CSV export, including
+  formula neutralization (`REQ-SEC-8`)
+- `dracla verify` and `dracla reconcile` using the same replay rules
+- Recovery from every persisted crash point and installer transport-key probes
 
 ---
 
-## M6 — Second project and release verification
+## Track B — hosted paths and GitHub Apps
+
+### M4 — Enforcement and routing
 
 | | |
 |---|---|
-| **Closes** | §16 items 1 (complete), 11; `REQ-VERIFY-1`, `REQ-VERIFY-2` |
-| **Needs** | everything |
+| **Needs** | M0 Cloudflare resources and Apps; M1; M3 recovery path |
+| **Closes** | §16 items 3, 4, and 6 |
 
-- Second sample project, **different legal recipient**, installed by
-  configuration only — exercises §5.5 and workspace composition
-- Traceability matrix: every in-scope `MUST` to a test or recorded manual check
-- The `REQ-VERIFY-2` scenarios, including the ones with concrete pass criteria
-  already written: authorization loss (§8.2), backup restore (§9.1), budget
-  exhaustion (§9)
+- Enforcer Worker webhook verification, bounded subject resolution, coverage
+  evaluation, check publication, and generic PR comment
+- Per-pull-request merge-group evaluation and fresh rebuilt-entry behavior
+- Signed routes, repository-bound routing gates, publication reservations,
+  decision fences, freshness checks, and fail-closed overlap handling
+- Overrides and exemptions without exposing exact private reasons
+
+### M5 — Portal, Connect, signing, and administration
+
+| | |
+|---|---|
+| **Needs** | M0 Cloudflare resources and all three Apps; M1; M3; M4 |
+| **Closes** | §16 items 1–2, 5, and 7 when connected to a provisioned project |
+
+- OAuth with browser-bound state, encrypted sessions, logout, and scoped
+  private-read proofs
+- Bootstrap wrapping and repository-bound portal, enforcer, and control
+  challenge endpoints; no general key-wrap oracle
+- Connect with exact App/repository evidence, `project_connected`, encrypted
+  configuration, initial reader intent, and registry publication last
+- Agreement publication/activation, signing, revocation, re-signing,
+  exemptions, overrides, readers, and enforcement-scope administration
+- Re-evaluation of an originating pull request after signing
+
+### M6 — End-to-end installer
+
+| | |
+|---|---|
+| **Needs** | M2, M3, M5, and all three App installation pages |
+| **Closes** | Provisioning portion of §16 item 1; foundation for item 11 |
+
+- Execute the complete idempotent §6.10.3.1 sequence against a real account:
+  three empty private repositories, mandatory README root, branch layout,
+  pinned control artifact, transport credentials, verified project keys,
+  bootstrap manifests, encrypted empty state, and three App links
+- Prove adopter recovery of both actual data keys before the first private
+  write and discard installer-held raw/recovery material after handoff
+- Refuse unrelated name collisions and any release without the real reconciler,
+  provenance, constraints, and allowed-artifact manifest
+- Complete App installation and Connect without treating install as a signable
+  or routable project
+
+The installer is integrated here rather than treated as the first independent
+component: revision 13 requires it to verify real control code and live hosted
+wrapping paths, not placeholders.
+
+### M7 — Product surfaces and release verification
+
+| | |
+|---|---|
+| **Needs** | M3–M6 |
+| **Closes** | §16 items 9–11 and `REQ-VERIFY-1..2` |
+
+- Private dashboard and authorizing index proxy
+- Static badges, canonical project links, and PR-scoped graded disclosure
+- A second sample project with a different immutable legal recipient, installed
+  through configuration rather than source edits
+- Complete traceability matrix and every required acceptance scenario
+- Close A2 encrypted-path/continuous-team/Durable Object measurements, update
+  the A3 model with measured dimensions, and run the A6 write-deploy-key reach
+  and recovery probe before release
 
 ---
 
 ## Critical path
 
+```text
+M1 -> M2 -> M3 --------------------------\
+  \-> M4 -> M5 -----> M6 ----------------+-> M7
+Cloudflare + three Apps -> M4 and M5 ----/
 ```
-domain -> Cloudflare account -> 2 GitHub Apps -> M3 -> M4 -> M5 ─┐
-                                                                 ├-> M6
-M1 -> M2 ────────────────────────────────────────────────────────┘
-```
 
-Track A is unblocked today, and needs no domain at all: the CLI provisions with
-the administrator's own credentials and never touches the portal origin.
+The first implementation stack should begin with M1's canonical artifact and
+golden-vector foundation. The first CLI stack follows with the administration
+protocol and a no-write planner; repository mutation arrives only after those
+contracts are tested.
 
-Track B waits on a Cloudflare account and the two Apps. The origin is settled
-as `dracla.yadan.net`; `cli.dev` is assigned but its transfer is pending and may
-take months, so nothing is planned around it. Moving later costs two App config
-edits plus a permanent redirect — see `docs/github-apps.md`.
+## Pre-release gates still open
 
-## Parked
-
-- Confirming CPU measurement on a real Cloudflare account (A2). The workerd
-  figures have an order of magnitude of headroom, so this is confirmation
-  rather than a risk.
-- Migrating the origin to `dracla.cli.dev` once that transfer completes. Cheap
-  before adopters exist, and a single redirect rule afterwards.
+- **A2:** measure the complete encrypted enforcement, mutation, private-read,
+  export, continuous-team, and Durable Object paths on real accounts.
+- **A3:** add measured Durable Object and final workload dimensions to the
+  capacity model and reproduce the published envelope.
+- **A6:** probe write-deploy-key integrity reach and complete the exposure,
+  rotation, restore, replay, repair, and open-PR recheck exercise.
