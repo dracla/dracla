@@ -99,10 +99,11 @@ org's admin control over installation scope and DraCLA cannot enforce it.
 
 ## 3. Provisioning — no App
 
-Provisioning is **not** a GitHub App. It runs in the `dracla` CLI with the
-administrator's own credentials:
+Provisioning is **not** a GitHub App. The conforming `dracla` CLI is not
+implemented yet; HLD §6.10 specifies that it will run with the administrator's
+own credentials using a concrete released version:
 
-    uvx dracla install
+    uvx dracla@<version> install github.owner=<account>
 
 A provisioning App would need org `administration`, `workflows`, and `secrets`
 write. Retained `workflows: write` is a permanent code-execution channel into
@@ -111,8 +112,9 @@ that repository to public, and an uninstall step that fails to fire leaves both.
 Running provisioning as the administrator means DraCLA never holds those
 permissions at all — see design D11.
 
-After provisioning, the CLI prints the two installation links above. GitHub owns
-the consent screen, the repository picker, and the permission display.
+When provisioning is implemented, its completion flow will print the App
+installation links specified by HLD §6.10.3. GitHub owns the consent screen,
+the repository picker, and the permission display.
 
 ## After creating each App
 
