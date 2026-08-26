@@ -1,27 +1,23 @@
 # GitHub App configuration (phase 0)
 
-Two Apps, created in the `dracla` organization at
+Three Apps, created in the `dracla` organization at
 `https://github.com/organizations/dracla/settings/apps/new`.
 
-They are separate because a single App holding both the records and enforcer
-permissions defeats the point of the two-repo split — an attacker with one
-credential simply uses the other (design §4, D3). Provisioning is not an App at
-all (§3 below).
+The data Apps are separate because a single App holding both records and
+enforcer permissions defeats the capability split — an attacker with one
+credential simply uses the other. The third App can only dispatch the pinned
+control workflow; it is not a provisioning principal (design D3, D11, D16).
+Provisioning is not an App at all (§4 below).
 
-Origin: **`dracla.yadan.net`**. Design §9 requires the shell and API share one
+Origin: **`dracla.cli.dev`**. Design §9 requires the shell and API share one
 origin, so the portal and the Worker routes are the same host — that is what
 avoids `SameSite=None` and a reflected-CORS policy (DR-009).
 
-`cli.dev` is assigned but its transfer is pending and may take months. Do not
-plan around it: callback and Setup URLs are editable in App settings at any
-time and apply to every existing installation instantly, with no adopter
-action. If the move happens after adopters exist, keep a permanent redirect on
-`dracla.yadan.net` — one DNS record and one route rule.
-
 Emit portal links in exactly one canonical form everywhere —
-`https://dracla.yadan.net/p/<slug>` — in badges, check output, and pull request
-comments. A future redirect is then one rule rather than a pattern-matching
-exercise.
+`https://dracla.cli.dev/p/<repository-owner-login>` for the default project and
+`https://dracla.cli.dev/p/<repository-owner-login>/<project-slug>` for an
+explicit additional project — in badges, check output, and pull request
+comments. Always use the owner's current login.
 
 ---
 
@@ -32,8 +28,8 @@ Signs, revokes, and authorizes the dashboard. Never sees a contributing repo.
 | Field | Value |
 |---|---|
 | Name | `dracla-records` |
-| Homepage | `https://dracla.yadan.net` |
-| Callback URL | `https://dracla.yadan.net/auth/callback` |
+| Homepage | `https://dracla.cli.dev` |
+| Callback URL | `https://dracla.cli.dev/auth/callback` |
 | Request user authorization (OAuth) during installation | **No** — users authorize at signing time, not install time |
 | Expire user authorization tokens | **Yes** |
 | Webhook | **Disabled** — this App receives no events |
@@ -67,10 +63,10 @@ org's admin control over installation scope and DraCLA cannot enforce it.
 | Field | Value |
 |---|---|
 | Name | `dracla-enforcer` |
-| Homepage | `https://dracla.yadan.net` |
+| Homepage | `https://dracla.cli.dev` |
 | Callback URL | not used |
 | Request user authorization (OAuth) | **No** |
-| Webhook URL | `https://dracla.yadan.net/webhook/enforcer` |
+| Webhook URL | `https://dracla.cli.dev/webhook/enforcer` |
 | Webhook secret | generate; store in Worker Secrets, never in a repo (`REQ-SEC-4`) |
 | Where can this be installed | Any account |
 
@@ -97,7 +93,40 @@ org's admin control over installation scope and DraCLA cannot enforce it.
 
 ---
 
-## 3. Provisioning — no App
+## 3. `dracla-reconciler-trigger` — control side
+
+Installed only on a project's control repository. It may dispatch and inspect
+the one pinned reconciler workflow, but cannot read or modify repository
+content, workflow files, secrets, or repository administration settings.
+
+| Field | Value |
+|---|---|
+| Name | `dracla-reconciler-trigger` |
+| Homepage | `https://dracla.cli.dev` |
+| Callback URL | not used |
+| Request user authorization (OAuth) | **No** |
+| Webhook | **Disabled** — this App receives no events |
+| Where can this be installed | Any account |
+
+**Repository permissions**
+
+| Permission | Access | Why |
+|---|---|---|
+| Actions | Read and write | Dispatch, rerun, cancel, or inspect the pinned control workflow |
+| Metadata | Read | Mandatory repository identity access |
+
+**Organization permissions:** none.
+**Account permissions:** none.
+**Events:** none.
+
+> Deliberately no Contents, Administration, Workflows, or Secrets permission.
+> The underlying Actions permission can affect run availability, so the control
+> repository contains no second workflow and the credential's reach is included
+> in the operational warning and rotation procedure.
+
+---
+
+## 4. Provisioning — no App
 
 Provisioning is **not** a GitHub App. The conforming `dracla` CLI is not
 implemented yet; HLD §6.10 specifies that it will run with the administrator's
@@ -121,18 +150,23 @@ the repository picker, and the permission display.
 1. Note the **App ID** and generate a **private key** (`.pem`). The key
    downloads once.
 2. Store every key and webhook secret in **Cloudflare Worker Secrets**, in the
-   isolate that needs it and no other (§9 splits these across three Workers:
-   `worker-enforce`, `worker-portal`, `worker-admin`).
+   isolate that needs it and no other (§9 splits these across two Workers:
+   `worker-enforce` and `worker-portal`).
 3. Never commit a key or secret to any repository — `REQ-SEC-4` prohibits it.
 4. App IDs and per-project installation IDs go in the registry repository
    (§7), which is private and separate from the monorepo.
 
 ## Setup URLs
 
-Both Apps need a **Setup URL** so GitHub can redirect back after installation
-with `installation_id` and the signed `state`:
+All three Apps need a **Setup URL** so GitHub can redirect back after
+installation. Any callback query parameters, including `installation_id`, are
+untrusted:
 
-    dracla-records   https://dracla.yadan.net/install/records/callback
-    dracla-enforcer  https://dracla.yadan.net/install/enforcer/callback
+    dracla-records             https://dracla.cli.dev/install/records/callback
+    dracla-enforcer            https://dracla.cli.dev/install/enforcer/callback
+    dracla-reconciler-trigger  https://dracla.cli.dev/install/reconciler-trigger/callback
 
-That redirect is how the registry learns each installation id (§7).
+The callback stores nothing and trusts no query parameter as an App binding. It
+only directs the administrator to Connect; the authenticated Connect operation
+independently lists and verifies all three installations before registry
+publication (§6.10.3, §7).
