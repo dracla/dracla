@@ -4,9 +4,11 @@ Python core for DraCLA: the event model, the append-only commit protocol, and
 the coverage projection. Runs in GitHub Actions (the reconciler) and behind the
 signing endpoints.
 
-Status: **protocol spike.** This implements and tests the mechanisms that
-`design/high-level-design.md` §5.1–5.4 specify, against a deterministic fake
-git host. It is not the product.
+Status: **migration in progress.** The existing event, projection, append, and
+GitHub modules remain a protocol spike and are not the product. The
+`dracla.conformance` package is the revision-13 replacement kernel; new code
+must enter through its tested artifact contracts rather than extending the
+legacy plaintext formats.
 
 Why a fake host: the properties worth testing are concurrent — two writers
 racing a ref update, a crash between two writes, a lost shard row. Those cannot
