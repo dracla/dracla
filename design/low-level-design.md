@@ -1,9 +1,9 @@
 # DraCLA low-level design index
 
 Status: Locked
-Date: 28 August 2026
+Date: 29 August 2026
 Requirements baseline: `design/requirements.md` (Locked, revision 13)
-Architecture baseline: `design/high-level-design.md` (Locked, 25 August 2026)
+Architecture baseline: `design/high-level-design.md` (Locked, 29 August 2026)
 
 This document is the implementation index for the locked DraCLA design. It
 maps the complete HLD into milestone-sized low-level designs without repeating
