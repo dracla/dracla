@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "source": "Independent fixed-key AES-256-GCM vector",
+  "project_id": "project-alpha",
+  "capability": "records",
+  "wrapper_id": "portal-records",
+  "wrapper_generation": "generation-1",
+  "data_key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "data_kid_hex": "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+  "wrapping_key_hex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+  "nonce_hex": "a0a1a2a3a4a5a6a7a8a9aaab",
+  "wrapped_key_base64url": "fj2mN8DShq2pIaexKlB4qYFu0xQooTA1F4vR4s97secW6l19T6b5fe4wfPxz0iqV",
+  "aad_utf8": "{\"algorithm\":\"A256GCM\",\"capability\":\"records\",\"data_kid\":\"8PHy8_T19vf4-fr7_P3-_w\",\"project_id\":\"project-alpha\",\"wrap_version\":1,\"wrapper_generation\":\"generation-1\",\"wrapper_id\":\"portal-records\"}",
+  "copy_utf8": "{\"algorithm\":\"A256GCM\",\"capability\":\"records\",\"data_kid\":\"8PHy8_T19vf4-fr7_P3-_w\",\"nonce\":\"oKGio6Slpqeoqaqr\",\"project_id\":\"project-alpha\",\"wrap_version\":1,\"wrapped_key\":\"fj2mN8DShq2pIaexKlB4qYFu0xQooTA1F4vR4s97secW6l19T6b5fe4wfPxz0iqV\",\"wrapper_generation\":\"generation-1\",\"wrapper_id\":\"portal-records\"}",
+  "keyring_utf8": "{\"keyring_version\":1,\"keys\":[{\"algorithm\":\"A256GCM\",\"capability\":\"records\",\"data_kid\":\"8PHy8_T19vf4-fr7_P3-_w\",\"nonce\":\"oKGio6Slpqeoqaqr\",\"project_id\":\"project-alpha\",\"wrap_version\":1,\"wrapped_key\":\"fj2mN8DShq2pIaexKlB4qYFu0xQooTA1F4vR4s97secW6l19T6b5fe4wfPxz0iqV\",\"wrapper_generation\":\"generation-1\",\"wrapper_id\":\"portal-records\"}]}"
+}
