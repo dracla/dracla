@@ -1,9 +1,9 @@
 # M1 low-level design — conformance kernel
 
 Status: Locked
-Date: 28 August 2026
+Date: 29 August 2026
 Requirements baseline: `design/requirements.md` (Locked, revision 13)
-HLD baseline: `design/high-level-design.md` (Locked, 25 August 2026)
+HLD baseline: `design/high-level-design.md` (Locked, 29 August 2026)
 Roadmap milestone: `docs/roadmap.md` M1
 
 ## 1. Purpose
@@ -1606,32 +1606,13 @@ acceptance is real and current — only the version is outside
 `accepted_versions`, which is what makes it distinguishable from an unsigned
 subject.
 
-**`superseded` is reachable only through activation.** §6.6 gives two causes —
-"a later acceptance replaced this one (`REQ-SIGN-5`) or an activation
-invalidated it" — but they cannot both hold at the cardinality §6.6 also fixes.
-§6.2 makes the first cause the signer-correction case, where A2 carries
-`supersedes: A1` and "the original is never modified"; with one row per subject
-per agreement the row advances to A2, so A1 has no row to carry the status.
-
-**Declared deviation from §6.6's later-acceptance supersession.** The
-repository owner decided to keep the stated cardinality, so M1 implements the
-activation cause only and `superseded_by_later_acceptance` is absent from the
-vocabulary. A corrected acceptance is therefore not surfaced on the dashboard;
-the correction chain remains in canonical events through the `supersedes`
-linkage, which is where an auditor looks, and the §9.2 page and shard sizing a
-per-acceptance row would change is preserved.
-
-This is recorded as a **declared deviation**, not as an LLD amendment of the
-HLD, following the precedent §2 and §10.2 set for `REQ-OPS-2`: a justified
-deviation is declared and carried rather than silently resolved or escalated.
-This document does not claim the §6.6 clause is void. It states that M1 does not
-implement it, why, and what is lost.
-
-The deviation is open, not closed. Closing it requires either an HLD amendment
-removing the later-acceptance clause, or a cardinality change that gives A1 a
-row — and the second would reopen the §9.2 sizing. M7 release traceability
-carries this deviation as an unimplemented §6.6 clause; implementation must not
-reintroduce the reason code to make the clause true without that amendment.
+**`superseded` is reachable only through activation.** Under §6.6's fixed
+cardinality of one row per subject per agreement, a signer correction from A1
+to A2 advances the row to A2. A1 remains immutable and auditable in canonical
+history through A2's `supersedes: A1` linkage, but it has no separate dashboard
+row. The reason vocabulary therefore contains `superseded_by_activation` and
+intentionally has no `superseded_by_later_acceptance`; this preserves the §9.2
+page and shard sizing.
 
 `revoked` therefore reads as "no current basis for coverage" rather than
 "revoked by a person"; §6.6 defines `exempt` and `superseded` in prose but

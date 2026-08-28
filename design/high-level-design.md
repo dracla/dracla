@@ -1,7 +1,7 @@
 # DraCLA High-Level Design
 
 Status: Locked
-Date: 25 August 2026
+Date: 29 August 2026
 Requirements baseline: `design/requirements.md` (Locked, revision 13, 24 August 2026)
 
 This document proposes an implementation architecture for the locked
@@ -2333,8 +2333,11 @@ accepted_at, revoked_at
 ```
 
 `exempt` means coverage rests on a recorded exemption rather than a signature
-(§6.8) and is never folded into `current`; `superseded` means a later acceptance
-replaced this one (`REQ-SIGN-5`) or an activation invalidated it;
+(§6.8) and is never folded into `current`. A signer correction advances this
+single row to the corrected acceptance; the prior acceptance remains in
+canonical history through its `supersedes` linkage but has no separate dashboard
+row. `superseded` means an activation invalidated the row's current acceptance
+version;
 `indeterminate` means the subject sits in
 `inflight.ops`, an operation exhausted its retries, or replay could not resolve
 the record. Both statuses are required by `REQ-DASH-2` and neither existed in
@@ -5276,6 +5279,11 @@ key control, and adopter-controlled recovery. Revision 13, approved on
 24 August 2026, makes merge-queue enforcement independently authoritative per
 pull-request queue entry, removes cumulative predecessor reconstruction, and
 defines completion of each entry's check as its decision time.
+
+The 29 August 2026 HLD true-up resolves §6.6's single-row supersession
+contradiction. A signer correction advances the subject-agreement row and
+remains auditable in canonical history; only activation produces the dashboard
+status `superseded`.
 
 | Req | Change | Where |
 |---|---|---|
