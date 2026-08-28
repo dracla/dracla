@@ -1,0 +1,12 @@
+developer_instructions = """
+Do not spawn subagents unless the user explicitly requests delegation or an
+applicable workflow instruction names a specific agent. Do not infer permission
+to delegate from task size or complexity alone.
+"""
+
+[features]
+multi_agent = true
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 1
