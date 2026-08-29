@@ -1,0 +1,452 @@
+{
+  "schema_version": 1,
+  "timestamp": "2026-08-29T00:00:00Z",
+  "operation_rows": [
+    ["project_connect_owner", "account", "repository_owner_control"],
+    ["project_connect_records_repository", "repository", "project_repository_admin"],
+    ["project_connect_coverage_repository", "repository", "project_repository_admin"],
+    ["project_connect_control_repository", "repository", "project_repository_admin"],
+    ["project_connect_records_app", "installation", "records_app_binding"],
+    ["project_connect_enforcer_app", "installation", "enforcer_app_binding"],
+    ["project_connect_trigger_app", "installation", "trigger_app_binding"],
+    ["project_repository_owner_change_owner", "account", "repository_owner_control"],
+    ["project_repository_owner_change_records_repository", "repository", "project_repository_admin"],
+    ["project_repository_owner_change_coverage_repository", "repository", "project_repository_admin"],
+    ["project_repository_owner_change_control_repository", "repository", "project_repository_admin"],
+    ["project_repository_owner_change_records_app", "installation", "records_app_binding"],
+    ["project_repository_owner_change_enforcer_app", "installation", "enforcer_app_binding"],
+    ["project_repository_owner_change_trigger_app", "installation", "trigger_app_binding"],
+    ["project_succeed", "repository", "records_repository_admin"],
+    ["keyring_activate", "repository", "project_repository_admin"],
+    ["agreement_publish", "repository", "records_repository_admin"],
+    ["agreement_activate", "repository", "records_repository_admin"],
+    ["project_config_update", "repository", "records_repository_admin"],
+    ["enforcement_scope_repository_bind", "repository", "contributing_repository_admin"],
+    ["enforcement_scope_repository_widen", "repository", "contributing_repository_admin"],
+    ["enforcement_scope_repository_narrow", "repository", "contributing_repository_admin"],
+    ["enforcement_scope_repository_remove", "repository", "contributing_repository_admin"],
+    ["enforcement_scope_organization_bind", "organization", "organization_owner"],
+    ["enforcement_scope_organization_widen", "organization", "organization_owner"],
+    ["enforcement_scope_organization_narrow", "organization", "organization_owner"],
+    ["enforcement_scope_organization_remove", "organization", "organization_owner"],
+    ["exemption_bot_add", "repository", "records_repository_admin"],
+    ["exemption_individual_add", "repository", "records_repository_admin"],
+    ["exemption_snapshot_add", "repository", "records_repository_admin"],
+    ["exemption_source_withdraw", "repository", "records_repository_admin"],
+    ["exemption_rule_configure", "repository", "records_repository_admin"],
+    ["exemption_rule_withdraw", "repository", "records_repository_admin"],
+    ["records_reader_individual_add", "repository", "records_repository_admin"],
+    ["records_reader_snapshot_add", "repository", "records_repository_admin"],
+    ["records_reader_source_withdraw", "repository", "records_repository_admin"],
+    ["records_reader_rule_configure", "repository", "records_repository_admin"],
+    ["records_reader_rule_withdraw", "repository", "records_repository_admin"],
+    ["override_grant", "repository", "contributing_repository_maintain"],
+    ["override_withdraw", "repository", "contributing_repository_maintain"],
+    ["retry_request", "repository", "contributing_repository_write"]
+  ],
+  "pair_rejections": [
+    ["agreement_publish", "repository", "project_repository_admin"],
+    ["retry_request", "organization", "contributing_repository_write"],
+    ["override_grant", "repository", "contributing_repository_write"]
+  ],
+  "scope_operations": [
+    "enforcement_scope_repository_bind",
+    "enforcement_scope_repository_widen",
+    "enforcement_scope_repository_narrow",
+    "enforcement_scope_repository_remove",
+    "enforcement_scope_organization_bind",
+    "enforcement_scope_organization_widen",
+    "enforcement_scope_organization_narrow",
+    "enforcement_scope_organization_remove"
+  ],
+  "connection_cases": [
+    {
+      "event_type": "project_connected",
+      "payload": {
+        "repository_owner": {"github_account_id": 10, "login_snapshot": "owner"},
+        "repository_ids": {"records": 11, "coverage": 12, "control": 13}
+      },
+      "rows": [
+        ["project_connect_control_repository", "repository", 13, "project_repository_admin"],
+        ["project_connect_coverage_repository", "repository", 12, "project_repository_admin"],
+        ["project_connect_enforcer_app", "installation", 22, "enforcer_app_binding"],
+        ["project_connect_owner", "account", 10, "repository_owner_control"],
+        ["project_connect_records_app", "installation", 21, "records_app_binding"],
+        ["project_connect_records_repository", "repository", 11, "project_repository_admin"],
+        ["project_connect_trigger_app", "installation", 23, "trigger_app_binding"]
+      ]
+    },
+    {
+      "event_type": "project_repository_owner_changed",
+      "payload": {
+        "new_repository_owner": {"github_account_id": 20, "login_snapshot": "new-owner"},
+        "repository_ids": {"records": 31, "coverage": 32, "control": 33}
+      },
+      "rows": [
+        ["project_repository_owner_change_control_repository", "repository", 33, "project_repository_admin"],
+        ["project_repository_owner_change_coverage_repository", "repository", 32, "project_repository_admin"],
+        ["project_repository_owner_change_enforcer_app", "installation", 42, "enforcer_app_binding"],
+        ["project_repository_owner_change_owner", "account", 20, "repository_owner_control"],
+        ["project_repository_owner_change_records_app", "installation", 41, "records_app_binding"],
+        ["project_repository_owner_change_records_repository", "repository", 31, "project_repository_admin"],
+        ["project_repository_owner_change_trigger_app", "installation", 43, "trigger_app_binding"]
+      ]
+    }
+  ],
+  "key_activation_cases": [
+    {
+      "event_type": "keyring_activated",
+      "affected_repository_ids": [11, 12, 13],
+      "rows": [
+        ["keyring_activate", "repository", 11, "project_repository_admin"],
+        ["keyring_activate", "repository", 12, "project_repository_admin"],
+        ["keyring_activate", "repository", 13, "project_repository_admin"]
+      ]
+    }
+  ],
+  "scope_cases": [
+    {"operation": "enforcement_scope_repository_bind", "prior_scope": [], "desired_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}]},
+    {"operation": "enforcement_scope_repository_widen", "prior_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}], "desired_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}, {"kind": "repository", "repository_id": 32, "owner_snapshot": "owner", "name_snapshot": "repo-32"}]},
+    {"operation": "enforcement_scope_repository_narrow", "prior_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}, {"kind": "repository", "repository_id": 32, "owner_snapshot": "owner", "name_snapshot": "repo-32"}], "desired_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}]},
+    {"operation": "enforcement_scope_repository_remove", "prior_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}], "desired_scope": []},
+    {"operation": "enforcement_scope_organization_bind", "prior_scope": [], "desired_scope": [{"kind": "organization", "organization_id": 41, "login_snapshot": "org-41"}]},
+    {"operation": "enforcement_scope_organization_widen", "prior_scope": [{"kind": "organization", "organization_id": 41, "login_snapshot": "org-41"}], "desired_scope": [{"kind": "organization", "organization_id": 41, "login_snapshot": "org-41"}, {"kind": "organization", "organization_id": 42, "login_snapshot": "org-42"}]},
+    {"operation": "enforcement_scope_organization_narrow", "prior_scope": [{"kind": "organization", "organization_id": 41, "login_snapshot": "org-41"}, {"kind": "organization", "organization_id": 42, "login_snapshot": "org-42"}], "desired_scope": [{"kind": "organization", "organization_id": 41, "login_snapshot": "org-41"}]},
+    {"operation": "enforcement_scope_organization_remove", "prior_scope": [{"kind": "organization", "organization_id": 41, "login_snapshot": "org-41"}], "desired_scope": []}
+  ],
+  "negative_examples": [
+    {
+      "name": "missing_authorization",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": []
+    },
+    {
+      "name": "extra_authorization",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [
+        {"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "project_config_update", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "duplicate_authorization",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [
+        {"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "mismatched_target_resource",
+      "event_type": "override",
+      "target": {"repository_id": 99},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [
+        {"operation": "override_grant", "resource_kind": "repository", "resource_id": 98, "required_authority": "contributing_repository_maintain", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "unknown_event_type",
+      "event_type": "unknown_event",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": []
+    },
+    {
+      "name": "unknown_operation",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [
+        {"operation": "not_an_operation", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "wrong_operation_pair",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [
+        {"operation": "agreement_publish", "resource_kind": "organization", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "actor_variant_violation",
+      "event_type": "acceptance",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "automation", "principal": "worker-portal"},
+      "authorizations": []
+    },
+    {
+      "name": "unsafe_authorization_id",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [
+        {"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 0, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "unordered_authorization",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [
+        {"operation": "project_config_update", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "malformed_authorization_member",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": ["not-an-object"]
+    },
+    {
+      "name": "authorization_missing_field",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "authorization_extra_field",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null, "extra": true}]
+    },
+    {
+      "name": "authorization_false_result",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": false, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "authorization_bad_timestamp",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-02-30T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "authorization_bad_request_id",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": ""}]
+    },
+    {
+      "name": "missing_scope_payload",
+      "event_type": "enforcement_scope_requested",
+      "target": {"change_id": "change"},
+      "payload": {"desired_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}]},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "enforcement_scope_repository_bind", "resource_kind": "repository", "resource_id": 31, "required_authority": "contributing_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "scope_selector_extra_field",
+      "event_type": "enforcement_scope_requested",
+      "target": {"change_id": "change"},
+      "payload": {"prior_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31", "extra": true}], "desired_scope": []},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "enforcement_scope_repository_remove", "resource_kind": "repository", "resource_id": 31, "required_authority": "contributing_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "scope_selector_unknown_kind",
+      "event_type": "enforcement_scope_requested",
+      "target": {"change_id": "change"},
+      "payload": {"prior_scope": [{"kind": "other", "id": 31}], "desired_scope": []},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "enforcement_scope_repository_remove", "resource_kind": "repository", "resource_id": 31, "required_authority": "contributing_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "scope_selector_unsafe_id",
+      "event_type": "enforcement_scope_requested",
+      "target": {"change_id": "change"},
+      "payload": {"prior_scope": [{"kind": "repository", "repository_id": 0, "owner_snapshot": "owner", "name_snapshot": "repo-0"}], "desired_scope": []},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "enforcement_scope_repository_remove", "resource_kind": "repository", "resource_id": 1, "required_authority": "contributing_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "scope_selector_duplicate",
+      "event_type": "enforcement_scope_requested",
+      "target": {"change_id": "change"},
+      "payload": {"prior_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}, {"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}], "desired_scope": []},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "enforcement_scope_repository_remove", "resource_kind": "repository", "resource_id": 31, "required_authority": "contributing_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "scope_selector_unordered",
+      "event_type": "enforcement_scope_requested",
+      "target": {"change_id": "change"},
+      "payload": {"prior_scope": [{"kind": "repository", "repository_id": 32, "owner_snapshot": "owner", "name_snapshot": "repo-32"}, {"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}], "desired_scope": []},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "enforcement_scope_repository_remove", "resource_kind": "repository", "resource_id": 31, "required_authority": "contributing_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "scope_wrong_pair",
+      "event_type": "enforcement_scope_requested",
+      "target": {"change_id": "change"},
+      "payload": {"prior_scope": [], "desired_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}]},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "enforcement_scope_repository_widen", "resource_kind": "repository", "resource_id": 31, "required_authority": "contributing_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "scope_wrong_resource",
+      "event_type": "enforcement_scope_requested",
+      "target": {"change_id": "change"},
+      "payload": {"prior_scope": [], "desired_scope": [{"kind": "repository", "repository_id": 31, "owner_snapshot": "owner", "name_snapshot": "repo-31"}]},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "enforcement_scope_repository_bind", "resource_kind": "repository", "resource_id": 32, "required_authority": "contributing_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "key_activation_missing_context",
+      "event_type": "keyring_activated",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "authorizations": [{"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 11, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "key_activation_empty_context",
+      "event_type": "keyring_activated",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "affected_repository_ids": [],
+      "authorizations": [{"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 11, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "key_activation_incomplete_context",
+      "event_type": "keyring_activated",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "affected_repository_ids": [11, 12],
+      "authorizations": [
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 11, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 12, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 13, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "key_activation_extra_context",
+      "event_type": "keyring_activated",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "affected_repository_ids": [11, 12, 13],
+      "authorizations": [
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 11, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 12, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "key_activation_duplicate_context",
+      "event_type": "keyring_activated",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "affected_repository_ids": [11, 11, 12],
+      "authorizations": [
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 11, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 12, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "key_activation_unsafe_context",
+      "event_type": "keyring_activated",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "affected_repository_ids": [0, 12, 13],
+      "authorizations": [
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 11, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 12, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 13, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "key_activation_wrong_evidence_set",
+      "event_type": "keyring_activated",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "affected_repository_ids": [11, 12, 13],
+      "authorizations": [
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 11, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 12, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 99, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "key_activation_wrong_pair",
+      "event_type": "keyring_activated",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "affected_repository_ids": [11],
+      "authorizations": [{"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 11, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "non_keyring_affected_context",
+      "event_type": "agreement_published",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "affected_repository_ids": [5],
+      "authorizations": [{"operation": "agreement_publish", "resource_kind": "repository", "resource_id": 5, "required_authority": "records_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}]
+    },
+    {
+      "name": "key_activation_context_not_sequence",
+      "event_type": "keyring_activated",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "affected_repository_ids": "11,12,13",
+      "authorizations": [
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 11, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 12, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 13, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    },
+    {
+      "name": "key_activation_context_unsafe_large_id",
+      "event_type": "keyring_activated",
+      "target": {},
+      "payload": {},
+      "actor": {"kind": "github", "github_user_id": 7, "login_snapshot": "admin"},
+      "affected_repository_ids": [11, 9007199254740992, 13],
+      "authorizations": [
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 11, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 12, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null},
+        {"operation": "keyring_activate", "resource_kind": "repository", "resource_id": 13, "required_authority": "project_repository_admin", "observed_authority": "ok", "authorized": true, "checked_at": "2026-08-29T00:00:00Z", "github_request_id": null}
+      ]
+    }
+  ]
+}
