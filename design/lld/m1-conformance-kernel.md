@@ -386,7 +386,8 @@ Add `event_identity.py` with immutable `EventIdentity` and
   target, payload, confirmed_canonical_oid) -> EventIdentity`;
 - `event_path(event_id) -> str`; and
 - `validate_authorizations(event_type, target, payload, actor,
-  authorizations) -> tuple[AuthorizationEvidence, ...]`.
+  authorizations, *, affected_repository_ids: Sequence[int] | None = None)
+  -> tuple[AuthorizationEvidence, ...]`.
 
 `EventIdentity` carries canonical `operation_nonce`, `idempotency_key`,
 `operation_sha256`, `event_id`, and event path. Domain labels and zero bytes are
@@ -397,18 +398,22 @@ as specified.
 Authorization validation uses one checked-in literal table. It does not infer
 an operation from an event-name prefix or accept GitHub UI labels. Connection
 and owner-transfer events require their exact seven evidence rows;
-key activation requires one row per affected project repository; scope chains
-retain one exact operation/resource identity. Set members use JCS lexical order.
+key activation requires the keyword-only `affected_repository_ids` context to
+be a non-empty sequence of unique positive safe repository IDs, with exact
+set/cardinality equality to its validated `keyring_activate` evidence rows;
+passing that context to any other event is rejected. Scope chains retain one
+exact operation/resource identity. Set members use JCS lexical order.
 
 ### Acceptance evidence
 
-Vectors cover both actor variants, random and all deterministic nonce domains,
-the request/activation/abandonment pairwise-distinct rule, every literal
+Checked-in vectors cover all representable cases, including both actor variants,
+random and all deterministic nonce domains, the
+request/activation/abandonment pairwise-distinct rule, every literal
 operation/resource/authority row, all scope alternatives, stable-login
 behavior, exact digests and paths, and changed-payload key reuse. They reject
 unknown tokens, wrong pairings, unordered/duplicate evidence, actor violations,
-unsafe IDs, caller-supplied child identities, and an injected child-digest
-collision.
+unsafe IDs, and caller-supplied child identities. A focused patched-primitive
+test covers the injected child-digest collision.
 
 The focused identity/authorization tests and complete Python suite must pass;
 traceability gains exact automated evidence rows.

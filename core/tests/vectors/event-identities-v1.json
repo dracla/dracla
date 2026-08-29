@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "random_nonce": {
+    "bytes_hex": "000102030405060708090a0b0c0d0e0f",
+    "operation_nonce": "AAECAwQFBgcICQoLDA0ODw"
+  },
+  "actors": [
+    {
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "stable": {"kind": "github", "github_user_id": 7654321}
+    },
+    {
+      "actor": {"kind": "automation", "principal": "worker-portal"},
+      "stable": {"kind": "automation", "principal": "worker-portal"}
+    }
+  ],
+  "event_types_v1": [
+    "acceptance",
+    "revocation",
+    "agreement_published",
+    "agreement_activated",
+    "project_connected",
+    "project_repository_owner_changed",
+    "project_succeeded",
+    "config_updated",
+    "keyring_activated",
+    "enforcement_scope_requested",
+    "enforcement_scope_activated",
+    "enforcement_scope_abandoned",
+    "override",
+    "override_withdrawn",
+    "retry_requested",
+    "exemption",
+    "exemption_snapshot",
+    "exemption_source_withdrawn",
+    "exemption_rule_configured",
+    "exemption_rule_withdrawn",
+    "exemption_materialized",
+    "records_reader_authorized",
+    "records_reader_snapshot_authorized",
+    "records_reader_withdrawn",
+    "records_reader_rule_configured",
+    "records_reader_rule_withdrawn",
+    "records_reader_materialized"
+  ],
+  "event_identity_common_input": {
+    "project_id": "project-alpha",
+    "target": {},
+    "payload": {}
+  },
+  "event_identity_vectors": {
+    "acceptance": {"operation_nonce":"AQEBAQEBAQEBAQEBAQEBAQ","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","idempotency_key":"_BdMI-DPb0Mh1DLGx7M_Lp0VoW04TsJVA6RxQpJewGA","operation_sha256":"sha256:e7ca54479d3f27579a73bd99b55cd3ff36d814d02f0ad69acfc9ae61d46d0f5d","event_id":"mxdw6usT1tIAkxtf-2oPQp07PsRdqngXbwk0PUunmlA","event_path":"events/mx/dw/mxdw6usT1tIAkxtf-2oPQp07PsRdqngXbwk0PUunmlA.enc.json"},
+    "revocation": {"operation_nonce":"AgICAgICAgICAgICAgICAg","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","idempotency_key":"zkzD4NKulJjB15Z2zyrcNN86uyBxRE1GDuvfKiRPWJc","operation_sha256":"sha256:1e4c7dcc59b687a9bc27540e1a02363675b79e2a7829ba025975b08ad697cebd","event_id":"4cvoHdrKWjrGKke6dfO_u1E6m4jdwiDIiJMgBWdBgts","event_path":"events/4c/vo/4cvoHdrKWjrGKke6dfO_u1E6m4jdwiDIiJMgBWdBgts.enc.json"},
+    "agreement_published": {"operation_nonce":"AwMDAwMDAwMDAwMDAwMDAw","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"GrhI4E992yd3HgS8-n9XFbAq6j8L84FL8RigkUmbFgo","operation_sha256":"sha256:cebda0427f1681a8013f3f1d5fece93d94fb2dfeb7fa327bcb64e23f7af6544a","event_id":"uwtJRb4OgXNkj9SJvBkKdL41dR_ff7a73K8IaJfWNig","event_path":"events/uw/tJ/uwtJRb4OgXNkj9SJvBkKdL41dR_ff7a73K8IaJfWNig.enc.json"},
+    "agreement_activated": {"operation_nonce":"BAQEBAQEBAQEBAQEBAQEBA","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"7Ilu3vhawiK94WZ-9qp2Zw3MSPZOYBFSXj-ja72vXVA","operation_sha256":"sha256:e3b3d84b5dce8379ab8e6241036d39a3064aa9f4d5625ec1c3ae5295da7b43d1","event_id":"oqsRCRUboq3GvN81Q6mvQTMqVrXdUsSPMsCCyKFRW2s","event_path":"events/oq/sR/oqsRCRUboq3GvN81Q6mvQTMqVrXdUsSPMsCCyKFRW2s.enc.json"},
+    "project_connected": {"operation_nonce":"BQUFBQUFBQUFBQUFBQUFBQ","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"0SLP_8O8xR2TPZ3iHPp-Bnt-DRQuVbqSG6y-DgeNMfU","operation_sha256":"sha256:6496ddece2cf8ea5c7b047f06362b66b2feb3d4ed4d1927ff3c755de0df8ef5e","event_id":"lhmAakFblUgjYv6QrAlu41-EksoP6NsbfvFjuuQlu3o","event_path":"events/lh/mA/lhmAakFblUgjYv6QrAlu41-EksoP6NsbfvFjuuQlu3o.enc.json"},
+    "project_repository_owner_changed": {"operation_nonce":"BgYGBgYGBgYGBgYGBgYGBg","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"BJ9nDj3FOatypFSHjXtyLLf_2lgQtAfXwG9ZD32t4ZE","operation_sha256":"sha256:09524a47444240c87043cacc968ff52439de03708338c4835123bf97d78350b5","event_id":"uO_HIcvQnTRkR4_TfyLnlbJU0wcTnMLuQ94Xk35g0Pk","event_path":"events/uO/_H/uO_HIcvQnTRkR4_TfyLnlbJU0wcTnMLuQ94Xk35g0Pk.enc.json"},
+    "project_succeeded": {"operation_nonce":"BwcHBwcHBwcHBwcHBwcHBw","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"l2m3omGqbPu4KDDsedi0hezfvDA_86mlPGcniwgac0s","operation_sha256":"sha256:0d7711b85bc95bd79b0fda1b9e0a20d2daf29beb9aca08ffb45917a220559863","event_id":"q0v85dAZXSUtVHl46HPJ-4buIPc9HKwSjTYXbXUQHlw","event_path":"events/q0/v8/q0v85dAZXSUtVHl46HPJ-4buIPc9HKwSjTYXbXUQHlw.enc.json"},
+    "config_updated": {"operation_nonce":"CAgICAgICAgICAgICAgICA","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"PYODp6y0m3Ygov7i6q05u0FU-tHVZlGc6gsRvm4jBDM","operation_sha256":"sha256:dbd931e8bba26c83093f21d2b4ac02b1fd8fa2a5b9d49f6b47d1b7f70f548f8b","event_id":"TEv5aEHpv6U73VxZ94eXK6OqfREDpRp0Mqcl7b2JfsU","event_path":"events/TE/v5/TEv5aEHpv6U73VxZ94eXK6OqfREDpRp0Mqcl7b2JfsU.enc.json"},
+    "keyring_activated": {"operation_nonce":"CQkJCQkJCQkJCQkJCQkJCQ","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"Sg5e7LlNeMVxbjGYdyI5f_H8K7p_eA24ndaOC6J8G6I","operation_sha256":"sha256:754a3680b8a1985bd6cd33e1c97794adb3a247843934cb48b38560bc56881483","event_id":"MB6NRqj-pavX2JKLrAGP2eCGy7tL86jM5N1cPeBrgpc","event_path":"events/MB/6N/MB6NRqj-pavX2JKLrAGP2eCGy7tL86jM5N1cPeBrgpc.enc.json"},
+    "enforcement_scope_requested": {"operation_nonce":"CgoKCgoKCgoKCgoKCgoKCg","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"y3V4nhdo6_drYbDIcDuCuL72rJKTSrupJ9-ViC603wI","operation_sha256":"sha256:7c2ae982fe088129235ab01a943524d6cb7b71d26ed356b3687636ef2f1b9b1f","event_id":"xlN-SsN6f1KH6ACW6zhAGoP73akVXS2cEuq4cq2kMag","event_path":"events/xl/N-/xlN-SsN6f1KH6ACW6zhAGoP73akVXS2cEuq4cq2kMag.enc.json"},
+    "enforcement_scope_activated": {"operation_nonce":"CwsLCwsLCwsLCwsLCwsLCw","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"SBSljtu2yznhSVhF8VFrYJOKVKByc5CnJjZeP51-39g","operation_sha256":"sha256:470d252d63b17d66f579f1a7d6ef7a09b5422363a88c4587db832a5f0bbf2b54","event_id":"_Iv6gS9t4q1ltWLEGn_fInhne-ZK-pMI4Bqa5tT0dMA","event_path":"events/_I/v6/_Iv6gS9t4q1ltWLEGn_fInhne-ZK-pMI4Bqa5tT0dMA.enc.json"},
+    "enforcement_scope_abandoned": {"operation_nonce":"DAwMDAwMDAwMDAwMDAwMDA","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"CUMme3l11zhb6n7jVN1ixx0QzSlrkfplm2h9eQK9elA","operation_sha256":"sha256:c2bebc32006ff9ee6fc151438313bc4a5c10468ba494018992e18963d4d2465e","event_id":"FhgLogUMd4WZ1KZgL2cTS02_WNL7Iz4L-eOSJbKsjX8","event_path":"events/Fh/gL/FhgLogUMd4WZ1KZgL2cTS02_WNL7Iz4L-eOSJbKsjX8.enc.json"},
+    "override": {"operation_nonce":"DQ0NDQ0NDQ0NDQ0NDQ0NDQ","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"hSfIzFheFIVaPFVFZTG2nKgRKOCGRiNth3JwbCBIq1w","operation_sha256":"sha256:d661d5060860a802386017fa4d937d46cb6cbe4b57c162ed05e517cae0f1310b","event_id":"cJ9_bYKCTMjRK1ALmdfG_bs98GRUQzenpitd-Ci8Lxo","event_path":"events/cJ/9_/cJ9_bYKCTMjRK1ALmdfG_bs98GRUQzenpitd-Ci8Lxo.enc.json"},
+    "override_withdrawn": {"operation_nonce":"Dg4ODg4ODg4ODg4ODg4ODg","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"RRK9EyF7-1woMm7fC8pIsZjOgORTFEYc8p5O9vz90oo","operation_sha256":"sha256:14aeb94a2207c233321ee30779ae6240a65b15cc0f1519531a6cee2887c9c2a7","event_id":"egA7C0KzNBCM-LMnCBeW0-K2-NhQev3en0NhwGboTpI","event_path":"events/eg/A7/egA7C0KzNBCM-LMnCBeW0-K2-NhQev3en0NhwGboTpI.enc.json"},
+    "retry_requested": {"operation_nonce":"Dw8PDw8PDw8PDw8PDw8PDw","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"5Bg2FE2MF6GLTLVOIVtBprNDVW-3X5dTc2u4tFJX2-o","operation_sha256":"sha256:37597b271f4f5497ba1f5553eff3248def30cf57085c1b8fe03768dad9712b3b","event_id":"rf6EE5wN52GItIylBMoU6pdL3dCyczmR7DIsr_aPqns","event_path":"events/rf/6E/rf6EE5wN52GItIylBMoU6pdL3dCyczmR7DIsr_aPqns.enc.json"},
+    "exemption": {"operation_nonce":"EBAQEBAQEBAQEBAQEBAQEA","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"pcdIcZCuW1psKf-LlGWP6GGof2YDtWAszCKWKXynlbc","operation_sha256":"sha256:006a70403cc22412590e74c14c8cbbf63ac15f398ee6e62cd7238bd126ae0639","event_id":"lpVgpJtkWprTiI26_grHmytdk-35KDrmnJLAvAk0r0Y","event_path":"events/lp/Vg/lpVgpJtkWprTiI26_grHmytdk-35KDrmnJLAvAk0r0Y.enc.json"},
+    "exemption_snapshot": {"operation_nonce":"EREREREREREREREREREREQ","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"5xguSArl0rltTnl9Wg77t1JgSbaBnzKt99QDpXufrpY","operation_sha256":"sha256:4e9782bb719eb5d8ba28f658e422617e77dd2e4597db2b6c280e99a18bdac3fe","event_id":"1TAmt-cR6_sq8SXZ-zKNAOgXxIkm856gQepgJ1MIwCs","event_path":"events/1T/Am/1TAmt-cR6_sq8SXZ-zKNAOgXxIkm856gQepgJ1MIwCs.enc.json"},
+    "exemption_source_withdrawn": {"operation_nonce":"EhISEhISEhISEhISEhISEg","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"671yCsokHZ1dwUfbdkQN5CY75UMOmP2B-ivtt2Oiono","operation_sha256":"sha256:793a6c542421dcc74017f9dcc10e7e6be2322bb1639f57b4737353b4bceda7dc","event_id":"2IuL4qNywv_SHHJ47g4RyMDExsnR_2i3j6mOGMKEJc0","event_path":"events/2I/uL/2IuL4qNywv_SHHJ47g4RyMDExsnR_2i3j6mOGMKEJc0.enc.json"},
+    "exemption_rule_configured": {"operation_nonce":"ExMTExMTExMTExMTExMTEw","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"iZB65Ll3u37iHgo5NXfRWF_5j7M-HTkYNyy9rhSHt9k","operation_sha256":"sha256:48a0dea4c660ba946a0a024ed822fce1a409b4e765b374f6f5bc2e983a62861e","event_id":"w47J10U7QGw82W8WAbka4ZWhoWLNBBXhO8L8nB7U96g","event_path":"events/w4/7J/w47J10U7QGw82W8WAbka4ZWhoWLNBBXhO8L8nB7U96g.enc.json"},
+    "exemption_rule_withdrawn": {"operation_nonce":"FBQUFBQUFBQUFBQUFBQUFA","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"pXToCHrJ0r_iDWwypGe9hByc2xbYGRsEDtc_eAPTlAw","operation_sha256":"sha256:d35b9116936c5f6ad97a4446f03feb0fb92843c6db16172fc1c1bb3f9ab89c0b","event_id":"tg5mDZLbsgYcCXzS3-JCWXuStB_YOG_9aqqvtHSepfw","event_path":"events/tg/5m/tg5mDZLbsgYcCXzS3-JCWXuStB_YOG_9aqqvtHSepfw.enc.json"},
+    "exemption_materialized": {"operation_nonce":"FRUVFRUVFRUVFRUVFRUVFQ","actor":{"kind":"automation","principal":"worker-portal"},"confirmed_canonical_oid":null,"idempotency_key":"j2FgXvUzYuTFsYmVj7lw10wwKkSXpde3D1ayZ_LhNME","operation_sha256":"sha256:609b8c7cedcc7cf1f310d4dbc63172fc1eebd3fcb5cea16f9a19fa22af4b6496","event_id":"SitRadoIWekWa7f8S9mCLojJcgLzQgkg403_KBdIM64","event_path":"events/Si/tR/SitRadoIWekWa7f8S9mCLojJcgLzQgkg403_KBdIM64.enc.json"},
+    "records_reader_authorized": {"operation_nonce":"FhYWFhYWFhYWFhYWFhYWFg","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"az17H3YUdA7T494kal3hL_3c1rX99-jYN4VXHYmshpw","operation_sha256":"sha256:466ecc39027a7dcf4ec8967747a7a2abe1d73066684da00a1863c5ab2c73004b","event_id":"YMVY-Mr8MNeGuuGTNfM1HVHenV1Zg8FEDs8Y8_-k4TA","event_path":"events/YM/VY/YMVY-Mr8MNeGuuGTNfM1HVHenV1Zg8FEDs8Y8_-k4TA.enc.json"},
+    "records_reader_snapshot_authorized": {"operation_nonce":"FxcXFxcXFxcXFxcXFxcXFw","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"gGpE3FE8gYpt-H3U_1vsV4IzdkpL2bK34lnkEvoMda8","operation_sha256":"sha256:62393001e95be205aed0136d0407eb3f32012cb948ca6334d659e5e1243bf47c","event_id":"CilJtpABLDv_9HoZjkiTKirPUHPKDfY8u9e3gl6q-ZE","event_path":"events/Ci/lJ/CilJtpABLDv_9HoZjkiTKirPUHPKDfY8u9e3gl6q-ZE.enc.json"},
+    "records_reader_withdrawn": {"operation_nonce":"GBgYGBgYGBgYGBgYGBgYGA","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"PxtpWiosFHrIX3DvFWBEp3o_PgVN-2kfL_sDxs8-WdM","operation_sha256":"sha256:911684a2e2623038b03ef341ce13687eac3341139b9b1126eec4b521e92017e8","event_id":"VP3aR8FlEA_Yov4EM46Tf7iKf4RvyhLgU0kQU8VHl9Y","event_path":"events/VP/3a/VP3aR8FlEA_Yov4EM46Tf7iKf4RvyhLgU0kQU8VHl9Y.enc.json"},
+    "records_reader_rule_configured": {"operation_nonce":"GRkZGRkZGRkZGRkZGRkZGQ","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"1jpJXQ55sG-BcYLkQw0vuAtnXWMnFPaVlQg9Tx5JNIw","operation_sha256":"sha256:501ae1925da775593b8266f779ee88afc30d0418ce6e9af498879ac6e8227a55","event_id":"Yo7gw_Kux_CEQxyWUznwBThWumNAAqCQBwYi-KaAM1o","event_path":"events/Yo/7g/Yo7gw_Kux_CEQxyWUznwBThWumNAAqCQBwYi-KaAM1o.enc.json"},
+    "records_reader_rule_withdrawn": {"operation_nonce":"GhoaGhoaGhoaGhoaGhoaGg","actor":{"kind":"github","github_user_id":7654321,"login_snapshot":"maintainer"},"confirmed_canonical_oid":null,"idempotency_key":"nVmTeF9aUjkQElf6Zy4313VQCTDrIkVMJkUMX7BEyKk","operation_sha256":"sha256:b5d07016c8439446651dfda13931123e9215185cd6d805e7bb1357d3f036923e","event_id":"pFR7qSudx7S0ZQ3j1MEcfuF9pBvDlC4pWxf0yVv2KAk","event_path":"events/pF/R7/pFR7qSudx7S0ZQ3j1MEcfuF9pBvDlC4pWxf0yVv2KAk.enc.json"},
+    "records_reader_materialized": {"operation_nonce":"GxsbGxsbGxsbGxsbGxsbGw","actor":{"kind":"automation","principal":"worker-portal"},"confirmed_canonical_oid":null,"idempotency_key":"wICvhragRlckQ5AyX0Att17i1mouPtbFSsaPoQVJcvY","operation_sha256":"sha256:aa7392260c8f77be38e68cc1ad4d1a939985028151d8a82da6bbdc3d0a5b1043","event_id":"JiqSPZy0cRypZvhE__l6hSOzbusKZvwsIMcG6G9yWvA","event_path":"events/Ji/qS/JiqSPZy0cRypZvhE__l6hSOzbusKZvwsIMcG6G9yWvA.enc.json"}
+  },
+  "automation_nonce": {
+    "rule_event_id": "rule-event-1",
+    "subject_user_id": 7654321,
+    "result": "add",
+    "prior_materialization_event_id": null,
+    "nonce": "9gVBEnuzR8dV1PZYcKu9BQ"
+  },
+  "github_retry_nonce": {
+    "repository_id": 123456,
+    "check_kind": "pull_request",
+    "check_identity": 42,
+    "github_delivery_id": "delivery-123",
+    "nonce": "2Y-PdwE2_6hpyM0C20Clzg"
+  },
+  "scope_terminal_nonces": {
+    "request_event_id": "request-event-1",
+    "activation": "qDQ8mWukM6huRq5SVoV6wQ",
+    "abandonment": "z_X0jddoWB4qMRhmPKESLA"
+  },
+  "deterministic_nonce_variants": [
+    {
+      "domain": "automation",
+      "rule_event_id": "rule-event-1",
+      "subject_user_id": 7654321,
+      "result": "withdraw",
+      "prior_materialization_event_id": "materialization-1",
+      "nonce": "-X5rlE5r-jeEfpPmcDudww"
+    },
+    {
+      "domain": "github_retry",
+      "repository_id": 123456,
+      "check_kind": "merge_group",
+      "check_identity": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_delivery_id": null,
+      "nonce": "3tyoH9zebNRdGxx-p8nq2g"
+    },
+    {
+      "domain": "github_retry",
+      "repository_id": 123456,
+      "check_kind": "pull_request",
+      "check_identity": 42,
+      "github_delivery_id": null,
+      "nonce": "ogkBxg04pzGjTYl4mH0ghA"
+    },
+    {
+      "domain": "scope_terminal",
+      "request_event_id": "request-event-1",
+      "terminal_type": "enforcement_scope_activated",
+      "nonce": "qDQ8mWukM6huRq5SVoV6wQ"
+    },
+    {
+      "domain": "scope_terminal",
+      "request_event_id": "request-event-1",
+      "terminal_type": "enforcement_scope_abandoned",
+      "nonce": "z_X0jddoWB4qMRhmPKESLA"
+    }
+  ],
+  "scope_terminal_identity_variants": [
+    {
+      "name": "request",
+      "project_id": "project-alpha",
+      "operation_nonce": "EBESExQVFhcYGRobHB0eHw",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "enforcement_scope_requested",
+      "target": {"change_id": "change-1"},
+      "payload": {
+        "prior_scope": [],
+        "desired_scope": [{"kind": "repository", "repository_id": 111, "owner_snapshot": "acme", "name_snapshot": "repo"}],
+        "prior_registry_generation": 4
+      },
+      "confirmed_canonical_oid": null,
+      "idempotency_key": "2EuYSem449sgaZVTTby4U2Kaa3tC3s8gsltvWMwW64c",
+      "operation_sha256": "sha256:b4855c76a0249197381dc875e6fcb3db01daeeeb2c38d582ee1e9bff6154b55f",
+      "event_id": "3bQvELLkMWcDrTWxR5aeJXSFkIE95lB6iOiH5cbBkxM",
+      "event_path": "events/3b/Qv/3bQvELLkMWcDrTWxR5aeJXSFkIE95lB6iOiH5cbBkxM.enc.json"
+    },
+    {
+      "name": "activation",
+      "project_id": "project-alpha",
+      "operation_nonce": "qDQ8mWukM6huRq5SVoV6wQ",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "enforcement_scope_activated",
+      "target": {"change_id": "change-1"},
+      "payload": {
+        "request_event_id": "request-event-1",
+        "desired_scope": [{"kind": "repository", "repository_id": 111, "owner_snapshot": "acme", "name_snapshot": "repo"}],
+        "registry_commit_oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "registry_generation": 5
+      },
+      "confirmed_canonical_oid": null,
+      "idempotency_key": "xaTX1dv0WibrcFS22rm1MAbSq4_9l_njrArcOZLxaOk",
+      "operation_sha256": "sha256:c51d108293c2bf66b4a6f8eef8420e312e31c9beae49ec1c75e42fc424120944",
+      "event_id": "kMIoZNCE0IKhyXzfI41YC_V1qrAxC9uN8496oyTFBRo",
+      "event_path": "events/kM/Io/kMIoZNCE0IKhyXzfI41YC_V1qrAxC9uN8496oyTFBRo.enc.json"
+    },
+    {
+      "name": "abandonment",
+      "project_id": "project-alpha",
+      "operation_nonce": "z_X0jddoWB4qMRhmPKESLA",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "enforcement_scope_abandoned",
+      "target": {"change_id": "change-1"},
+      "payload": {"request_event_id": "request-event-1", "reason_code": "operator_cancelled"},
+      "confirmed_canonical_oid": null,
+      "idempotency_key": "ojuhgwl4ZB6Cyo-5zJaTDhCrEj5Bd3sO2dTqQMiwBn4",
+      "operation_sha256": "sha256:75c76f8188a63a4147e117a7ebd25db74d6022c9b3a395aae1110c5b6b6c7405",
+      "event_id": "CdZji8DyX_vcrn2lI8B1mVonZ9Tpbgq9Hg98kIjsvYI",
+      "event_path": "events/Cd/Zj/CdZji8DyX_vcrn2lI8B1mVonZ9Tpbgq9Hg98kIjsvYI.enc.json"
+    }
+  ],
+  "event_identity": {
+    "project_id": "project-alpha",
+    "operation_nonce": "AAECAwQFBgcICQoLDA0ODw",
+    "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+    "event_type": "acceptance",
+    "target": {"x": 1},
+    "payload": {"y": "z"},
+    "confirmed_canonical_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "idempotency_key": "BYpWJKeZRou7wsQZc72kNpT_xqxtchKnIGQ4wX9lwiM",
+    "operation_sha256": "sha256:51f875e0d8ba265e780595e7add1fcc81fa1442e9b03d89dde7e3692fc671f38",
+    "event_id": "HBQJ8Dshl4Jr0nzMeIq8SddqjeypHt9jXj004E5svnQ",
+    "event_path": "events/HB/QJ/HBQJ8Dshl4Jr0nzMeIq8SddqjeypHt9jXj004E5svnQ.enc.json"
+  },
+  "changed_payload": {
+    "original_payload": {"y": "z"},
+    "changed_payload": {"y": "changed"},
+    "same_operation_nonce": "AAECAwQFBgcICQoLDA0ODw"
+  },
+  "negative_examples": [
+    {
+      "name": "unknown_event_type",
+      "project_id": "project-alpha",
+      "operation_nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "unknown_event",
+      "target": {},
+      "payload": {},
+      "confirmed_canonical_oid": null
+    },
+    {
+      "name": "non_ascii_event_token",
+      "project_id": "project-alpha",
+      "operation_nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "évenť",
+      "target": {},
+      "payload": {},
+      "confirmed_canonical_oid": null
+    },
+    {
+      "name": "unsafe_operation_nonce",
+      "project_id": "project-alpha",
+      "operation_nonce": "short",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "acceptance",
+      "target": {},
+      "payload": {},
+      "confirmed_canonical_oid": null
+    },
+    {
+      "name": "malformed_actor",
+      "project_id": "project-alpha",
+      "operation_nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "actor": {"kind": "automation", "principal": "not-worker-portal"},
+      "event_type": "acceptance",
+      "target": {},
+      "payload": {},
+      "confirmed_canonical_oid": null
+    },
+    {
+      "name": "malformed_target",
+      "project_id": "project-alpha",
+      "operation_nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "acceptance",
+      "target": [],
+      "payload": {},
+      "confirmed_canonical_oid": null
+    },
+    {
+      "name": "malformed_payload",
+      "project_id": "project-alpha",
+      "operation_nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "acceptance",
+      "target": {},
+      "payload": [],
+      "confirmed_canonical_oid": null
+    },
+    {
+      "name": "unsafe_confirmed_oid",
+      "project_id": "project-alpha",
+      "operation_nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "acceptance",
+      "target": {},
+      "payload": {},
+      "confirmed_canonical_oid": "not-an-oid"
+    },
+    {
+      "name": "caller_supplied_idempotency_key",
+      "project_id": "project-alpha",
+      "operation_nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "acceptance",
+      "target": {},
+      "payload": {},
+      "confirmed_canonical_oid": null,
+      "unexpected_kwargs": {"idempotency_key": "caller-supplied"}
+    },
+    {
+      "name": "caller_supplied_event_id",
+      "project_id": "project-alpha",
+      "operation_nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "actor": {"kind": "github", "github_user_id": 7654321, "login_snapshot": "maintainer"},
+      "event_type": "acceptance",
+      "target": {},
+      "payload": {},
+      "confirmed_canonical_oid": null,
+      "unexpected_kwargs": {"event_id": "caller-supplied"}
+    }
+  ]
+}
