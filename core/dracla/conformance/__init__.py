@@ -35,6 +35,24 @@ from .envelope import (  # noqa: F401
     encrypt_artifact,
     encrypt_json_artifact,
 )
+from .event_identity import (  # noqa: F401
+    AUTHORIZATION_TABLE,
+    AuthorizationError,
+    AuthorizationEvidence,
+    AuthorizationValidationError,
+    EVENT_ID_BYTES,
+    EventIdentity,
+    EventIdentityError,
+    OPERATION_NONCE_BYTES,
+    derive_automation_nonce,
+    derive_event_identity,
+    derive_github_retry_nonce,
+    derive_scope_terminal_nonce,
+    event_path,
+    new_operation_nonce,
+    stable_actor_identity,
+    validate_authorizations,
+)
 from .keyrings import (  # noqa: F401
     CAPABILITIES,
     KEYRING_VERSION,
