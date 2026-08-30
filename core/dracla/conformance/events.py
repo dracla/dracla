@@ -1114,6 +1114,940 @@ def required_preconditions(event: ValidatedEvent, *, expected_head: str) -> tupl
     return tuple(result)
 
 
+@dataclass(frozen=True, slots=True)
+class PreconditionEvidence:
+    """Authenticated, already-decoded evidence supplied by a history owner."""
+
+    name: str
+    artifact_kind: str
+    repository_role: str
+    branch: str
+    path: str
+    binding_mode: str
+    binding: PreconditionBinding
+    value: Any
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.binding, (EventsHeadBinding, GenerationBinding, CanonicalShaBinding, CrossProjectBinding, RegistryGenerationBinding)):
+            _error("precondition evidence binding is unsupported", PreconditionValidationError)
+        if self.binding_mode != self.binding.mode:
+            _error("precondition evidence binding mode is inconsistent", PreconditionValidationError)
+        if type(self.value) not in (dict, list, tuple, str, int, bool, type(None)):
+            _error("precondition evidence has an unsupported value", PreconditionValidationError)
+        object.__setattr__(self, "value", _freeze(self.value))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "artifact_kind": self.artifact_kind,
+            "repository_role": self.repository_role,
+            "branch": self.branch,
+            "path": self.path,
+            "binding_mode": self.binding_mode,
+            "binding": _binding_to_dict(self.binding),
+            "value": _thaw(self.value),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SideArtifactRequirement:
+    """One deterministic side artifact required by an event."""
+
+    kind: str
+    path: str
+    relation: str
+    affected_classes: tuple[str, ...] = ()
+
+
+_AFFECTED_CLASSES: dict[str, tuple[str, ...]] = {
+    "project_connected": ("derived_index", "status_detail", "reader_authority"),
+    "acceptance": ("derived_index", "status_detail"),
+    "revocation": ("derived_index", "status_detail"),
+    "exemption": ("derived_index", "status_detail"),
+    "exemption_snapshot": ("derived_index", "status_detail"),
+    "exemption_source_withdrawn": ("derived_index", "status_detail"),
+    "exemption_materialized": ("derived_index", "status_detail"),
+    "exemption_rule_configured": ("status_detail",),
+    "exemption_rule_withdrawn": ("status_detail",),
+    "records_reader_authorized": ("reader_authority",),
+    "records_reader_snapshot_authorized": ("reader_authority",),
+    "records_reader_withdrawn": ("reader_authority",),
+    "records_reader_rule_configured": ("reader_authority",),
+    "records_reader_rule_withdrawn": ("reader_authority",),
+    "records_reader_materialized": ("reader_authority",),
+}
+
+
+def _affected_classes_for(event: ValidatedEvent, evidence: Mapping[str, PreconditionEvidence]) -> tuple[str, ...]:
+    """Resolve effect-based generation classes from authenticated facts."""
+
+    if event.type == "exemption_rule_withdrawn":
+        rule_id = event.target["rule_event_id"]
+        provenance = {
+            subject_id: sources
+            for name, item in evidence.items()
+            if name.startswith("current-exemption-union-")
+            for subject_id, sources in item.value["provenance"].items()
+        }
+        flips = any(isinstance(sources, Sequence) and rule_id in sources and len(sources) == 1 for sources in provenance.values())
+        return ("derived_index", "status_detail") if flips else ("status_detail",)
+    if event.type in {"records_reader_withdrawn", "records_reader_rule_withdrawn"}:
+        fact = evidence["reader-authority-state"].value
+        source_id = event.target["source_event_id"] if event.type == "records_reader_withdrawn" else event.target["rule_event_id"]
+        sources = fact["source_event_ids"]
+        observation = evidence["reader-authority-state"].binding
+        state = "current" if observation.canonical_generation == observation.derived_generation else "stale"
+        if state == "stale" or source_id in sources:
+            return ("reader_authority",)
+        return ()
+    return _AFFECTED_CLASSES.get(event.type, ())
+
+
+def _binding_to_dict(binding: PreconditionBinding) -> dict[str, Any]:
+    if isinstance(binding, EventsHeadBinding):
+        return {"mode": binding.mode, "events_head": binding.events_head}
+    if isinstance(binding, GenerationBinding):
+        return {
+            "mode": binding.mode,
+            "events_head": binding.events_head,
+            "canonical_generation": binding.canonical_generation,
+            "derived_generation": binding.derived_generation,
+        }
+    if isinstance(binding, CanonicalShaBinding):
+        return {
+            "mode": binding.mode,
+            "coverage_commit_oid": binding.coverage_commit_oid,
+            "canonical_sha": binding.canonical_sha,
+        }
+    if isinstance(binding, RegistryGenerationBinding):
+        return {
+            "mode": binding.mode,
+            "registry_commit_oid": binding.registry_commit_oid,
+            "registry_generation": binding.registry_generation,
+        }
+    return {
+        "mode": binding.mode,
+        "successor_project_id": binding.successor_project_id,
+        "successor_events_head": binding.successor_events_head,
+        "repository_ids": list(binding.repository_ids),
+    }
+
+
+def _parse_binding(value: Any, *, mode: str) -> PreconditionBinding:
+    if type(value) is not dict or value.get("mode") != mode:
+        _error("precondition binding is malformed", PreconditionValidationError)
+    if mode == "events-head":
+        if set(value) != {"mode", "events_head"}:
+            _error("events-head binding has missing or extra fields", PreconditionValidationError)
+        try:
+            return EventsHeadBinding(_oid(value["events_head"], "events head"))
+        except EventValidationError:
+            _error("events-head binding is malformed", PreconditionValidationError)
+    if mode == "generation":
+        if set(value) != {"mode", "events_head", "canonical_generation", "derived_generation"}:
+            _error("generation binding has missing or extra fields", PreconditionValidationError)
+        try:
+            return GenerationBinding(
+                _oid(value["events_head"], "generation events head"),
+                _event_id(value["canonical_generation"], "canonical generation"),
+                _event_id(value["derived_generation"], "derived generation"),
+            )
+        except EventValidationError:
+            _error("generation binding is malformed", PreconditionValidationError)
+    if mode == "canonical-sha":
+        if set(value) != {"mode", "coverage_commit_oid", "canonical_sha"}:
+            _error("canonical-sha binding has missing or extra fields", PreconditionValidationError)
+        try:
+            return CanonicalShaBinding(_oid(value["coverage_commit_oid"], "coverage commit"), _oid(value["canonical_sha"], "canonical sha"))
+        except EventValidationError:
+            _error("canonical-sha binding is malformed", PreconditionValidationError)
+    if mode == "cross-project":
+        if set(value) != {"mode", "successor_project_id", "successor_events_head", "repository_ids"}:
+            _error("cross-project binding has missing or extra fields", PreconditionValidationError)
+        repository_ids = value["repository_ids"]
+        if isinstance(repository_ids, (str, bytes, bytearray)) or type(repository_ids) is not list or not repository_ids:
+            _error("cross-project repository IDs are malformed", PreconditionValidationError)
+        parsed_ids = tuple(_positive(item, "successor repository ID") for item in repository_ids)
+        if len(set(parsed_ids)) != len(parsed_ids):
+            _error("cross-project repository IDs contain duplicates", PreconditionValidationError)
+        try:
+            return CrossProjectBinding(_string(value["successor_project_id"], "successor project ID"), _oid(value["successor_events_head"], "successor events head"), parsed_ids)
+        except EventValidationError:
+            _error("cross-project binding is malformed", PreconditionValidationError)
+    if mode == "registry-generation":
+        if set(value) != {"mode", "registry_commit_oid", "registry_generation"}:
+            _error("registry-generation binding has missing or extra fields", PreconditionValidationError)
+        try:
+            return RegistryGenerationBinding(
+                _oid(value["registry_commit_oid"], "registry commit"),
+                _nonnegative(value["registry_generation"], "registry generation"),
+            )
+        except EventValidationError:
+            _error("registry-generation binding is malformed", PreconditionValidationError)
+    _error("precondition binding mode is unsupported", PreconditionValidationError)
+
+
+def _coerce_precondition(value: Any, *, default_name: str | None = None) -> PreconditionEvidence:
+    if isinstance(value, PreconditionEvidence):
+        return value
+    if type(value) is not dict:
+        _error("precondition evidence entry must be an object", PreconditionValidationError)
+    name = value.get("name", default_name)
+    required = {"name", "artifact_kind", "repository_role", "branch", "path", "binding_mode", "binding", "value"}
+    if set(value) != required:
+        _error("precondition evidence has missing or extra fields", PreconditionValidationError)
+    if type(name) is not str or not name:
+        _error("precondition evidence name is invalid", PreconditionValidationError)
+    if any(type(value.get(key)) is not str or not value.get(key) for key in ("artifact_kind", "repository_role", "branch", "binding_mode")):
+        _error("precondition evidence descriptor is malformed", PreconditionValidationError)
+    if type(value["path"]) is not str or (not value["path"] and value["artifact_kind"] != "canonical-project-state"):
+        _error("precondition evidence descriptor is malformed", PreconditionValidationError)
+    binding = _parse_binding(value["binding"], mode=value["binding_mode"])
+    return PreconditionEvidence(name, value["artifact_kind"], value["repository_role"], value["branch"], value["path"], value["binding_mode"], binding, value["value"])
+
+
+def _precondition_map(value: Any) -> dict[str, PreconditionEvidence]:
+    if isinstance(value, Mapping):
+        entries = []
+        for name, item in value.items():
+            if isinstance(item, PreconditionEvidence):
+                entries.append(item)
+            elif type(item) is dict and "name" not in item:
+                item = {"name": name, **item}
+                entries.append(_coerce_precondition(item))
+            else:
+                entries.append(_coerce_precondition(item, default_name=name))
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        entries = [_coerce_precondition(item) for item in value]
+    else:
+        _error("preconditions must be an ordered sequence or mapping", PreconditionValidationError)
+    result: dict[str, PreconditionEvidence] = {}
+    for item in entries:
+        if item.name in result:
+            _error("preconditions contain a duplicate requirement", PreconditionValidationError)
+        result[item.name] = item
+    return result
+
+
+def _validate_binding(binding: PreconditionBinding, requirement: PreconditionRequirement, expected_head: str) -> None:
+    if binding.mode != requirement.binding_mode:
+        _error("precondition binding mode does not match requirement", PreconditionValidationError)
+    if isinstance(binding, EventsHeadBinding):
+        if binding.events_head != expected_head:
+            _error("events-head evidence is stale", PreconditionValidationError)
+    elif isinstance(binding, GenerationBinding):
+        if binding.events_head != expected_head:
+            _error("generation evidence is stale or inconsistent", PreconditionValidationError)
+        if requirement.name == "reader-authority-state":
+            # Shrink-only withdrawals may observe a stale derived class.  The
+            # unequal generation pair is the authenticated stale marker; all
+            # ordinary generation-bound requirements retain equality.
+            return
+        if binding.canonical_generation != binding.derived_generation:
+            _error("generation evidence is stale or inconsistent", PreconditionValidationError)
+    elif isinstance(binding, CanonicalShaBinding):
+        if binding.canonical_sha != expected_head:
+            _error("coverage canonical SHA does not match expected head", PreconditionValidationError)
+    elif isinstance(binding, CrossProjectBinding):
+        expected_project = requirement.relation.split(":", 1)[1] if ":" in requirement.relation else None
+        if expected_project is None or binding.successor_project_id != expected_project:
+            _error("cross-project binding names the wrong successor", PreconditionValidationError)
+    elif isinstance(binding, RegistryGenerationBinding):
+        # Registry generations are signed evidence from a separate repository;
+        # neither its commit nor generation is an events-head value.
+        pass
+
+
+def _relation_object(value: Any, keys: Sequence[str], label: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != set(keys):
+        _error(f"{label} evidence has missing or extra facts", PreconditionValidationError)
+    return value
+
+
+def _registry_entry(value: Any, label: str) -> Mapping[str, Any]:
+    """Validate the closed local portion of a signed project registry entry."""
+
+    if not isinstance(value, Mapping):
+        _error(f"{label} evidence is not a registry entry", PreconditionValidationError)
+    entry = value.get("project_entry", value)
+    required = {
+        "project_id", "project_slug", "repository_owner", "repository_ids",
+        "registry_generation", "enforcement_scope", "request_event_links",
+    }
+    if not isinstance(entry, Mapping) or not required.issubset(set(entry)):
+        _error(f"{label} registry entry is incomplete", PreconditionValidationError)
+    _string(entry["project_id"], f"{label}.project_id")
+    if type(entry["project_slug"]) is not str or _PROJECT_SLUG.fullmatch(entry["project_slug"]) is None:
+        _error(f"{label}.project_slug is malformed", PreconditionValidationError)
+    _parse_owner(entry["repository_owner"], f"{label}.repository_owner")
+    _parse_repo_ids(entry["repository_ids"], f"{label}.repository_ids")
+    _nonnegative(entry["registry_generation"], f"{label}.registry_generation")
+    if not isinstance(entry["enforcement_scope"], Sequence) or isinstance(entry["enforcement_scope"], (str, bytes, bytearray)):
+        _error(f"{label}.enforcement_scope is malformed", PreconditionValidationError)
+    _parse_scope(entry["enforcement_scope"], f"{label}.enforcement_scope")
+    links = entry["request_event_links"]
+    if not isinstance(links, Mapping):
+        _error(f"{label}.request_event_links is malformed", PreconditionValidationError)
+    for linked_id in links.values():
+        try:
+            _event_id(linked_id, f"{label} request event link")
+        except EventValidationError:
+            _error(f"{label}.request_event_links is malformed", PreconditionValidationError)
+    return entry
+
+
+def _registry_entries(value: Any, fields: Sequence[str], label: str) -> dict[str, Mapping[str, Any]]:
+    if not isinstance(value, Mapping) or set(value) != set(fields):
+        _error(f"{label} registry transition is missing or has extra entries", PreconditionValidationError)
+    return {field: _registry_entry(value[field], f"{label}.{field}") for field in fields}
+
+
+def _validate_link_fact(event: ValidatedEvent, name: str, value: Any) -> None:
+    fact = _relation_object(value, ("event_id", "type", "project_id", "target", "payload"), f"{name} link")
+    _event_id(fact["event_id"], f"{name} event_id")
+    if fact["project_id"] != event.project_id:
+        _error(f"{name} link belongs to another project", PreconditionValidationError)
+    if name == "active-publication":
+        if fact["type"] != "agreement_published" or fact["project_id"] != event.project_id:
+            _error("active publication fact is not an agreement publication", PreconditionValidationError)
+        if fact["target"] != {"agreement_id": event.target["coverage_tuple"]["agreement_id"], "version": event.target["version"]}:
+            _error("active publication target does not match acceptance", PreconditionValidationError)
+        payload = fact["payload"]
+        if not isinstance(payload, Mapping) or set(payload) != {
+            "recipient", "ref", "content_commit_oid", "digest",
+            "snapshot_content_path", "snapshot_metadata_path", "snapshot_sha256",
+        }:
+            _error("active publication payload is malformed", PreconditionValidationError)
+        _parse_recipient(payload["recipient"])
+        _string(payload["ref"], "active publication ref")
+        _oid(payload["content_commit_oid"], "active publication content commit")
+        _digest(payload["digest"], "active publication digest")
+        _digest(payload["snapshot_sha256"], "active publication snapshot digest")
+        if payload["recipient"] != event.target["recipient"] or payload["digest"] != event.target["digest"]:
+            _error("active publication recipient or digest does not match acceptance", PreconditionValidationError)
+    elif name == "published-agreement":
+        if fact["event_id"] != event.payload["published_event_id"] or fact["type"] != "agreement_published" or fact["target"] != {"agreement_id": event.target["agreement_id"], "version": event.target["version"]}:
+            _error("published agreement fact does not match activation", PreconditionValidationError)
+        publication = fact["payload"]
+        if not isinstance(publication, Mapping) or set(publication) != {
+            "recipient", "ref", "content_commit_oid", "digest",
+            "snapshot_content_path", "snapshot_metadata_path", "snapshot_sha256",
+        }:
+            _error("published agreement fact payload is malformed", PreconditionValidationError)
+        _parse_recipient(publication["recipient"])
+        _string(publication["ref"], "published agreement ref")
+        _oid(publication["content_commit_oid"], "published agreement content commit")
+        _digest(publication["digest"], "published agreement digest")
+        _digest(publication["snapshot_sha256"], "published agreement snapshot digest")
+    elif name == "scope-request":
+        if fact["event_id"] != event.payload["request_event_id"] or fact["type"] != "enforcement_scope_requested" or fact["target"] != {"change_id": event.target["change_id"]}:
+            _error("scope request fact does not match terminal", PreconditionValidationError)
+        if not isinstance(fact["payload"], Mapping) or set(fact["payload"]) != {"prior_scope", "desired_scope", "prior_registry_generation"}:
+            _error("scope request fact payload is malformed", PreconditionValidationError)
+        try:
+            _parse_scope(fact["payload"]["prior_scope"], "scope request prior scope")
+            desired = _parse_scope(fact["payload"]["desired_scope"], "scope request desired scope")
+            _nonnegative(fact["payload"]["prior_registry_generation"], "scope request prior registry generation")
+        except EventValidationError:
+            _error("scope request fact payload is malformed", PreconditionValidationError)
+        expected_desired = event.payload.get("desired_scope")
+        if expected_desired is not None and desired != _parse_scope(expected_desired, "terminal desired scope"):
+            _error("scope request desired scope does not match terminal", PreconditionValidationError)
+    elif name == "source-event":
+        allowed = (
+            {"exemption", "exemption_snapshot"}
+            if event.type == "exemption_source_withdrawn"
+            else {"records_reader_authorized", "records_reader_snapshot_authorized"}
+        )
+        if fact["type"] not in allowed:
+            _error("source event fact has an unsupported type", PreconditionValidationError)
+        if event.target["source_event_id"] != fact["event_id"]:
+            _error("source event fact does not match withdrawal", PreconditionValidationError)
+        subject = event.target["subject"]
+        if fact["type"] in {"exemption", "records_reader_authorized"}:
+            if fact["target"] != {"subject": subject}:
+                _error("source event subject does not match withdrawal", PreconditionValidationError)
+        elif not isinstance(fact["target"], Mapping) or set(fact["target"]) != {"subjects"} or subject not in fact["target"]["subjects"]:
+            _error("source event subject is not in snapshot", PreconditionValidationError)
+    elif name == "rule-event":
+        allowed = (
+            {"exemption_rule_configured"}
+            if event.type in {"exemption_rule_withdrawn", "exemption_materialized"}
+            else {"records_reader_rule_configured"}
+        )
+        if fact["type"] not in allowed:
+            _error("rule event fact has an unsupported type", PreconditionValidationError)
+        if event.target["rule_event_id"] != fact["event_id"]:
+            _error("rule event fact does not match transition", PreconditionValidationError)
+        if not isinstance(fact["target"], Mapping) or set(fact["target"]) != {"team"}:
+            _error("rule event target is malformed", PreconditionValidationError)
+        if event.type in {"exemption_materialized", "records_reader_materialized"}:
+            try:
+                expected_team = _parse_team(event.payload["team"])
+                actual_team = _parse_team(fact["target"]["team"])
+            except EventValidationError:
+                _error("rule event team is malformed", PreconditionValidationError)
+            if actual_team != expected_team:
+                _error("rule event team does not match materialization", PreconditionValidationError)
+
+
+def _validate_terminal_observation(value: Any, expected_path: str) -> bool:
+    """Validate one authenticated exact-path terminal presence observation."""
+
+    if not isinstance(value, Mapping) or set(value) != {"path", "present"}:
+        _error("scope terminal observation is malformed", PreconditionValidationError)
+    if value["path"] != expected_path or type(value["present"]) is not bool:
+        _error("scope terminal observation is not bound to its path", PreconditionValidationError)
+    return value["present"]
+
+
+def _validate_project_agreement_fact(event: ValidatedEvent, value: Any) -> None:
+    """Validate the canonical project identity and publication catalog."""
+
+    fact = _relation_object(
+        value,
+        ("project_id", "recipient", "agreement_id", "published_versions"),
+        "current project agreement",
+    )
+    if fact["project_id"] != event.project_id:
+        _error("current project agreement belongs to another project", PreconditionValidationError)
+    try:
+        observed_recipient = _parse_recipient(fact["recipient"])
+        event_recipient = _parse_recipient(event.payload["recipient"])
+    except EventValidationError:
+        _error("current project recipient is malformed", PreconditionValidationError)
+    if observed_recipient != event_recipient:
+        _error("current project recipient does not match publication", PreconditionValidationError)
+
+    agreement_id = fact["agreement_id"]
+    if agreement_id is not None:
+        try:
+            _string(agreement_id, "current project agreement ID")
+        except EventValidationError:
+            _error("current project agreement ID is malformed", PreconditionValidationError)
+        if agreement_id != event.target["agreement_id"]:
+            _error("current project agreement does not match publication", PreconditionValidationError)
+
+    versions = fact["published_versions"]
+    if isinstance(versions, (str, bytes, bytearray)) or not isinstance(versions, Sequence):
+        _error("published version catalog is malformed", PreconditionValidationError)
+    seen: set[tuple[str, str]] = set()
+    for version_entry in versions:
+        entry = _relation_object(version_entry, ("agreement_id", "version"), "published version")
+        try:
+            entry_agreement_id = _string(entry["agreement_id"], "published version agreement ID")
+            version = _string(entry["version"], "published version")
+        except EventValidationError:
+            _error("published version catalog is malformed", PreconditionValidationError)
+        if agreement_id is None or entry_agreement_id != agreement_id:
+            _error("published version catalog has an inconsistent agreement", PreconditionValidationError)
+        identity = (entry_agreement_id, version)
+        if identity in seen:
+            _error("published version catalog contains duplicates", PreconditionValidationError)
+        seen.add(identity)
+        if identity == (event.target["agreement_id"], event.target["version"]):
+            _error("published version catalog already contains the proposed version", PreconditionValidationError)
+
+
+def _validate_superseded_acceptance_fact(event: ValidatedEvent, value: Any) -> None:
+    """Validate the canonical acceptance named by a correction."""
+
+    fact = _relation_object(
+        value,
+        ("event_id", "type", "project_id", "target", "payload"),
+        "superseded acceptance",
+    )
+    try:
+        _event_id(fact["event_id"], "superseded acceptance event")
+        target, payload = _parse_target_payload("acceptance", _thaw(fact["target"]), _thaw(fact["payload"]))
+        current_coverage = _parse_coverage(event.target["coverage_tuple"])
+        prior_coverage = _parse_coverage(target["coverage_tuple"])
+        current_recipient = _parse_recipient(event.target["recipient"])
+        prior_recipient = _parse_recipient(target["recipient"])
+    except EventValidationError:
+        _error("superseded acceptance fact is malformed", PreconditionValidationError)
+    if fact["event_id"] != event.payload["supersedes"]:
+        _error("superseded acceptance fact does not match correction", PreconditionValidationError)
+    if fact["type"] != "acceptance" or fact["project_id"] != event.project_id:
+        _error("superseded acceptance fact has the wrong identity", PreconditionValidationError)
+    if prior_coverage != current_coverage or prior_recipient != current_recipient:
+        _error("superseded acceptance fact does not match correction coverage", PreconditionValidationError)
+    if target["version"] != event.target["version"] or target["digest"] != event.target["digest"]:
+        _error("superseded acceptance fact does not match correction target", PreconditionValidationError)
+
+
+def _validate_acceptance_basis_fact(event: ValidatedEvent, value: Any) -> None:
+    """Validate the generation-bound status-detail basis for a correction."""
+
+    fact = _relation_object(value, ("project_id", "github_user_id", "agreement_id", "basis"), "current acceptance basis")
+    basis = _relation_object(fact["basis"], ("event_id", "kind"), "current acceptance basis")
+    try:
+        _event_id(basis["event_id"], "current acceptance basis event")
+        github_user_id = _positive(fact["github_user_id"], "current acceptance basis github user ID")
+        agreement_id = _string(fact["agreement_id"], "current acceptance basis agreement ID")
+    except EventValidationError:
+        _error("current acceptance basis is malformed", PreconditionValidationError)
+    if (
+        fact["project_id"] != event.project_id
+        or github_user_id != event.target["coverage_tuple"]["github_user_id"]
+        or agreement_id != event.target["coverage_tuple"]["agreement_id"]
+        or basis["kind"] != "acceptance"
+        or basis["event_id"] != event.payload["supersedes"]
+    ):
+        _error("current acceptance basis does not match correction", PreconditionValidationError)
+
+
+def _validate_preconditions_impl(event: ValidatedEvent, preconditions: Any, expected_head: str) -> dict[str, PreconditionEvidence]:
+    _event_name(event)
+    if event.confirmed_canonical_oid is not None and event.confirmed_canonical_oid != expected_head:
+        _error("event confirmed head does not match expected head", PreconditionValidationError)
+    expected = required_preconditions(event, expected_head=expected_head)
+    values = _precondition_map(preconditions)
+    if set(values) != {item.name for item in expected}:
+        _error("precondition evidence does not exactly match requirements", PreconditionValidationError)
+    by_name = {item.name: item for item in expected}
+    for name, evidence in values.items():
+        requirement = by_name[name]
+        if (evidence.artifact_kind, evidence.repository_role, evidence.branch, evidence.path, evidence.binding_mode) != (requirement.artifact_kind, requirement.repository_role, requirement.branch, requirement.path, requirement.binding_mode):
+            _error("precondition evidence is stale or bound to the wrong artifact", PreconditionValidationError)
+        _validate_binding(evidence.binding, requirement, expected_head)
+        if name == "materialization-cursor":
+            fact = _relation_object(evidence.value, ("cursor_event_id", "prior_materialization_event_id", "rule_event_id", "subject"), "materialization cursor")
+            try:
+                _event_id(fact["cursor_event_id"], "materialization cursor")
+                if fact["prior_materialization_event_id"] is not None:
+                    _event_id(fact["prior_materialization_event_id"], "prior materialization event")
+                if fact["rule_event_id"] != event.target["rule_event_id"] or _parse_subject(fact["subject"], "materialization cursor subject") != _parse_subject(event.target["subject"], "materialization target subject"):
+                    _error("materialization cursor identity does not match event", PreconditionValidationError)
+                if fact["prior_materialization_event_id"] != event.payload["prior_materialization_event_id"]:
+                    _error("materialization cursor does not match event prior cursor", PreconditionValidationError)
+            except EventValidationError:
+                _error("materialization cursor is malformed", PreconditionValidationError)
+            continue
+        if name == "reader-authority-state":
+            fact = _relation_object(evidence.value, ("project_id", "class_state", "source_event_ids", "cursor_event_id"), "reader authority state")
+            if fact["project_id"] != event.project_id or fact["class_state"] not in {"current", "stale"} or isinstance(fact["source_event_ids"], (str, bytes, bytearray)) or not isinstance(fact["source_event_ids"], Sequence) or any(type(source) is not str for source in fact["source_event_ids"]):
+                _error("reader authority state is inconsistent", PreconditionValidationError)
+            observed_state = "current" if evidence.binding.canonical_generation == evidence.binding.derived_generation else "stale"
+            if fact["class_state"] != observed_state:
+                _error("reader authority state does not match generation observation", PreconditionValidationError)
+            _event_id(fact["cursor_event_id"], "reader authority cursor")
+            try:
+                for source in fact["source_event_ids"]:
+                    _event_id(source, "reader authority source")
+            except EventValidationError:
+                _error("reader authority state is inconsistent", PreconditionValidationError)
+            if len(set(fact["source_event_ids"])) != len(fact["source_event_ids"]):
+                _error("reader authority state is inconsistent", PreconditionValidationError)
+            continue
+        if name == "current-reader-authority":
+            fact = _relation_object(evidence.value, ("project_id", "class_state", "sources", "cursor_event_id"), "reader authority")
+            if fact["project_id"] != event.project_id or fact["class_state"] not in {"current", "stale"} or isinstance(fact["sources"], (str, bytes, bytearray)) or not isinstance(fact["sources"], Sequence) or any(type(source) is not str for source in fact["sources"]):
+                _error("reader authority fact is inconsistent", PreconditionValidationError)
+            _event_id(fact["cursor_event_id"], "reader authority cursor")
+            try:
+                for source in fact["sources"]:
+                    _event_id(source, "reader authority source")
+            except EventValidationError:
+                _error("reader authority fact is inconsistent", PreconditionValidationError)
+            if len(set(fact["sources"])) != len(fact["sources"]):
+                _error("reader authority fact is inconsistent", PreconditionValidationError)
+            if event.type == "records_reader_materialized" and event.payload["result"] == "withdraw" and fact["class_state"] == "stale":
+                _error("reader materialization withdrawal cannot use a stale authority class", PreconditionValidationError)
+            continue
+        if name == "current-derived-state":
+            fact = _relation_object(
+                evidence.value,
+                ("project_id", "standing_rule_event_ids", "max_continuous_exemption_rules", "max_state_ciphertext_bytes"),
+                "derived state",
+            )
+            rule_event_ids = fact["standing_rule_event_ids"]
+            if (
+                fact["project_id"] != event.project_id
+                or isinstance(rule_event_ids, (str, bytes, bytearray))
+                or not isinstance(rule_event_ids, Sequence)
+                or any(type(rule_event_id) is not str for rule_event_id in rule_event_ids)
+            ):
+                _error("derived state standing rules are malformed", PreconditionValidationError)
+            try:
+                for rule_event_id in rule_event_ids:
+                    _event_id(rule_event_id, "standing rule event")
+                max_rules = _positive(fact["max_continuous_exemption_rules"], "max continuous exemption rules")
+                _positive(fact["max_state_ciphertext_bytes"], "max state ciphertext bytes")
+            except EventValidationError:
+                _error("derived state standing rules or profile is malformed", PreconditionValidationError)
+            if len(set(rule_event_ids)) != len(rule_event_ids):
+                _error("derived state standing rules contain duplicates", PreconditionValidationError)
+            if len(rule_event_ids) >= max_rules:
+                _error("derived state already has the maximum continuous exemption rules", PreconditionValidationError)
+            continue
+        if name.startswith("active-reader-rules-"):
+            shard = int(name.rsplit("-", 1)[1])
+            fact = _relation_object(evidence.value, ("project_id", "rule_event_ids"), name)
+            rule_event_ids = fact["rule_event_ids"]
+            if (
+                fact["project_id"] != event.project_id
+                or isinstance(rule_event_ids, (str, bytes, bytearray))
+                or not isinstance(rule_event_ids, Sequence)
+                or any(type(rule_event_id) is not str for rule_event_id in rule_event_ids)
+            ):
+                _error(f"{name} fact is inconsistent", PreconditionValidationError)
+            try:
+                for rule_event_id in rule_event_ids:
+                    _event_id(rule_event_id, f"{name} rule event")
+            except EventValidationError:
+                _error(f"{name} fact is inconsistent", PreconditionValidationError)
+            if len(set(rule_event_ids)) != len(rule_event_ids):
+                _error(f"{name} fact contains duplicate rule events", PreconditionValidationError)
+            expected_path = f"derived/reader-authority/{shard:02d}.enc.json"
+            if any(_reader_shard_path(rule_event_id) != expected_path for rule_event_id in rule_event_ids):
+                _error(f"{name} rule event is bound to the wrong shard", PreconditionValidationError)
+            continue
+        if name.startswith("current-exemption-union-"):
+            shard = int(name.rsplit("-", 1)[1])
+            fact = _relation_object(evidence.value, ("project_id", "subjects", "provenance"), "exemption union")
+            if fact["project_id"] != event.project_id or isinstance(fact["subjects"], (str, bytes, bytearray)) or not isinstance(fact["subjects"], Sequence) or not isinstance(fact["provenance"], Mapping): _error("exemption union fact is inconsistent", PreconditionValidationError)
+            subjects = () if not fact["subjects"] else _parse_subjects(fact["subjects"], "exemption union subjects")
+            if set(fact["provenance"]) != {str(subject.github_user_id) for subject in subjects}:
+                _error("exemption provenance does not cover the union subjects", PreconditionValidationError)
+            for subject in subjects:
+                if subject.github_user_id % 32 != shard:
+                    _error("exemption union subject is bound to the wrong or duplicate shard", PreconditionValidationError)
+            for subject_id, sources in fact["provenance"].items():
+                if type(subject_id) is not str or not subject_id.isdecimal() or int(subject_id) % 32 != shard or isinstance(sources, (str, bytes, bytearray)) or not isinstance(sources, Sequence) or not sources or any(type(source) is not str for source in sources):
+                    _error("exemption provenance fact is inconsistent", PreconditionValidationError)
+                try:
+                    for source in sources:
+                        _event_id(source, "exemption provenance source")
+                except EventValidationError:
+                    _error("exemption provenance fact is inconsistent", PreconditionValidationError)
+                if len(set(sources)) != len(sources):
+                    _error("exemption provenance fact is inconsistent", PreconditionValidationError)
+            continue
+        if name == "override-grant":
+            fact = _relation_object(evidence.value, ("event", "active"), "override grant")
+            grant = _relation_object(fact["event"], ("event_id", "type", "project_id", "target", "payload"), "override grant event")
+            if grant["event_id"] != event.target["override_event_id"] or grant["type"] != "override" or grant["project_id"] != event.project_id or fact["active"] is not True:
+                _error("override grant does not match withdrawal", PreconditionValidationError)
+            try:
+                grant_target = grant["target"]
+                if set(grant_target) != {"repository_id", "pull_request_number", "tree_oid"}:
+                    raise ValueError
+                _positive(grant_target["repository_id"], "override repository ID")
+                _positive(grant_target["pull_request_number"], "override pull request")
+                _oid(grant_target["tree_oid"], "override tree OID")
+                grant_payload = grant["payload"]
+                if set(grant_payload) != {"subjects", "reason", "instrument_ref"}:
+                    raise ValueError
+                _parse_subjects(grant_payload["subjects"], "override subjects")
+                _string(grant_payload["reason"], "override reason")
+                if grant_payload["instrument_ref"] is not None:
+                    _string(grant_payload["instrument_ref"], "override instrument reference")
+            except (EventValidationError, TypeError, ValueError):
+                _error("override grant event is malformed", PreconditionValidationError)
+            continue
+        if name.startswith("scope-terminal-"):
+            if _validate_terminal_observation(evidence.value, requirement.path):
+                _error("scope terminal child already exists", PreconditionValidationError)
+        elif name == "generations-absence":
+            if evidence.value not in (None, {"absent": True}):
+                _error("project connection requires absent generations evidence", PreconditionValidationError)
+        elif name == "prior-generations":
+            if not isinstance(evidence.value, Mapping) or set(evidence.value) != {"derived_index", "status_detail", "reader_authority"}: _error("prior generations evidence is malformed", PreconditionValidationError)
+            for generation in evidence.value.values():
+                try:
+                    _event_id(generation, "prior generation")
+                except EventValidationError:
+                    _error("prior generations evidence is malformed", PreconditionValidationError)
+        elif name == "keyring-affected-repositories":
+            repository_ids = evidence.value.get("repository_ids") if isinstance(evidence.value, Mapping) else evidence.value
+            if isinstance(repository_ids, (str, bytes, bytearray)) or not isinstance(repository_ids, Sequence) or not repository_ids:
+                _error("keyring repository-set evidence is malformed", PreconditionValidationError)
+            for repository_id in repository_ids:
+                try:
+                    _positive(repository_id, "keyring affected repository ID")
+                except EventValidationError:
+                    _error("keyring repository-set evidence is malformed", PreconditionValidationError)
+            if len(set(repository_ids)) != len(repository_ids):
+                _error("keyring repository-set evidence contains duplicates", PreconditionValidationError)
+            auth_ids = [item.resource_id for item in event.authorizations]
+            if set(repository_ids) != set(auth_ids) or len(repository_ids) != len(auth_ids):
+                _error("keyring repository set does not equal authorization resources", PreconditionValidationError)
+        elif name == "current-project-agreement":
+            _validate_project_agreement_fact(event, evidence.value)
+        elif name == "superseded-acceptance":
+            _validate_superseded_acceptance_fact(event, evidence.value)
+        elif name == "current-acceptance-basis":
+            _validate_acceptance_basis_fact(event, evidence.value)
+        elif name in {"publication-snapshot-absence", "publication-metadata-absence"}:
+            if _validate_terminal_observation(evidence.value, requirement.path):
+                _error("publication artifact is already present", PreconditionValidationError)
+        elif name == "current-configuration":
+            if not isinstance(evidence.value, Mapping): _error("current configuration evidence is malformed", PreconditionValidationError)
+            try:
+                configuration = _parse_configuration(_thaw(evidence.value))
+            except EventValidationError:
+                _error("current configuration evidence is malformed", PreconditionValidationError)
+            acceptance_fields = event.payload["fields"]
+            if set(acceptance_fields) != {field.name for field in configuration.required_fields}:
+                _error("acceptance fields do not match current configuration", PreconditionValidationError)
+            if tuple(item["label"] for item in event.payload["confirmations"]) != configuration.confirmation_labels:
+                _error("acceptance confirmations do not match current configuration", PreconditionValidationError)
+        elif name in {"published-agreement", "scope-request", "source-event", "rule-event"}:
+            _validate_link_fact(event, name, evidence.value)
+        elif name == "successor-project":
+            fact = _relation_object(evidence.value, ("event", "active_agreement"), "successor")
+            successor = _relation_object(fact["event"], ("event_id", "type", "project_id", "target", "payload"), "successor event")
+            if successor["event_id"] != event.payload["successor_connected_event_id"] or successor["type"] != "project_connected" or successor["project_id"] != event.target["successor_project_id"]:
+                _error("successor connection fact does not match target project", PreconditionValidationError)
+            if successor["payload"].get("successor_of") != event.project_id:
+                _error("successor connection is not reciprocal", PreconditionValidationError)
+            try:
+                repository_ids = _parse_repo_ids(successor["payload"]["repository_ids"], "successor repository_ids")
+            except (KeyError, EventValidationError):
+                _error("successor repository set is malformed", PreconditionValidationError)
+            binding = values["successor-project"].binding
+            if not isinstance(binding, CrossProjectBinding) or set(binding.repository_ids) != {repository_ids.records, repository_ids.coverage, repository_ids.control}:
+                _error("successor repository set is not registry-bound", PreconditionValidationError)
+            agreement = _relation_object(fact["active_agreement"], ("project_id", "agreement_id", "version", "state"), "successor active agreement")
+            if agreement["project_id"] != successor["project_id"] or agreement["state"] != "active":
+                _error("successor active agreement is not active", PreconditionValidationError)
+        elif name == "project-lifecycle":
+            fact = _relation_object(evidence.value, ("project_id", "state", "successor_project_id"), "project lifecycle")
+            if fact["project_id"] != event.project_id or fact["state"] not in {"active", "succeeded"}:
+                _error("project lifecycle fact is inconsistent", PreconditionValidationError)
+            if fact["state"] == "active" and fact["successor_project_id"] is not None:
+                _error("active project cannot name a successor", PreconditionValidationError)
+            if fact["state"] == "succeeded":
+                if not isinstance(fact["successor_project_id"], str) or not fact["successor_project_id"]:
+                    _error("succeeded project must name a successor", PreconditionValidationError)
+                removable_scope = False
+                if event.type in {"enforcement_scope_requested", "enforcement_scope_activated"}:
+                    removable_scope = any(
+                        item.operation in {
+                            "enforcement_scope_repository_remove",
+                            "enforcement_scope_organization_remove",
+                        }
+                        for item in event.authorizations
+                    )
+                removable_automation = event.type in {"exemption_materialized", "records_reader_materialized"} and event.payload.get("result") == "withdraw"
+                allowed = event.type in {
+                    "revocation", "keyring_activated", "retry_requested", "enforcement_scope_abandoned",
+                    "records_reader_authorized", "records_reader_snapshot_authorized", "records_reader_withdrawn",
+                    "records_reader_rule_configured", "records_reader_rule_withdrawn",
+                } or removable_scope or removable_automation
+                if not allowed:
+                    _error("event is forbidden after project success", PreconditionValidationError)
+        elif name == "active-agreement":
+            if not isinstance(evidence.value, Mapping):
+                _error("active agreement fact is malformed", PreconditionValidationError)
+            if event.type == "acceptance":
+                required = {
+                    "project_id", "agreement_id", "version", "recipient", "digest",
+                    "state", "accepted_versions", "active_version",
+                    "activation_event_id", "supersedes_coverage", "publication",
+                }
+                if set(evidence.value) != required:
+                    _error("active agreement fact is missing publication evidence", PreconditionValidationError)
+                fact = evidence.value
+                if fact["project_id"] != event.project_id or fact["state"] != "active":
+                    _error("active agreement fact is inconsistent", PreconditionValidationError)
+                if (fact["agreement_id"], fact["version"], fact["active_version"]) != (
+                    event.target["coverage_tuple"]["agreement_id"], event.target["version"], event.target["version"]
+                ):
+                    _error("active agreement does not match event target", PreconditionValidationError)
+                if fact["recipient"] != event.target["recipient"] or fact["digest"] != event.target["digest"]:
+                    _error("active agreement publication does not match event", PreconditionValidationError)
+                if isinstance(fact["accepted_versions"], (str, bytes, bytearray)) or not isinstance(fact["accepted_versions"], Sequence) or not fact["accepted_versions"] or any(type(item) is not str or not item for item in fact["accepted_versions"]):
+                    _error("active agreement accepted versions are malformed", PreconditionValidationError)
+                if len(set(fact["accepted_versions"])) != len(fact["accepted_versions"]):
+                    _error("active agreement accepted versions contain duplicates", PreconditionValidationError)
+                if fact["version"] not in fact["accepted_versions"] or type(fact["supersedes_coverage"]) is not bool:
+                    _error("active agreement accepted-version relation is inconsistent", PreconditionValidationError)
+                _event_id(fact["activation_event_id"], "active agreement activation event")
+                publication = fact["publication"]
+                _validate_link_fact(event, "active-publication", publication)
+            else:
+                required = {
+                    "agreement_id", "active_version",
+                    "activation_event_id", "accepted_versions",
+                    "projection_format", "shard_count",
+                }
+                if set(evidence.value) != required:
+                    _error("active agreement projection is missing or has extra fields", PreconditionValidationError)
+                fact = evidence.value
+                if type(fact["projection_format"]) is not int or fact["projection_format"] != 1:
+                    _error("active agreement projection format is unsupported", PreconditionValidationError)
+                if type(fact["shard_count"]) is not int or fact["shard_count"] != 32:
+                    _error("active agreement projection shard count is unsupported", PreconditionValidationError)
+                accepted_versions = fact["accepted_versions"]
+                if (
+                    isinstance(accepted_versions, (str, bytes, bytearray))
+                    or not isinstance(accepted_versions, Sequence)
+                    or any(type(version) is not str or not version for version in accepted_versions)
+                ):
+                    _error("active agreement projection accepted versions are malformed", PreconditionValidationError)
+                if len(set(accepted_versions)) != len(accepted_versions):
+                    _error("active agreement projection accepted versions contain duplicates", PreconditionValidationError)
+                agreement_id = fact["agreement_id"]
+                active_version = fact["active_version"]
+                activation_event_id = fact["activation_event_id"]
+                if not accepted_versions:
+                    if agreement_id is not None or active_version is not None or activation_event_id is not None:
+                        _error("active agreement empty projection is inconsistent", PreconditionValidationError)
+                else:
+                    if type(agreement_id) is not str or not agreement_id:
+                        _error("active agreement projection agreement ID is malformed", PreconditionValidationError)
+                    if type(active_version) is not str or not active_version:
+                        _error("active agreement projection active version is malformed", PreconditionValidationError)
+                    try:
+                        _event_id(activation_event_id, "active agreement activation event")
+                    except EventValidationError:
+                        _error("active agreement projection activation event is malformed", PreconditionValidationError)
+                    if active_version not in accepted_versions:
+                        _error("active agreement projection active version is not accepted", PreconditionValidationError)
+                    if agreement_id != event.target["agreement_id"]:
+                        _error("active agreement projection does not match event agreement", PreconditionValidationError)
+        elif name == "current-repository-owner":
+            entries = _registry_entries(evidence.value, ("prior_entry", "staged_entry"), "repository owner")
+            prior = entries["prior_entry"]
+            staged = entries["staged_entry"]
+            if prior["project_id"] != event.project_id or staged["project_id"] != event.project_id:
+                _error("repository owner fact does not match event", PreconditionValidationError)
+            if _parse_owner(prior["repository_owner"]) != _parse_owner(event.target["prior_repository_owner"]):
+                _error("repository owner prior entry does not match event", PreconditionValidationError)
+            if _parse_owner(staged["repository_owner"]) != _parse_owner(event.payload["new_repository_owner"]):
+                _error("repository owner staged entry does not match event", PreconditionValidationError)
+            if prior["project_slug"] != staged["project_slug"] or _parse_repo_ids(prior["repository_ids"]) != _parse_repo_ids(staged["repository_ids"]):
+                _error("repository owner transition changed project routing", PreconditionValidationError)
+            if prior["registry_generation"] >= staged["registry_generation"]:
+                _error("repository owner transition must advance registry generation", PreconditionValidationError)
+            if _parse_repo_ids(staged["repository_ids"]) != _parse_repo_ids(event.payload["repository_ids"]):
+                _error("repository owner repository set does not match event", PreconditionValidationError)
+            binding = evidence.binding
+            if not isinstance(binding, RegistryGenerationBinding) or binding.registry_commit_oid != event.payload["registry_commit_oid"] or binding.registry_generation != event.payload["registry_generation"]:
+                _error("repository owner evidence is not bound to event registry generation", PreconditionValidationError)
+            if staged["project_slug"] != event.payload["project_slug"]:
+                _error("repository owner project slug does not match event", PreconditionValidationError)
+            if staged["registry_generation"] != event.payload["registry_generation"]:
+                _error("repository owner registry entry generation does not match event", PreconditionValidationError)
+        elif name == "current-scope":
+            binding = evidence.binding
+            if event.type == "enforcement_scope_requested":
+                entries = _registry_entries(evidence.value, ("prior_entry", "current_entry"), "scope")
+                prior = entries["prior_entry"]
+                current = entries["current_entry"]
+                expected_scope = _parse_scope(event.payload["prior_scope"], "requested prior scope")
+                for entry in (prior, current):
+                    if entry["project_id"] != event.project_id or _parse_scope(entry["enforcement_scope"], "current scope") != expected_scope or entry["registry_generation"] != event.payload["prior_registry_generation"]:
+                        _error("scope request does not match current registry entry", PreconditionValidationError)
+                if prior["project_slug"] != current["project_slug"] or _parse_repo_ids(prior["repository_ids"]) != _parse_repo_ids(current["repository_ids"]):
+                    _error("scope request registry entries changed routing", PreconditionValidationError)
+                expected_generation = event.payload["prior_registry_generation"]
+            elif event.type == "enforcement_scope_activated":
+                staged = _registry_entries(evidence.value, ("staged_entry",), "scope")["staged_entry"]
+                if staged["project_id"] != event.project_id or _parse_scope(staged["enforcement_scope"], "staged scope") != _parse_scope(event.payload["desired_scope"], "activated desired scope") or staged["registry_generation"] != event.payload["registry_generation"]:
+                    _error("scope activation does not match staged registry entry", PreconditionValidationError)
+                if staged["request_event_links"].get(event.target["change_id"]) != event.payload["request_event_id"]:
+                    _error("scope registry entry lacks the referenced request link", PreconditionValidationError)
+                if not isinstance(binding, RegistryGenerationBinding) or binding.registry_commit_oid != event.payload["registry_commit_oid"] or binding.registry_generation != event.payload["registry_generation"]:
+                    _error("scope activation evidence is not bound to event registry generation", PreconditionValidationError)
+                expected_generation = event.payload["registry_generation"]
+            else:
+                current = _registry_entries(evidence.value, ("current_entry",), "scope")["current_entry"]
+                request_fact = values["scope-request"]
+                request_payload = request_fact.value["payload"]
+                if current["project_id"] != event.project_id or _parse_scope(current["enforcement_scope"], "abandoned current scope") != _parse_scope(request_payload["prior_scope"], "abandoned prior scope") or current["registry_generation"] != request_payload["prior_registry_generation"]:
+                    _error("scope abandonment does not match current registry entry", PreconditionValidationError)
+                expected_generation = request_payload["prior_registry_generation"]
+            if binding.registry_generation != expected_generation:
+                _error("scope evidence has the wrong registry generation", PreconditionValidationError)
+        elif name.startswith("coverage-state-"):
+            fact = _relation_object(evidence.value, ("project_id", "state", "resource", "subject_ids"), name)
+            if fact["project_id"] != event.project_id or fact["state"] not in {"current", "active"} or not isinstance(fact["resource"], Mapping):
+                _error(f"{name} fact is inconsistent", PreconditionValidationError)
+            if event.type in {"revocation", "override"} and fact["resource"] != event.target:
+                _error(f"{name} fact does not match event target", PreconditionValidationError)
+            if isinstance(fact["subject_ids"], (str, bytes, bytearray)) or not isinstance(fact["subject_ids"], Sequence) or any(type(subject_id) is not int or not 0 < subject_id <= MAX_SAFE_INTEGER for subject_id in fact["subject_ids"]):
+                _error(f"{name} fact has malformed subject IDs", PreconditionValidationError)
+            if len(set(fact["subject_ids"])) != len(fact["subject_ids"]) or tuple(fact["subject_ids"]) != tuple(sorted(fact["subject_ids"])):
+                _error(f"{name} fact has duplicate or unordered subject IDs", PreconditionValidationError)
+            shard = int(name.rsplit("-", 1)[1])
+            expected_subjects = (
+                {event.target["coverage_tuple"]["github_user_id"]}
+                if event.type == "revocation"
+                else {subject["github_user_id"] for subject in event.payload["subjects"]}
+            )
+            expected_shard_subjects = {subject_id for subject_id in expected_subjects if subject_id % 32 == shard}
+            if set(fact["subject_ids"]) != expected_shard_subjects or any(subject_id % 32 != shard for subject_id in fact["subject_ids"]):
+                _error(f"{name} fact does not authenticate the event subjects", PreconditionValidationError)
+        else:
+            _error("unknown precondition descriptor", PreconditionValidationError)
+    if event.type == "exemption_source_withdrawn":
+        provenance = {
+            subject_id: sources
+            for name, item in values.items()
+            if name.startswith("current-exemption-union-")
+            for subject_id, sources in item.value.get("provenance", {}).items()
+        }
+        subject_id = str(event.target["subject"]["github_user_id"])
+        if not isinstance(provenance, Mapping) or subject_id not in provenance or event.target["source_event_id"] not in provenance[subject_id]:
+            _error("exemption source is not in subject provenance", PreconditionValidationError)
+    return values
+
+
+def _validate_preconditions(event: ValidatedEvent, preconditions: Any, expected_head: str) -> dict[str, PreconditionEvidence]:
+    """Validate evidence without leaking raw mapping/key errors."""
+
+    try:
+        return _validate_preconditions_impl(event, preconditions, expected_head)
+    except KeyError as error:
+        _error("precondition evidence is missing a required relation fact", PreconditionValidationError)
+
+
+def _side_artifact_requirements(
+    event: ValidatedEvent,
+    evidence: Mapping[str, PreconditionEvidence],
+) -> tuple[SideArtifactRequirement, ...]:
+    """Build the exact side-artifact set from validated precondition facts."""
+
+    event_type = _event_name(event)
+    result: list[SideArtifactRequirement] = []
+    if event_type == "agreement_published":
+        payload = event.payload
+        result.extend(
+            (
+                SideArtifactRequirement("agreement_snapshot", payload["snapshot_content_path"], "recomputed-digest"),
+                SideArtifactRequirement("agreement_metadata", payload["snapshot_metadata_path"], "event-determined"),
+            )
+        )
+    if event_type in {"project_connected", "config_updated"}:
+        result.append(SideArtifactRequirement("project_config", "config/project.enc.json", "event-determined"))
+    affected_classes = _affected_classes_for(event, evidence)
+    if affected_classes:
+        result.append(
+            SideArtifactRequirement(
+                "materialization_generations",
+                "config/materialization-generations.enc.json",
+                "event-determined",
+                affected_classes,
+            )
+        )
+    return tuple(sorted(result, key=lambda item: item.path))
+
+
+def required_side_artifacts(
+    event: ValidatedEvent,
+    *,
+    preconditions: Any,
+    expected_head: str,
+) -> tuple[SideArtifactRequirement, ...]:
+    """Validate resolved evidence, then return the exact artifact set."""
+
+    expected_head = _validate_head(expected_head)
+    evidence = _validate_preconditions(event, preconditions, expected_head)
+    return _side_artifact_requirements(event, evidence)
+
 def _parse_event_fields(value: Any) -> tuple[int, str, str, str, str, str, str, str, Mapping[str, Any], tuple[AuthorizationEvidence, ...], str | None, Mapping[str, Any], Mapping[str, Any]]:
     obj = _object(value, "event")
     expected = ("schema_version", "project_id", "event_id", "idempotency_key", "operation_nonce", "operation_sha256", "type", "recorded_at", "dracla_version", "actor", "authorizations", "confirmed_canonical_oid", "target", "payload")
@@ -1304,7 +2238,9 @@ __all__ = [
     "RegistryGenerationBinding",
     "PreconditionBinding",
     "PreconditionRequirement",
+    "PreconditionEvidence",
     "PreconditionValidationError",
+    "SideArtifactRequirement",
     "MembershipEvidence",
     "ProjectConfiguration",
     "Recipient",
@@ -1315,5 +2251,7 @@ __all__ = [
     "Team",
     "ValidatedEvent",
     "parse_event_jcs",
+    "required_preconditions",
+    "required_side_artifacts",
     "validate_event",
 ]
