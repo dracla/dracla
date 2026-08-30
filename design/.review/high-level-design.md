@@ -3,17 +3,17 @@ artifact: swe-design-review-attestation
 schema_version: 2
 scope_key: b86225249a9a3d874f836e00bac87560e617e0c8845b305801f293b52edcc2c0
 scope: {"kind": "path", "primary_target": "design/high-level-design.md", "repository": "/home/omry/dev/dracla", "selector": "design/high-level-design.md"}
-review_content_identity_sha256: 97842bca02fe6bbf2933ad8fbb27243d84f260412becfd71d93a573b08ef44db
-target_content_identity_sha256: 7673d86543e1b1bd06c20185f2365ea070fa56bca8a286b726ba40ee7e56c473
-baseline_content_identity_sha256: 1d97bf7ce96f1fcf73e7aa4e6cafd89d204c80f1abc8e9d611044eead3a3ff7e
-target_documents: [{"path": "design/high-level-design.md", "repository": "/home/omry/dev/dracla", "sha256": "c911bb998545315deddf723106a30105c1f51c1dc8f6687b23238c8acb7ecccc"}]
-baseline_documents: [{"path": "design/requirements.md", "repository": "/home/omry/dev/dracla", "sha256": "4fa82854b15bceab81773a78e145f7fe4a7a3827a0587ba2df512c024e9f04e4"}]
+review_content_identity_sha256: 050ee1df14d6630b811b53ba9adf1e8633d59e1f16f78957e57047ca3b65db37
+target_content_identity_sha256: d1bfc07a47c5bb73eee648662ff1714ca4b1fcedcddf729a3011dc2b1f3f38df
+baseline_content_identity_sha256: 8b399d8bd08630dab1217e676f4763e2c1c564387612840a3dff2506cd85e192
+target_documents: [{"path": "design/high-level-design.md", "repository": "/home/omry/dev/dracla", "sha256": "9c1135de10e81a984b4e2abf21f2d89d47cc8ebddf2b38b339e1d1c9079b8de4"}]
+baseline_documents: [{"path": "design/requirements.md", "repository": "/home/omry/dev/dracla", "sha256": "eb04181fabcade4a8bc807795b1fba70a012eb935dca2a6d84eca952b3c067df"}]
 document_repository: "/home/omry/dev/dracla"
 document_path: "design/high-level-design.md"
-document_revision_provenance: "5219915ff503c005c5ae333624633a7ec01c0cd5"
-document_sha256: c911bb998545315deddf723106a30105c1f51c1dc8f6687b23238c8acb7ecccc
+document_revision_provenance: "73d8a754c95923b4cb307bed1cf51415cce3c317"
+document_sha256: 9c1135de10e81a984b4e2abf21f2d89d47cc8ebddf2b38b339e1d1c9079b8de4
 verdict: clean
-attested_at: 2026-08-28T17:15:07Z
+attested_at: 2026-08-30T21:50:41Z
 ---
 <!-- swe-design-review-attestation:v2 -->
 

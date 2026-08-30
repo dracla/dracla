@@ -1,4 +1,4 @@
-"""Revision-13 event identity and authorization vocabulary contract tests."""
+"""Revision-14 event identity and authorization vocabulary contract tests."""
 
 from __future__ import annotations
 
@@ -180,7 +180,7 @@ class TestEventIdentity(unittest.TestCase):
         common_input = self.vectors["event_identity_common_input"]
         expected_vectors = self.vectors["event_identity_vectors"]
         self.assertEqual(set(self.vectors["event_types_v1"]), set(expected_vectors))
-        self.assertEqual(len(expected_vectors), 27)
+        self.assertEqual(len(expected_vectors), 28)
         automation_types = {"exemption_materialized", "records_reader_materialized"}
         self.assertEqual(
             {
@@ -778,6 +778,7 @@ class TestAuthorizationVocabulary(unittest.TestCase):
             "project_succeeded": ("project_succeed", "repository", "records_repository_admin"),
             "agreement_published": ("agreement_publish", "repository", "records_repository_admin"),
             "agreement_activated": ("agreement_activate", "repository", "records_repository_admin"),
+            "agreement_activation_restored": ("agreement_activation_restore", "repository", "records_repository_admin"),
             "config_updated": ("project_config_update", "repository", "records_repository_admin"),
             "exemption_snapshot": ("exemption_snapshot_add", "repository", "records_repository_admin"),
             "exemption_source_withdrawn": ("exemption_source_withdraw", "repository", "records_repository_admin"),
