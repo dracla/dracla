@@ -209,19 +209,19 @@ payloads never appear in messages.
 Until M1-12, Python vectors remain in `core/tests/vectors/` beside the landed
 corpus. Each slice adds one or more versioned JSON files:
 
-| Slice | Vector file |
-|---|---|
-| M1-1 | `artifact-identities-v1.json` (landed) |
-| M1-2 | `artifact-envelope-v1.json` (landed) |
-| M1-3 | `wrapped-key-v1.json` |
-| M1-4 | `event-identities-v1.json`, `authorization-vocabulary-v1.json` |
-| M1-5 | `events-v1.json` |
-| M1-6/M1-7 | `replay-v1.json` |
-| M1-8 | `action-form-v1.json` |
-| M1-9 | `operation-state-v1.json` |
-| M1-10 | `coverage-projection-v1.json` |
-| M1-11 | `records-derived-v1.json`, `release-profile-v1.json` |
-| M1-12 | `manifest.json`, plus the before/input/after triples for M1-17 and M1-18 |
+| Slice | Vector file | PR | Approval status | Land status |
+|---|---|---|---|---|
+| M1-1 | `artifact-identities-v1.json` | [#12](https://github.com/dracla/dracla/pull/12) | Approved | Landed |
+| M1-2 | `artifact-envelope-v1.json` | [#13](https://github.com/dracla/dracla/pull/13) | Approved | Landed |
+| M1-3 | `wrapped-key-v1.json` | [#18](https://github.com/dracla/dracla/pull/18) | Approved | Not landed |
+| M1-4 | `event-identities-v1.json`, `authorization-vocabulary-v1.json` | [#19](https://github.com/dracla/dracla/pull/19) | Approved | Not landed |
+| M1-5 | `events-v1.json` | — | Not submitted | Not landed |
+| M1-6/M1-7 | `replay-v1.json` | — | Not started | Not landed |
+| M1-8 | `action-form-v1.json` | — | Not started | Not landed |
+| M1-9 | `operation-state-v1.json` | — | Not started | Not landed |
+| M1-10 | `coverage-projection-v1.json` | — | Not started | Not landed |
+| M1-11 | `records-derived-v1.json`, `release-profile-v1.json` | — | Not started | Not landed |
+| M1-12 | `manifest.json`, plus the before/input/after triples for M1-17 and M1-18 | — | Not started | Not landed |
 
 M1-12 moves the complete corpus without changing vector content to
 `conformance/vectors/` and adds the generator and manifest; M1-13 onward consume
@@ -440,7 +440,8 @@ Add `events.py` with `ValidatedEvent`, named nested-object models, and:
   expected_path=None) -> ValidatedEvent`;
 - `parse_event_jcs(data, *, expected_project_id=None,
   expected_path=None) -> ValidatedEvent`;
-- `required_side_artifacts(event) -> tuple[SideArtifactRequirement, ...]`;
+- `required_side_artifacts(event, *, preconditions, expected_head)
+  -> tuple[SideArtifactRequirement, ...]`;
 - `required_preconditions(event, *, expected_head)
   -> tuple[PreconditionRequirement, ...]`; and
 - `validate_side_artifact_package(event, artifacts, *, preconditions,
@@ -454,15 +455,29 @@ relations, and the reserved Entity rejection.
 
 It recomputes identity through M1-4 and requires `operation_nonce`,
 `idempotency_key`, `operation_sha256`, `event_id`, and optional path to agree.
+Every member named `*_event_id` is likewise a canonical M1-4 event ID, not an
+arbitrary non-empty reference string, because its deterministic §4 event path
+must be derivable and validated before the referenced event can be read.
 Locally decidable cross-field relations are checked here. Relations requiring
 prior canonical state — such as publication existence, one scope terminal,
 successor state, source withdrawal, and current configuration — are never
 guessed locally: `required_preconditions` names the authenticated state that
 decides each, and M1-6/M1-7 replay independently rechecks all of them.
+The two scope-terminal requirements name the distinct deterministic child
+paths obtained from `project_id` and each terminal type's derived operation
+nonce.  M1-4 event identity depends on only those two values, so deriving the
+opposite child's path neither requires nor permits a caller to invent its
+actor, target, or payload.
 
 `required_side_artifacts` returns the closed §5.2 set for agreement publication,
 project connection/configuration, and affected materialization generations. It
-specifies kind and deterministic path.
+specifies kind and deterministic path. Resolved preconditions and their
+`expected_head` binding are explicit inputs because whether a repeated reader
+withdrawal or an exemption-rule withdrawal changes a derived class is
+history-dependent. Calling the function before those inputs have been
+authenticated would force it to guess package membership from event type, which
+is forbidden. `validate_side_artifact_package` passes the same validated
+preconditions to this function before comparing package membership and bytes.
 
 `validate_side_artifact_package` is what makes §5.4's "fully validated before
 the prepared-operation cell is written" true of the package contents, not only
@@ -659,8 +674,9 @@ projection evidence — read before a project succeeded, for example — that no
 check could distinguish from evidence read now.
 
 Every `PreconditionRequirement` therefore names how its evidence binds to
-`expected_head`, because not all of it lives on the records `events` branch and
-those object IDs are unrelated. There are exactly four binding modes:
+`expected_head` or to the event's explicit signed-registry generation, because
+not all of it lives on the records `events` branch and those object IDs are
+unrelated. There are exactly five binding modes:
 
 - **events-head** — evidence read from the `events` branch, such as
   `config/project.enc.json`, `config/materialization-generations.enc.json`, or a
@@ -670,7 +686,11 @@ those object IDs are unrelated. There are exactly four binding modes:
   recorded in `derived/state.enc.json` must equal the canonical generation named
   for that class in `config/materialization-generations.enc.json` at
   `expected_head`, which is the same relation §6.6 already requires readers to
-  enforce.
+  enforce.  The sole inequality exception is the shrink-only reader observation
+  below: it authenticates both generations but deliberately permits them to
+  differ so an administrator can remove state while the class is stale.  That
+  exception decides package affectedness only and never makes stale derived
+  contents authoritative.
 - **canonical-sha** — evidence from the coverage repository. It binds through
   `source.enc.json`, whose `canonical_sha` §5.4 step 7 advances to the canonical
   commit; that value must equal `expected_head`.
@@ -685,23 +705,44 @@ those object IDs are unrelated. There are exactly four binding modes:
   successor's `project_connected` payload to carry `successor_of` equal to this
   project's ID, so the two projects name each other and neither side can be
   swapped for an unrelated one.
+- **registry-generation** — evidence from the signed registry for the current
+  owner-qualified route or enforcement scope. It binds to the exact registry
+  commit and generation carried by the owner-transfer or scope event, or to a
+  scope request's `prior_registry_generation`; it is never compared as though
+  the registry commit were an events-branch head. The evidence includes the
+  complete validated project entry, or both prior and staged entries for an
+  owner transfer, so repository IDs, owner, scope, generation transition, and
+  canonical request-event links are recomputed rather than accepted as caller
+  assertions.  Scope abandonment reads the request's prior generation and old
+  scope; it does not require a staged generation or request link that was never
+  published.
 
 M1 validates that relation over supplied registry-resolved evidence; resolving a
 project ID to its current owner-qualified route through the signed registry is
 M4's, as §5.5 states.
 
-Requiring commit equality for all three would reject every valid administrative
-action touching coverage or derived state, while merely labelling evidence with
-the events head would prove nothing. Each mode is an authenticated relation the
-locked design already defines. Where the event carries a non-null
+Requiring commit equality for coverage, derived, cross-project, or registry
+evidence would reject valid administrative actions, while merely labelling
+evidence with the events head would prove nothing. Each mode is an authenticated
+relation the design defines. Where the event carries a non-null
 `confirmed_canonical_oid`, it must equal `expected_head` too, so the two
 bindings cannot disagree.
 
 **Reader withdrawals use a shrink-only path.** `records_reader_withdrawn` and
-`records_reader_rule_withdrawn` bind under `events-head` only: the requirement
-is that the source-creating event exists at the confirmed head and is a reader
-source for this project. Whether the source is still active in the
-`reader_authority` class is deliberately not a precondition.
+`records_reader_rule_withdrawn` require the source-creating event under
+`events-head`: it must exist at the confirmed head and be a reader source for
+this project. Whether the source is still active in the `reader_authority`
+class is deliberately not a precondition for appending the withdrawal.
+
+The package still needs an authenticated observation to decide whether the
+`reader_authority` generation advances.  Its descriptor names the deterministic
+reader-authority shard and carries the canonical and observed derived
+generations under `generation` mode.  Equal generations make source presence or
+absence trustworthy; unequal generations mean stale, permit the append, and
+force `reader_authority` affected.  This narrow inequality is accepted only for
+the two administrator withdrawal requirements.  All other generation-bound
+preconditions, including a materialized departure, still require equality and
+fail closed when stale.
 
 §9 requires reader withdrawals to remain available "because they remove state",
 including when an addition or bulk update has left that class stale or
@@ -757,9 +798,10 @@ for coverage and records-derived plaintexts are authored by M1-10 and M1-11,
 which follow this slice. Having M1-5 decode them would duplicate schemas those
 slices own.
 
-That is the same split `required_side_artifacts` already uses: this slice names
-kind and deterministic path, and M1-9 validates the bytes. The resolver that
-fetches and decodes each named artifact lands with the slice owning its schema —
+That is the same split `required_side_artifacts` uses: after preconditions are
+resolved, this slice derives the exact kind and deterministic path, and M1-9
+validates the persisted package shape. The resolver that fetches and decodes
+each named artifact lands with the slice owning its schema —
 M1-10 for coverage, M1-11 for records-derived — and M1-15 with M1-13's decoders
 on the edge. Supplying a decoded, authenticated model is not the same as
 asserting a precondition: the model is validated by its own owner's validator
