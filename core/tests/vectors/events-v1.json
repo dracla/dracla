@@ -18,6 +18,207 @@
     {"id": "duplicate_key","kind": "duplicate-key","bytes_b64": "eyJ4IjoxLCAieCI6Mn0","expect": "reject"},
     {"id": "unsafe_number","kind": "unsafe-number","bytes_b64": "eyJuIjo5MDA3MTk5MjU0NzQwOTkyfQ","expect": "reject"}
   ],
+  "precondition_names":   {
+    "acceptance": [
+      "project-lifecycle",
+      "active-agreement",
+      "current-configuration",
+      "prior-generations"
+    ],
+    "revocation": [
+      "project-lifecycle",
+      "coverage-state-07",
+      "prior-generations"
+    ],
+    "agreement_published": [
+      "project-lifecycle",
+      "current-project-agreement",
+      "publication-snapshot-absence",
+      "publication-metadata-absence"
+    ],
+    "agreement_activated": [
+      "project-lifecycle",
+      "published-agreement",
+      "active-agreement"
+    ],
+    "project_connected": [
+      "generations-absence"
+    ],
+    "project_repository_owner_changed": [
+      "project-lifecycle",
+      "current-repository-owner"
+    ],
+    "project_succeeded": [
+      "project-lifecycle",
+      "successor-project"
+    ],
+    "config_updated": [
+      "project-lifecycle"
+    ],
+    "keyring_activated": [
+      "project-lifecycle",
+      "keyring-affected-repositories"
+    ],
+    "enforcement_scope_requested": [
+      "project-lifecycle",
+      "current-scope"
+    ],
+    "enforcement_scope_activated": [
+      "project-lifecycle",
+      "current-scope",
+      "scope-request",
+      "scope-terminal-activation-absence",
+      "scope-terminal-abandonment-absence"
+    ],
+    "enforcement_scope_abandoned": [
+      "project-lifecycle",
+      "current-scope",
+      "scope-request",
+      "scope-terminal-activation-absence",
+      "scope-terminal-abandonment-absence"
+    ],
+    "override": [
+      "project-lifecycle",
+      "coverage-state-07"
+    ],
+    "override_withdrawn": [
+      "project-lifecycle",
+      "override-grant"
+    ],
+    "retry_requested": [
+      "project-lifecycle"
+    ],
+    "exemption": [
+      "project-lifecycle",
+      "current-exemption-union-07",
+      "prior-generations"
+    ],
+    "exemption_snapshot": [
+      "project-lifecycle",
+      "current-exemption-union-07",
+      "prior-generations"
+    ],
+    "exemption_source_withdrawn": [
+      "project-lifecycle",
+      "source-event",
+      "current-exemption-union-07",
+      "prior-generations"
+    ],
+    "exemption_rule_configured": [
+      "project-lifecycle",
+      "current-derived-state",
+      "prior-generations"
+    ],
+    "exemption_rule_withdrawn": [
+      "project-lifecycle",
+      "rule-event",
+      "current-exemption-union-00",
+      "current-exemption-union-01",
+      "current-exemption-union-02",
+      "current-exemption-union-03",
+      "current-exemption-union-04",
+      "current-exemption-union-05",
+      "current-exemption-union-06",
+      "current-exemption-union-07",
+      "current-exemption-union-08",
+      "current-exemption-union-09",
+      "current-exemption-union-10",
+      "current-exemption-union-11",
+      "current-exemption-union-12",
+      "current-exemption-union-13",
+      "current-exemption-union-14",
+      "current-exemption-union-15",
+      "current-exemption-union-16",
+      "current-exemption-union-17",
+      "current-exemption-union-18",
+      "current-exemption-union-19",
+      "current-exemption-union-20",
+      "current-exemption-union-21",
+      "current-exemption-union-22",
+      "current-exemption-union-23",
+      "current-exemption-union-24",
+      "current-exemption-union-25",
+      "current-exemption-union-26",
+      "current-exemption-union-27",
+      "current-exemption-union-28",
+      "current-exemption-union-29",
+      "current-exemption-union-30",
+      "current-exemption-union-31",
+      "prior-generations"
+    ],
+    "exemption_materialized": [
+      "project-lifecycle",
+      "rule-event",
+      "current-exemption-union-07",
+      "materialization-cursor",
+      "prior-generations"
+    ],
+    "records_reader_authorized": [
+      "project-lifecycle",
+      "current-reader-authority",
+      "prior-generations"
+    ],
+    "records_reader_snapshot_authorized": [
+      "project-lifecycle",
+      "current-reader-authority",
+      "prior-generations"
+    ],
+    "records_reader_withdrawn": [
+      "project-lifecycle",
+      "source-event",
+      "reader-authority-state",
+      "prior-generations"
+    ],
+    "records_reader_rule_configured": [
+      "project-lifecycle",
+      "active-reader-rules-00",
+      "active-reader-rules-01",
+      "active-reader-rules-02",
+      "active-reader-rules-03",
+      "active-reader-rules-04",
+      "active-reader-rules-05",
+      "active-reader-rules-06",
+      "active-reader-rules-07",
+      "active-reader-rules-08",
+      "active-reader-rules-09",
+      "active-reader-rules-10",
+      "active-reader-rules-11",
+      "active-reader-rules-12",
+      "active-reader-rules-13",
+      "active-reader-rules-14",
+      "active-reader-rules-15",
+      "active-reader-rules-16",
+      "active-reader-rules-17",
+      "active-reader-rules-18",
+      "active-reader-rules-19",
+      "active-reader-rules-20",
+      "active-reader-rules-21",
+      "active-reader-rules-22",
+      "active-reader-rules-23",
+      "active-reader-rules-24",
+      "active-reader-rules-25",
+      "active-reader-rules-26",
+      "active-reader-rules-27",
+      "active-reader-rules-28",
+      "active-reader-rules-29",
+      "active-reader-rules-30",
+      "active-reader-rules-31",
+      "prior-generations"
+    ],
+    "records_reader_rule_withdrawn": [
+      "project-lifecycle",
+      "rule-event",
+      "reader-authority-state",
+      "prior-generations"
+    ],
+    "records_reader_materialized": [
+      "project-lifecycle",
+      "rule-event",
+      "current-reader-authority",
+      "materialization-cursor",
+      "prior-generations"
+    ]
+  },
   "events": [
   {
     "schema_version": 1,
