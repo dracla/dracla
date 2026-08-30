@@ -55,12 +55,20 @@ from .event_identity import (  # noqa: F401
 )
 from .events import (  # noqa: F401
     Bootstrap,
+    CanonicalShaBinding,
     ConfigurationField,
     CoverageTuple,
     CurrentKids,
     EVENT_TYPES,
     EventValidationError,
+    EventsHeadBinding,
+    CrossProjectBinding,
+    GenerationBinding,
+    RegistryGenerationBinding,
     MembershipEvidence,
+    PreconditionBinding,
+    PreconditionRequirement,
+    PreconditionValidationError,
     ProjectConfiguration,
     Recipient,
     RepositoryIds,
@@ -70,6 +78,7 @@ from .events import (  # noqa: F401
     Team,
     ValidatedEvent,
     parse_event_jcs,
+    required_preconditions,
     validate_event,
 )
 from .keyrings import (  # noqa: F401
