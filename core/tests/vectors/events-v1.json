@@ -1,0 +1,1290 @@
+{
+  "schema_version": 1,
+  "authorization_cases": [
+    {"id": "scope_repository_bind","category": "scope","operation": "enforcement_scope_repository_bind","resource_kind": "repository","actor_kind": "github","expect": "accept"},
+    {"id": "scope_repository_widen","category": "scope","operation": "enforcement_scope_repository_widen","resource_kind": "repository","actor_kind": "github","expect": "accept"},
+    {"id": "scope_repository_narrow","category": "scope","operation": "enforcement_scope_repository_narrow","resource_kind": "repository","actor_kind": "github","expect": "accept"},
+    {"id": "scope_repository_remove","category": "scope","operation": "enforcement_scope_repository_remove","resource_kind": "repository","actor_kind": "github","expect": "accept"},
+    {"id": "scope_organization_bind","category": "scope","operation": "enforcement_scope_organization_bind","resource_kind": "organization","actor_kind": "github","expect": "accept"},
+    {"id": "scope_organization_widen","category": "scope","operation": "enforcement_scope_organization_widen","resource_kind": "organization","actor_kind": "github","expect": "accept"},
+    {"id": "scope_organization_narrow","category": "scope","operation": "enforcement_scope_organization_narrow","resource_kind": "organization","actor_kind": "github","expect": "accept"},
+    {"id": "scope_organization_remove","category": "scope","operation": "enforcement_scope_organization_remove","resource_kind": "organization","actor_kind": "github","expect": "accept"},
+    {"id": "actor_github_administrative","category": "actor","event_type": "config_updated","actor_kind": "github","expect": "accept"},
+    {"id": "actor_automation_materialization","category": "actor","event_type": "exemption_materialized","actor_kind": "automation","expect": "accept"}
+  ],
+  "jcs_negative_cases": [
+    {"id": "invalid_utf8","kind": "invalid-utf8","bytes_b64": "__4","expect": "reject"},
+    {"id": "noncanonical_whitespace","kind": "whitespace","bytes_b64": "IHsieCI6MX0","expect": "reject"},
+    {"id": "duplicate_key","kind": "duplicate-key","bytes_b64": "eyJ4IjoxLCAieCI6Mn0","expect": "reject"},
+    {"id": "unsafe_number","kind": "unsafe-number","bytes_b64": "eyJuIjo5MDA3MTk5MjU0NzQwOTkyfQ","expect": "reject"}
+  ],
+  "events": [
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "5DLLwocrIr3wS8P6p8Zff_15yckJEoHuvFWvS3SAajM",
+    "idempotency_key": "b23Lkr62SRyO_ObQk5jIAXrHB4gIMU2LAmqYH508_go",
+    "operation_nonce": "AQEBAQEBAQEBAQEBAQEBAQ",
+    "operation_sha256": "sha256:0eee04e183869712d475ed7fbbb1ba0624f2bfeda2a05f335b8ddda659f5e14e",
+    "type": "acceptance",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [],
+    "confirmed_canonical_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "target": {
+      "coverage_tuple": {
+        "github_user_id": 7,
+        "project_id": "project-1",
+        "agreement_id": "agreement-1",
+        "recipient_id": "recipient-1"
+      },
+      "recipient": {
+        "recipient_id": "recipient-1",
+        "legal_name": "Recipient One"
+      },
+      "version": "1",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "payload": {
+      "fields": {
+        "full_name": "Contributor"
+      },
+      "confirmations": [
+        {
+          "label": "I agree",
+          "checked": true
+        }
+      ],
+      "supersedes": null
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "7ajx0TxjvJQziw67oYAyKwxNILnf9ZYbdccTAAodJrE",
+    "idempotency_key": "Uiaj3LlfD0pMjrqS4vsEzcA8pSTtjRXXLol59b0MUVk",
+    "operation_nonce": "AgICAgICAgICAgICAgICAg",
+    "operation_sha256": "sha256:a9eacff00c8c43bae3eb5c1df8c4e59704d213f931a1dc44af12681d610aff4f",
+    "type": "revocation",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [],
+    "confirmed_canonical_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "target": {
+      "coverage_tuple": {
+        "github_user_id": 7,
+        "project_id": "project-1",
+        "agreement_id": "agreement-1",
+        "recipient_id": "recipient-1"
+      }
+    },
+    "payload": {
+      "effect": "cutoff_all_prior_versions"
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "aD1YIBWIAdofR4fFZxOYhIV4Widokswb0FjMBoasC9U",
+    "idempotency_key": "JEH4J6kwpF0Rzf4R0yRSFAuP-el4a_OZ8BjDi1qG8qs",
+    "operation_nonce": "AwMDAwMDAwMDAwMDAwMDAw",
+    "operation_sha256": "sha256:dc57a7ced0c62fe57c787e3503c5c0216aee691dd2c9e64dc677befbf1087e47",
+    "type": "agreement_published",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "agreement_publish",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "agreement_id": "agreement-1",
+      "version": "1"
+    },
+    "payload": {
+      "recipient": {
+        "recipient_id": "recipient-1",
+        "legal_name": "Recipient One"
+      },
+      "ref": "https://example.test/agreement/1",
+      "content_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "snapshot_content_path": "agreements/q0HCHmN1eWn3xLHJRxg4bPzrHfQXIUr-2laWBur6SgI/a4ayc_80_OGda4BO_1o_V0etpOqiLx1JwB5S3beHW0s.md",
+      "snapshot_metadata_path": "agreements/q0HCHmN1eWn3xLHJRxg4bPzrHfQXIUr-2laWBur6SgI/a4ayc_80_OGda4BO_1o_V0etpOqiLx1JwB5S3beHW0s.meta.json",
+      "snapshot_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "bO-g0TCPViTT6Gkk8ocHikf6qA_emv618tvIH2dN6MI",
+    "idempotency_key": "_YsqOIo7279dSFDC8VSbs_q3-8BHcbbr0dDv3tJiHEE",
+    "operation_nonce": "BAQEBAQEBAQEBAQEBAQEBA",
+    "operation_sha256": "sha256:d7d244ab9685855476788eb68a38ef8aa1ed9f4a5ad9eee8ad5bc35d6d306521",
+    "type": "agreement_activated",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "agreement_activate",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "agreement_id": "agreement-1",
+      "version": "1"
+    },
+    "payload": {
+      "published_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "supersedes_coverage": false
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "RAxVXBTsSe-l94L24quz8DweBTwQnS-9W0rwaz7ooCg",
+    "idempotency_key": "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q",
+    "operation_nonce": "BQUFBQUFBQUFBQUFBQUFBQ",
+    "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+    "type": "project_connected",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "project_connect_control_repository",
+        "resource_kind": "repository",
+        "resource_id": 13,
+        "required_authority": "project_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_connect_coverage_repository",
+        "resource_kind": "repository",
+        "resource_id": 12,
+        "required_authority": "project_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_connect_enforcer_app",
+        "resource_kind": "installation",
+        "resource_id": 22,
+        "required_authority": "enforcer_app_binding",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_connect_owner",
+        "resource_kind": "account",
+        "resource_id": 10,
+        "required_authority": "repository_owner_control",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_connect_records_app",
+        "resource_kind": "installation",
+        "resource_id": 21,
+        "required_authority": "records_app_binding",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_connect_records_repository",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "project_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_connect_trigger_app",
+        "resource_kind": "installation",
+        "resource_id": 23,
+        "required_authority": "trigger_app_binding",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {},
+    "payload": {
+      "recipient": {
+        "recipient_id": "recipient-1",
+        "legal_name": "Recipient One"
+      },
+      "repository_owner": {
+        "github_account_id": 10,
+        "login_snapshot": "owner"
+      },
+      "project_slug": "project-one",
+      "repository_ids": {
+        "records": 11,
+        "coverage": 12,
+        "control": 13
+      },
+      "bootstrap": {
+        "install_generation": "install-1",
+        "manifest_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifest_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "records_keyring_candidate_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "repository_ids": {
+          "records": 11,
+          "coverage": 12,
+          "control": 13
+        },
+        "current_kids": {
+          "records": "records-kid-1",
+          "coverage": "coverage-kid-1"
+        }
+      },
+      "project_configuration": {
+        "privacy_policy_url": "https://example.test/privacy",
+        "retention_statement": "Retained for audit.",
+        "correction_procedure": "Contact the project administrator.",
+        "required_fields": [
+          {
+            "name": "full_name",
+            "label": "Full name",
+            "kind": "text",
+            "required": true
+          }
+        ],
+        "confirmation_labels": [
+          "I agree"
+        ]
+      },
+      "successor_of": null
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "mpicUq7vtfeCgIQtQuyFt6GSDf7-T7e7qKfX4RquE_I",
+    "idempotency_key": "TYhBiV-ymES--hGlc_pzB1STVEs_kgFFixxh27Ig-Wk",
+    "operation_nonce": "BgYGBgYGBgYGBgYGBgYGBg",
+    "operation_sha256": "sha256:c6279186ac25398abee5481151adbf68f03b9ab02f52c838fc042ee4977e08d3",
+    "type": "project_repository_owner_changed",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "project_repository_owner_change_control_repository",
+        "resource_kind": "repository",
+        "resource_id": 33,
+        "required_authority": "project_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_repository_owner_change_coverage_repository",
+        "resource_kind": "repository",
+        "resource_id": 32,
+        "required_authority": "project_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_repository_owner_change_enforcer_app",
+        "resource_kind": "installation",
+        "resource_id": 42,
+        "required_authority": "enforcer_app_binding",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_repository_owner_change_owner",
+        "resource_kind": "account",
+        "resource_id": 20,
+        "required_authority": "repository_owner_control",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_repository_owner_change_records_app",
+        "resource_kind": "installation",
+        "resource_id": 41,
+        "required_authority": "records_app_binding",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_repository_owner_change_records_repository",
+        "resource_kind": "repository",
+        "resource_id": 31,
+        "required_authority": "project_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "project_repository_owner_change_trigger_app",
+        "resource_kind": "installation",
+        "resource_id": 43,
+        "required_authority": "trigger_app_binding",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "prior_repository_owner": {
+        "github_account_id": 10,
+        "login_snapshot": "owner"
+      }
+    },
+    "payload": {
+      "new_repository_owner": {
+        "github_account_id": 20,
+        "login_snapshot": "new-owner"
+      },
+      "project_slug": "project-one",
+      "repository_ids": {
+        "records": 31,
+        "coverage": 32,
+        "control": 33
+      },
+      "registry_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "registry_generation": 1
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "Qe9X9Glw5miozzm9Apg82sZSC5O8j3PumITR_Bpbqy4",
+    "idempotency_key": "WwuSIiNR3E0alpHt_3B3SdmdQGXNxhcELHnb0GggJJo",
+    "operation_nonce": "BwcHBwcHBwcHBwcHBwcHBw",
+    "operation_sha256": "sha256:4b76ca15dd3606fa628ddb44f8b219412cc4a119dfc1fa1467998aedbc86560e",
+    "type": "project_succeeded",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "project_succeed",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "successor_project_id": "successor-project"
+    },
+    "payload": {
+      "successor_connected_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE"
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "tPUXkjqGzbr7L5tcntIBIRhb1W1-roeh1DayYKXAs5k",
+    "idempotency_key": "4xN4eVEc_hNGipK3nHjbzX1tv2thPjOtTT3JP_3Uj3Y",
+    "operation_nonce": "CAgICAgICAgICAgICAgICA",
+    "operation_sha256": "sha256:fc906cae1d5ddf852c9742052e8893eeba9b036885da8a1734dc27455f08882b",
+    "type": "config_updated",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "project_config_update",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {},
+    "payload": {
+      "project_configuration": {
+        "privacy_policy_url": "https://example.test/privacy",
+        "retention_statement": "Retained for audit.",
+        "correction_procedure": "Contact the project administrator.",
+        "required_fields": [
+          {
+            "name": "full_name",
+            "label": "Full name",
+            "kind": "text",
+            "required": true
+          }
+        ],
+        "confirmation_labels": [
+          "I agree"
+        ]
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "kqSr5Zuzrcdk8T_vF1slvfAH8zf-a8liG68UA5y1bYs",
+    "idempotency_key": "wF8pFKQmppp-s4QYMoJQDlY0jY3TLsgPIwuDWse8X0g",
+    "operation_nonce": "CQkJCQkJCQkJCQkJCQkJCQ",
+    "operation_sha256": "sha256:8ff1e452025b74d2c28187ab59ba72e15136f76376b150c7dd3f99faec71ed6f",
+    "type": "keyring_activated",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "keyring_activate",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "project_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "keyring_activate",
+        "resource_kind": "repository",
+        "resource_id": 12,
+        "required_authority": "project_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      },
+      {
+        "operation": "keyring_activate",
+        "resource_kind": "repository",
+        "resource_id": 13,
+        "required_authority": "project_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {},
+    "payload": {
+      "generation": 1,
+      "keys_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "current_kids": {
+        "records": "records-kid-1",
+        "coverage": "coverage-kid-1"
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "z5mYa9lUZaD4Iyo8hK8cHoyuyednPw-iz1VnX2Bde_Q",
+    "idempotency_key": "3f-47O0oZivZA4E5Nt00zEX8iAo3s1t7Y7ql7FrZ5es",
+    "operation_nonce": "CgoKCgoKCgoKCgoKCgoKCg",
+    "operation_sha256": "sha256:affe7357af56ec44453751ded03b33a61fc4f792602e47a69e0591d4ba471d59",
+    "type": "enforcement_scope_requested",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "enforcement_scope_organization_bind",
+        "resource_kind": "organization",
+        "resource_id": 41,
+        "required_authority": "organization_owner",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "change_id": "change-org"
+    },
+    "payload": {
+      "prior_scope": [],
+      "desired_scope": [
+        {
+          "kind": "organization",
+          "organization_id": 41,
+          "login_snapshot": "org-41"
+        }
+      ],
+      "prior_registry_generation": 0
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "1ygGR5kYEjiYEAFqy-V_hXJrB_RvauGDtKoMAkQwdFk",
+    "idempotency_key": "8yksiRJ8HzeQs0RMhL_K_NK_XbLGW0TsZxBnhUNGP98",
+    "operation_nonce": "FEXElqqVIaWWkoa7uKKZeg",
+    "operation_sha256": "sha256:a6bf33a3c19d5738cc3cfd7cd3fc28255cc636fb0753e70cc09d55890ff2b1dc",
+    "type": "enforcement_scope_activated",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "enforcement_scope_repository_bind",
+        "resource_kind": "repository",
+        "resource_id": 31,
+        "required_authority": "contributing_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "change_id": "change-repo"
+    },
+    "payload": {
+      "request_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "desired_scope": [
+        {
+          "kind": "repository",
+          "repository_id": 31,
+          "owner_snapshot": "owner",
+          "name_snapshot": "repo-31"
+        }
+      ],
+      "registry_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "registry_generation": 1
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "JRO1_GbfulQ9Y5yznKx0W_ToGGA5a_SdoU5cjm5G4Eg",
+    "idempotency_key": "bwqNlsxCZPUIr6Lrq5XVPrKbT7TtaCAyJa_EZUIF7CQ",
+    "operation_nonce": "ORc2HttJJnW8wKYDPMywGw",
+    "operation_sha256": "sha256:d474269158a0fada9bee233177b55534a921f013035603c853f63848d7c93175",
+    "type": "enforcement_scope_abandoned",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "enforcement_scope_repository_bind",
+        "resource_kind": "repository",
+        "resource_id": 31,
+        "required_authority": "contributing_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "change_id": "change-repo"
+    },
+    "payload": {
+      "request_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "reason_code": "expired"
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "OUCuxIvGSNuSBD2kClU8eftdmWE3GHRtIon_uF-6HHA",
+    "idempotency_key": "UVO88s6Kgngk0DAw0M6jPOZot31xIvGRBAp8PoRGHr4",
+    "operation_nonce": "DQ0NDQ0NDQ0NDQ0NDQ0NDQ",
+    "operation_sha256": "sha256:6dd4f4ce5a8e0374b99285b94457a8ad7a6f4c48c11d93dd64544a7567dce777",
+    "type": "override",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "override_grant",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "contributing_repository_maintain",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "repository_id": 11,
+      "pull_request_number": 1,
+      "tree_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "payload": {
+      "subjects": [
+        {
+          "github_user_id": 7,
+          "login_snapshot": "contributor"
+        }
+      ],
+      "reason": "incident",
+      "instrument_ref": null
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "MtaJlJq48FSE_n5B5ZJyLLzVspG4Nag44lmhLs0XDrM",
+    "idempotency_key": "vDVZWX0UgslQZZDqC76ho7Zoavo49EwyST52ipz2l7g",
+    "operation_nonce": "Dg4ODg4ODg4ODg4ODg4ODg",
+    "operation_sha256": "sha256:a0d52a62dae6e6611aed00c4a666c3019d01630c7bd95787514eed59182e09d0",
+    "type": "override_withdrawn",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "override_withdraw",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "contributing_repository_maintain",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "override_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE"
+    },
+    "payload": {
+      "reason": "resolved",
+      "instrument_ref": null
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "1QTmu9AzoNgGVSs6V3QA4EuGU4eG1C1oTFJgeHR69VY",
+    "idempotency_key": "JUm0_SRe1aurncsLE7R-k2ez5FkLWl-7LZ9Dw3J-CoU",
+    "operation_nonce": "JoddTR49ouL2BB6zBPOV2g",
+    "operation_sha256": "sha256:4212a54243cf37d3bbaa5615f4cfbe4b7389da1a8b636551673625253a9a83eb",
+    "type": "retry_requested",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "retry_request",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "contributing_repository_write",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "repository_id": 11,
+      "check_kind": "pull_request",
+      "check_identity": 1
+    },
+    "payload": {
+      "github_delivery_id": "delivery-1"
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "2PDhabM0gUuwUCfgNQSZOubvzBudhIOmCB24daaDA9s",
+    "idempotency_key": "WfpD1MSi3W_jvo7Swp_Ufew1dpB81I1o9eQ177Wzv1g",
+    "operation_nonce": "EBAQEBAQEBAQEBAQEBAQEA",
+    "operation_sha256": "sha256:46e155cc690f43f2a89196996189179148f15d9ff33469994d0a952e01356414",
+    "type": "exemption",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "exemption_bot_add",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "subject": {
+        "github_user_id": 7,
+        "login_snapshot": "contributor"
+      }
+    },
+    "payload": {
+      "source_kind": "bot",
+      "basis": null,
+      "instrument_ref": null
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "u62RxZMy-0TKh5Q4uRJ6aPV4OlNjpFcMIg07zcVEdL4",
+    "idempotency_key": "Yp5rbpEX49qPfM3Q3GwHkxtaYksqHxbCnzWSL7WIZ98",
+    "operation_nonce": "EREREREREREREREREREREQ",
+    "operation_sha256": "sha256:e2989f127ef212d6f74a049d140fa993b43fe6924ba5a8ce10e6c2460bc6253e",
+    "type": "exemption_snapshot",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "exemption_snapshot_add",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "subjects": [
+        {
+          "github_user_id": 7,
+          "login_snapshot": "contributor"
+        }
+      ]
+    },
+    "payload": {
+      "team": {
+        "organization_id": 41,
+        "team_id": 42,
+        "slug_snapshot": "team-one"
+      },
+      "basis": "employment",
+      "instrument_ref": "ticket-1"
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "8VbZcsXaYgrJnvds38VIQkTc5EHRXl4pxYZ8nfy7B2I",
+    "idempotency_key": "0XCUiTK8cCW14yAZyhMkmS1v5ICqSCyYOfNEsE9-8Z4",
+    "operation_nonce": "EhISEhISEhISEhISEhISEg",
+    "operation_sha256": "sha256:50c2b5d0f60d61d8cf220d175692e4e7d8b04dc1f3a02c84f01847e66f64ec62",
+    "type": "exemption_source_withdrawn",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "exemption_source_withdraw",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "source_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "subject": {
+        "github_user_id": 7,
+        "login_snapshot": "contributor"
+      }
+    },
+    "payload": {}
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "SL1XNEwN8eMviFZt74xLTYoZ3Is9hNQt9OZEZLo59mc",
+    "idempotency_key": "x4L18KsBHau6bl25U81I-hJSpe1xD1pbwcZO2bGaWd8",
+    "operation_nonce": "ExMTExMTExMTExMTExMTEw",
+    "operation_sha256": "sha256:61ac17b547ba57dc974fe9efabcb59b8161fab29ca919871eee8a833af401d34",
+    "type": "exemption_rule_configured",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "exemption_rule_configure",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "team": {
+        "organization_id": 41,
+        "team_id": 42,
+        "slug_snapshot": "team-one"
+      }
+    },
+    "payload": {
+      "basis": "employment",
+      "instrument_ref": "ticket-1"
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "XwGDXA9rI-vs1AXcXv8IEuKGpfSuF0fSLqo3iboAIUE",
+    "idempotency_key": "09TSYeT726o9Zc9XAyManidub6YgjZmKPmB2yTyRy1c",
+    "operation_nonce": "FBQUFBQUFBQUFBQUFBQUFA",
+    "operation_sha256": "sha256:0991d9d80258f0c7c25c3ffa91afe528708557bc1d22aa722ab07d59299c1eef",
+    "type": "exemption_rule_withdrawn",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "exemption_rule_withdraw",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "rule_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE"
+    },
+    "payload": {}
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "etCyxJGbHSv-vwPuyE6pFHdtqSPrNVqvzXI8rZvxNFQ",
+    "idempotency_key": "Ta6JMiM8jRTmNRiTRJZY9HNOOBuSlg5l78ka4jTGpzM",
+    "operation_nonce": "Qo7uRTMu_XNT0e4jHRGXxA",
+    "operation_sha256": "sha256:3483f8ca1051c8a20de1992b1f8ca571a0c3b6d8b57bebce46dd4bb1328ab05d",
+    "type": "exemption_materialized",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "automation",
+      "principal": "worker-portal"
+    },
+    "authorizations": [],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "rule_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "subject": {
+        "github_user_id": 7,
+        "login_snapshot": "contributor"
+      }
+    },
+    "payload": {
+      "result": "add",
+      "team": {
+        "organization_id": 41,
+        "team_id": 42,
+        "slug_snapshot": "team-one"
+      },
+      "membership_evidence": {
+        "organization_id": 41,
+        "team_id": 42,
+        "github_user_id": 7,
+        "state": "member",
+        "checked_at": "2026-08-29T00:00:00Z",
+        "etag": "etag-1",
+        "github_request_id": "request-1"
+      },
+      "prior_materialization_event_id": null
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "9q6Iy8gNLX9IsWCToJ0BI4snUrjX8O7Fy3ak-vou-EE",
+    "idempotency_key": "Zz3Fw9N3YHk-Kq1NbcHuqXliimLTcnTxw_N7N_Jzzt8",
+    "operation_nonce": "FhYWFhYWFhYWFhYWFhYWFg",
+    "operation_sha256": "sha256:831606233c8924a8745c53d33992396ee31c5011794a0f92c4c50ffeec520caa",
+    "type": "records_reader_authorized",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "records_reader_individual_add",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "subject": {
+        "github_user_id": 7,
+        "login_snapshot": "contributor"
+      }
+    },
+    "payload": {}
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "zhEaSKntuAopI-Wo2iiwoGXWO9NGVWLZbwSYRPSpscs",
+    "idempotency_key": "FEyeI0ahecOUy7uQcpULjA7ryG7kKmZRmVTYEJAjyec",
+    "operation_nonce": "FxcXFxcXFxcXFxcXFxcXFw",
+    "operation_sha256": "sha256:324cd2c4f7ba3609232955af5b31f5c76035797bf327b234c8344643be527132",
+    "type": "records_reader_snapshot_authorized",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "records_reader_snapshot_add",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "subjects": [
+        {
+          "github_user_id": 7,
+          "login_snapshot": "contributor"
+        }
+      ]
+    },
+    "payload": {
+      "team": {
+        "organization_id": 41,
+        "team_id": 42,
+        "slug_snapshot": "team-one"
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "HJba7DZ2-mSNZxa2mCZk4b-CCSgRvsesdTsjeqBBCc0",
+    "idempotency_key": "KCfEbV_clRv0MiS2Dnn0nlNxNOOtYd-blgF8dbq3cNo",
+    "operation_nonce": "GBgYGBgYGBgYGBgYGBgYGA",
+    "operation_sha256": "sha256:c082f2c0327dbbde20c3d83a17c8077de3a8aeb5460f7259cb30b7e167410114",
+    "type": "records_reader_withdrawn",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "records_reader_source_withdraw",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "source_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "subject": {
+        "github_user_id": 7,
+        "login_snapshot": "contributor"
+      }
+    },
+    "payload": {}
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "lEHp9tYJY9_53uFvTW4yx73xVu1K3CT-7pDDX7iyq9Q",
+    "idempotency_key": "oUX6gbQWkAhk52t520CajkjeWjcVwhBmdwW7jOBFxXw",
+    "operation_nonce": "GRkZGRkZGRkZGRkZGRkZGQ",
+    "operation_sha256": "sha256:09ba146df4bc7ca70e4a5fece51bba6f57fda153ef663f7cef5aef7452917808",
+    "type": "records_reader_rule_configured",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "records_reader_rule_configure",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "team": {
+        "organization_id": 41,
+        "team_id": 42,
+        "slug_snapshot": "team-one"
+      }
+    },
+    "payload": {}
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "5pGynIA75bBj_uv74wUwelFfUfE-wPVcvTRsWfHFcTM",
+    "idempotency_key": "07Ey2cVyMZguk-sW3U0EZeV8FqZxLQaWOzAgHAi5xzk",
+    "operation_nonce": "GhoaGhoaGhoaGhoaGhoaGg",
+    "operation_sha256": "sha256:e1436a5b5f15a7cf1c31226821c9229406d857ff556b5625ae5907a17a9bdaf0",
+    "type": "records_reader_rule_withdrawn",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "github",
+      "github_user_id": 7,
+      "login_snapshot": "admin"
+    },
+    "authorizations": [
+      {
+        "operation": "records_reader_rule_withdraw",
+        "resource_kind": "repository",
+        "resource_id": 11,
+        "required_authority": "records_repository_admin",
+        "observed_authority": "observed",
+        "authorized": true,
+        "checked_at": "2026-08-29T00:00:00Z",
+        "github_request_id": null
+      }
+    ],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "rule_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE"
+    },
+    "payload": {}
+  },
+  {
+    "schema_version": 1,
+    "project_id": "project-1",
+    "event_id": "etCyxJGbHSv-vwPuyE6pFHdtqSPrNVqvzXI8rZvxNFQ",
+    "idempotency_key": "Ta6JMiM8jRTmNRiTRJZY9HNOOBuSlg5l78ka4jTGpzM",
+    "operation_nonce": "Qo7uRTMu_XNT0e4jHRGXxA",
+    "operation_sha256": "sha256:f9246c5cf04005666476bd9257430333c8845b8b3a39e24c5df63ae78b6f4a31",
+    "type": "records_reader_materialized",
+    "recorded_at": "2026-08-29T00:00:00Z",
+    "dracla_version": "0.1.0",
+    "actor": {
+      "kind": "automation",
+      "principal": "worker-portal"
+    },
+    "authorizations": [],
+    "confirmed_canonical_oid": null,
+    "target": {
+      "rule_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "subject": {
+        "github_user_id": 7,
+        "login_snapshot": "contributor"
+      }
+    },
+    "payload": {
+      "result": "add",
+      "team": {
+        "organization_id": 41,
+        "team_id": 42,
+        "slug_snapshot": "team-one"
+      },
+      "membership_evidence": {
+        "organization_id": 41,
+        "team_id": 42,
+        "github_user_id": 7,
+        "state": "member",
+        "checked_at": "2026-08-29T00:00:00Z",
+        "etag": "etag-1",
+        "github_request_id": "request-1"
+      },
+      "prior_materialization_event_id": null
+    }
+  }
+],
+  "negative_examples": [
+    {"name": "unknown_event_type","input": {"schema_version": 1,"project_id": "project-1","event_id": "7ajx0TxjvJQziw67oYAyKwxNILnf9ZYbdccTAAodJrE","idempotency_key": "Uiaj3LlfD0pMjrqS4vsEzcA8pSTtjRXXLol59b0MUVk","operation_nonce": "AgICAgICAgICAgICAgICAg","operation_sha256": "sha256:a9eacff00c8c43bae3eb5c1df8c4e59704d213f931a1dc44af12681d610aff4f","type": "unknown_event","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [],"confirmed_canonical_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","target": {"coverage_tuple": {"github_user_id": 7,"project_id": "project-1","agreement_id": "agreement-1","recipient_id": "recipient-1"}},"payload": {"effect": "cutoff_all_prior_versions"}}},
+    {"name": "missing_top_level_member","input": {"schema_version": 1,"project_id": "project-1","event_id": "7ajx0TxjvJQziw67oYAyKwxNILnf9ZYbdccTAAodJrE","idempotency_key": "Uiaj3LlfD0pMjrqS4vsEzcA8pSTtjRXXLol59b0MUVk","operation_nonce": "AgICAgICAgICAgICAgICAg","operation_sha256": "sha256:a9eacff00c8c43bae3eb5c1df8c4e59704d213f931a1dc44af12681d610aff4f","type": "revocation","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [],"confirmed_canonical_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","target": {"coverage_tuple": {"github_user_id": 7,"project_id": "project-1","agreement_id": "agreement-1","recipient_id": "recipient-1"}}}},
+    {"name": "extra_top_level_member","input": {"schema_version": 1,"project_id": "project-1","event_id": "7ajx0TxjvJQziw67oYAyKwxNILnf9ZYbdccTAAodJrE","idempotency_key": "Uiaj3LlfD0pMjrqS4vsEzcA8pSTtjRXXLol59b0MUVk","operation_nonce": "AgICAgICAgICAgICAgICAg","operation_sha256": "sha256:a9eacff00c8c43bae3eb5c1df8c4e59704d213f931a1dc44af12681d610aff4f","type": "revocation","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [],"confirmed_canonical_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","target": {"coverage_tuple": {"github_user_id": 7,"project_id": "project-1","agreement_id": "agreement-1","recipient_id": "recipient-1"}},"payload": {"effect": "cutoff_all_prior_versions"},"extra": true}},
+    {"name": "wrong_actor_kind","input": {"schema_version": 1,"project_id": "project-1","event_id": "7ajx0TxjvJQziw67oYAyKwxNILnf9ZYbdccTAAodJrE","idempotency_key": "Uiaj3LlfD0pMjrqS4vsEzcA8pSTtjRXXLol59b0MUVk","operation_nonce": "AgICAgICAgICAgICAgICAg","operation_sha256": "sha256:a9eacff00c8c43bae3eb5c1df8c4e59704d213f931a1dc44af12681d610aff4f","type": "revocation","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "automation","principal": "worker-portal"},"authorizations": [],"confirmed_canonical_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","target": {"coverage_tuple": {"github_user_id": 7,"project_id": "project-1","agreement_id": "agreement-1","recipient_id": "recipient-1"}},"payload": {"effect": "cutoff_all_prior_versions"}}},
+    {"name": "missing_confirmed_head","input": {"schema_version": 1,"project_id": "project-1","event_id": "7ajx0TxjvJQziw67oYAyKwxNILnf9ZYbdccTAAodJrE","idempotency_key": "Uiaj3LlfD0pMjrqS4vsEzcA8pSTtjRXXLol59b0MUVk","operation_nonce": "AgICAgICAgICAgICAgICAg","operation_sha256": "sha256:a9eacff00c8c43bae3eb5c1df8c4e59704d213f931a1dc44af12681d610aff4f","type": "revocation","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [],"confirmed_canonical_oid": null,"target": {"coverage_tuple": {"github_user_id": 7,"project_id": "project-1","agreement_id": "agreement-1","recipient_id": "recipient-1"}},"payload": {"effect": "cutoff_all_prior_versions"}}},
+    {"name": "unsafe_repository_id","input": {"schema_version": 1,"project_id": "project-1","event_id": "OUCuxIvGSNuSBD2kClU8eftdmWE3GHRtIon_uF-6HHA","idempotency_key": "UVO88s6Kgngk0DAw0M6jPOZot31xIvGRBAp8PoRGHr4","operation_nonce": "DQ0NDQ0NDQ0NDQ0NDQ0NDQ","operation_sha256": "sha256:6dd4f4ce5a8e0374b99285b94457a8ad7a6f4c48c11d93dd64544a7567dce777","type": "override","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [{"operation": "override_grant","resource_kind": "repository","resource_id": 11,"required_authority": "contributing_repository_maintain","observed_authority": "observed","authorized": true,"checked_at": "2026-08-29T00:00:00Z","github_request_id": null}],"confirmed_canonical_oid": null,"target": {"repository_id": 0,"pull_request_number": 1,"tree_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"payload": {"subjects": [{"github_user_id": 7,"login_snapshot": "contributor"}],"reason": "incident","instrument_ref": null}}},
+    {"name": "extra_payload_member","input": {"schema_version": 1,"project_id": "project-1","event_id": "tPUXkjqGzbr7L5tcntIBIRhb1W1-roeh1DayYKXAs5k","idempotency_key": "4xN4eVEc_hNGipK3nHjbzX1tv2thPjOtTT3JP_3Uj3Y","operation_nonce": "CAgICAgICAgICAgICAgICA","operation_sha256": "sha256:fc906cae1d5ddf852c9742052e8893eeba9b036885da8a1734dc27455f08882b","type": "config_updated","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [{"operation": "project_config_update","resource_kind": "repository","resource_id": 11,"required_authority": "records_repository_admin","observed_authority": "observed","authorized": true,"checked_at": "2026-08-29T00:00:00Z","github_request_id": null}],"confirmed_canonical_oid": null,"target": {},"payload": {"project_configuration": {"privacy_policy_url": "https://example.test/privacy","retention_statement": "Retained for audit.","correction_procedure": "Contact the project administrator.","required_fields": [{"name": "full_name","label": "Full name","kind": "text","required": true}],"confirmation_labels": ["I agree"],"unexpected": true}}}},
+    {"name": "duplicate_subject","input": {"schema_version": 1,"project_id": "project-1","event_id": "zhEaSKntuAopI-Wo2iiwoGXWO9NGVWLZbwSYRPSpscs","idempotency_key": "FEyeI0ahecOUy7uQcpULjA7ryG7kKmZRmVTYEJAjyec","operation_nonce": "FxcXFxcXFxcXFxcXFxcXFw","operation_sha256": "sha256:324cd2c4f7ba3609232955af5b31f5c76035797bf327b234c8344643be527132","type": "records_reader_snapshot_authorized","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [{"operation": "records_reader_snapshot_add","resource_kind": "repository","resource_id": 11,"required_authority": "records_repository_admin","observed_authority": "observed","authorized": true,"checked_at": "2026-08-29T00:00:00Z","github_request_id": null}],"confirmed_canonical_oid": null,"target": {"subjects": [{"github_user_id": 7,"login_snapshot": "contributor"},{"github_user_id": 7,"login_snapshot": "contributor"}]},"payload": {"team": {"organization_id": 41,"team_id": 42,"slug_snapshot": "team-one"}}}},
+    {"name": "wrong_snapshot_path","input": {"schema_version": 1,"project_id": "project-1","event_id": "aD1YIBWIAdofR4fFZxOYhIV4Widokswb0FjMBoasC9U","idempotency_key": "JEH4J6kwpF0Rzf4R0yRSFAuP-el4a_OZ8BjDi1qG8qs","operation_nonce": "AwMDAwMDAwMDAwMDAwMDAw","operation_sha256": "sha256:dc57a7ced0c62fe57c787e3503c5c0216aee691dd2c9e64dc677befbf1087e47","type": "agreement_published","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [{"operation": "agreement_publish","resource_kind": "repository","resource_id": 11,"required_authority": "records_repository_admin","observed_authority": "observed","authorized": true,"checked_at": "2026-08-29T00:00:00Z","github_request_id": null}],"confirmed_canonical_oid": null,"target": {"agreement_id": "agreement-1","version": "1"},"payload": {"recipient": {"recipient_id": "recipient-1","legal_name": "Recipient One"},"ref": "https://example.test/agreement/1","content_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","snapshot_content_path": "agreements/wrong/path.md","snapshot_metadata_path": "agreements/q0HCHmN1eWn3xLHJRxg4bPzrHfQXIUr-2laWBur6SgI/a4ayc_80_OGda4BO_1o_V0etpOqiLx1JwB5S3beHW0s.meta.json","snapshot_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}},
+    {"name": "wrong_authorization_pair","input": {"schema_version": 1,"project_id": "project-1","event_id": "kqSr5Zuzrcdk8T_vF1slvfAH8zf-a8liG68UA5y1bYs","idempotency_key": "wF8pFKQmppp-s4QYMoJQDlY0jY3TLsgPIwuDWse8X0g","operation_nonce": "CQkJCQkJCQkJCQkJCQkJCQ","operation_sha256": "sha256:8ff1e452025b74d2c28187ab59ba72e15136f76376b150c7dd3f99faec71ed6f","type": "keyring_activated","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [{"operation": "keyring_activate","resource_kind": "repository","resource_id": 11,"required_authority": "records_repository_admin","observed_authority": "observed","authorized": true,"checked_at": "2026-08-29T00:00:00Z","github_request_id": null},{"operation": "keyring_activate","resource_kind": "repository","resource_id": 12,"required_authority": "project_repository_admin","observed_authority": "observed","authorized": true,"checked_at": "2026-08-29T00:00:00Z","github_request_id": null},{"operation": "keyring_activate","resource_kind": "repository","resource_id": 13,"required_authority": "project_repository_admin","observed_authority": "observed","authorized": true,"checked_at": "2026-08-29T00:00:00Z","github_request_id": null}],"confirmed_canonical_oid": null,"target": {},"payload": {"generation": 1,"keys_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","current_kids": {"records": "records-kid-1","coverage": "coverage-kid-1"}}}},
+    {"name": "unordered_scope_set","input": {"schema_version": 1,"project_id": "project-1","event_id": "z5mYa9lUZaD4Iyo8hK8cHoyuyednPw-iz1VnX2Bde_Q","idempotency_key": "3f-47O0oZivZA4E5Nt00zEX8iAo3s1t7Y7ql7FrZ5es","operation_nonce": "CgoKCgoKCgoKCgoKCgoKCg","operation_sha256": "sha256:affe7357af56ec44453751ded03b33a61fc4f792602e47a69e0591d4ba471d59","type": "enforcement_scope_requested","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [{"operation": "enforcement_scope_organization_bind","resource_kind": "organization","resource_id": 41,"required_authority": "organization_owner","observed_authority": "observed","authorized": true,"checked_at": "2026-08-29T00:00:00Z","github_request_id": null}],"confirmed_canonical_oid": null,"target": {"change_id": "change-org"},"payload": {"prior_scope": [],"desired_scope": [{"kind": "repository","repository_id": 99,"owner_snapshot": "z","name_snapshot": "z"},{"kind": "repository","repository_id": 31,"owner_snapshot": "owner","name_snapshot": "repo-31"}],"prior_registry_generation": 0}}},
+    {"name": "identity_mismatch","input": {"schema_version": 1,"project_id": "project-1","event_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","idempotency_key": "b23Lkr62SRyO_ObQk5jIAXrHB4gIMU2LAmqYH508_go","operation_nonce": "AQEBAQEBAQEBAQEBAQEBAQ","operation_sha256": "sha256:0eee04e183869712d475ed7fbbb1ba0624f2bfeda2a05f335b8ddda659f5e14e","type": "acceptance","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [],"confirmed_canonical_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","target": {"coverage_tuple": {"github_user_id": 7,"project_id": "project-1","agreement_id": "agreement-1","recipient_id": "recipient-1"},"recipient": {"recipient_id": "recipient-1","legal_name": "Recipient One"},"version": "1","digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"payload": {"fields": {"full_name": "Contributor"},"confirmations": [{"label": "I agree","checked": true}],"supersedes": null}}},
+    {"name": "reserved_entity_authorized","input": {"schema_version": 1,"project_id": "project-1","event_id": "5DLLwocrIr3wS8P6p8Zff_15yckJEoHuvFWvS3SAajM","idempotency_key": "b23Lkr62SRyO_ObQk5jIAXrHB4gIMU2LAmqYH508_go","operation_nonce": "AQEBAQEBAQEBAQEBAQEBAQ","operation_sha256": "sha256:0eee04e183869712d475ed7fbbb1ba0624f2bfeda2a05f335b8ddda659f5e14e","type": "entity_authorized","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [],"confirmed_canonical_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","target": {"coverage_tuple": {"github_user_id": 7,"project_id": "project-1","agreement_id": "agreement-1","recipient_id": "recipient-1"},"recipient": {"recipient_id": "recipient-1","legal_name": "Recipient One"},"version": "1","digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"payload": {"fields": {"full_name": "Contributor"},"confirmations": [{"label": "I agree","checked": true}],"supersedes": null}}},
+    {"name": "reserved_entity_deauthorized","input": {"schema_version": 1,"project_id": "project-1","event_id": "5DLLwocrIr3wS8P6p8Zff_15yckJEoHuvFWvS3SAajM","idempotency_key": "b23Lkr62SRyO_ObQk5jIAXrHB4gIMU2LAmqYH508_go","operation_nonce": "AQEBAQEBAQEBAQEBAQEBAQ","operation_sha256": "sha256:0eee04e183869712d475ed7fbbb1ba0624f2bfeda2a05f335b8ddda659f5e14e","type": "entity_deauthorized","recorded_at": "2026-08-29T00:00:00Z","dracla_version": "0.1.0","actor": {"kind": "github","github_user_id": 7,"login_snapshot": "admin"},"authorizations": [],"confirmed_canonical_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","target": {"coverage_tuple": {"github_user_id": 7,"project_id": "project-1","agreement_id": "agreement-1","recipient_id": "recipient-1"},"recipient": {"recipient_id": "recipient-1","legal_name": "Recipient One"},"version": "1","digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"payload": {"fields": {"full_name": "Contributor"},"confirmations": [{"label": "I agree","checked": true}],"supersedes": null}}}
+  ]
+}
