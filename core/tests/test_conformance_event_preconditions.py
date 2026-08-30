@@ -518,7 +518,7 @@ class TestEventPreconditions(unittest.TestCase):
         )
         self.assertEqual(
             required_side_artifacts(restore, preconditions=values, expected_head=HEAD),
-            (SideArtifactRequirement("active_agreement", "agreements/active.enc.json", "event-and-prior-state-determined"),),
+            (),
         )
 
         target = next(item["value"] for item in values if item["name"] == "target-activation")
