@@ -67,6 +67,7 @@ from .events import (  # noqa: F401
     RegistryGenerationBinding,
     MembershipEvidence,
     PreconditionBinding,
+    PreconditionEvidence,
     PreconditionRequirement,
     PreconditionValidationError,
     ProjectConfiguration,
@@ -74,11 +75,13 @@ from .events import (  # noqa: F401
     RepositoryIds,
     RepositoryOwner,
     ScopeSelector,
+    SideArtifactRequirement,
     Subject,
     Team,
     ValidatedEvent,
     parse_event_jcs,
     required_preconditions,
+    required_side_artifacts,
     validate_event,
 )
 from .keyrings import (  # noqa: F401
