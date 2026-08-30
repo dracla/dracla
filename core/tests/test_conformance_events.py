@@ -7,7 +7,7 @@ import copy
 import json
 import sys
 import unittest
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, asdict
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,17 +15,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dracla.conformance import (  # noqa: E402
     AuthorizationEvidence,
+    CanonicalShaBinding,
+    CrossProjectBinding,
     EVENT_TYPES,
     EventValidationError,
+    EventsHeadBinding,
+    GenerationBinding,
+    PreconditionBinding,
+    PreconditionRequirement,
+    PreconditionValidationError,
+    RegistryGenerationBinding,
     canonical_json,
     parse_event_jcs,
+    required_preconditions,
     validate_authorizations,
     validate_event,
 )
 from dracla.conformance import events as event_module  # noqa: E402
+from dracla.conformance.artifacts import resolve_artifact_identity, segment  # noqa: E402
 
 
 VECTORS = Path(__file__).parent / "vectors" / "events-v1.json"
+HEAD = "b" * 40
 
 
 class TestEventModel(unittest.TestCase):
@@ -44,6 +55,382 @@ class TestEventModel(unittest.TestCase):
                 self.assertEqual(event.canonical_bytes, canonical_json(value))
                 parsed = parse_event_jcs(event.canonical_bytes, expected_path=event.path)
                 self.assertEqual(parsed, event)
+
+
+    def test_precondition_declaration_matrix_is_exact_for_every_event(self):
+        expected = self.corpus["precondition_names"]
+        self.assertEqual(set(expected), EVENT_TYPES)
+        self.assertEqual(len(expected), 27)
+        for value in self.rows.values():
+            event = validate_event(value)
+            expected_head = event.confirmed_canonical_oid or HEAD
+            descriptors = required_preconditions(event, expected_head=expected_head)
+            self.assertEqual(
+                tuple(item.name for item in descriptors),
+                tuple(expected[event.type]),
+            )
+            self.assertEqual(
+                descriptors,
+                required_preconditions(event, expected_head=expected_head),
+            )
+            for descriptor in descriptors:
+                with self.subTest(event_type=event.type, name=descriptor.name):
+                    self.assertEqual(descriptor.expected_head, expected_head)
+                    self.assertIn(
+                        descriptor.binding_mode,
+                        {"events-head", "generation", "canonical-sha", "cross-project", "registry-generation"},
+                    )
+                    self.assertTrue(descriptor.artifact_kind)
+                    self.assertTrue(descriptor.repository_role)
+                    self.assertTrue(descriptor.branch)
+                    self.assertTrue(descriptor.path or descriptor.artifact_kind == "canonical-project-state")
+                    self.assertTrue(descriptor.relation)
+
+
+    def test_precondition_descriptors_resolve_to_deterministic_artifact_paths(self):
+        for value in self.rows.values():
+            event = validate_event(value)
+            expected_head = event.confirmed_canonical_oid or HEAD
+            for descriptor in required_preconditions(event, expected_head=expected_head):
+                with self.subTest(event_type=event.type, name=descriptor.name):
+                    if descriptor.artifact_kind == "canonical-project-state":
+                        self.assertEqual(
+                            (descriptor.repository_role, descriptor.branch, descriptor.path),
+                            ("records", "events", ""),
+                        )
+                        continue
+                    if descriptor.artifact_kind in {"agreement-snapshot", "agreement-metadata"}:
+                        self.assertEqual(
+                            (descriptor.repository_role, descriptor.branch),
+                            ("records", "events"),
+                        )
+                        suffix = ".md" if descriptor.artifact_kind == "agreement-snapshot" else ".meta.json"
+                        self.assertEqual(
+                            descriptor.path,
+                            f"agreements/{segment(event.target['agreement_id'])}/{segment(event.target['version'])}{suffix}",
+                        )
+                        continue
+                    if descriptor.binding_mode == "registry-generation":
+                        self.assertEqual(
+                            (descriptor.artifact_kind, descriptor.repository_role, descriptor.branch),
+                            ("signed-registry-entry", "registry", "main"),
+                        )
+                        self.assertEqual(
+                            descriptor.path,
+                            "projects/oz410wISW72OZHBDpAJbKfZZqtUcSoDWJEpF-rzc0jU.json",
+                        )
+                    else:
+                        identity = resolve_artifact_identity(
+                            descriptor.repository_role,
+                            descriptor.branch,
+                            descriptor.path,
+                        )
+                        self.assertEqual(identity.artifact_kind, descriptor.artifact_kind)
+                        self.assertEqual(identity.repository_role, descriptor.repository_role)
+                        self.assertEqual(identity.branch, descriptor.branch)
+                        self.assertEqual(identity.path, descriptor.path)
+
+        owner = validate_event(self.rows["project_repository_owner_changed"])
+        owner_descriptor = next(
+            item for item in required_preconditions(owner, expected_head=HEAD)
+            if item.name == "current-repository-owner"
+        )
+        self.assertEqual(
+            owner_descriptor.path,
+            "projects/oz410wISW72OZHBDpAJbKfZZqtUcSoDWJEpF-rzc0jU.json",
+        )
+
+        from dracla.conformance import derive_event_identity
+
+        for project_id, expected_path in (
+            (
+                "project-1",
+                "projects/oz410wISW72OZHBDpAJbKfZZqtUcSoDWJEpF-rzc0jU.json",
+            ),
+            (
+                "../escape",
+                "projects/G6c0PEfcRC3n3sQ6mV3rmntiI07MoW18b1l7UVW9hbE.json",
+            ),
+            (
+                "项目",
+                "projects/efMmvkQJ1R_mD07cA7IMS5TelS1ibhYWeQ57I4TwjwA.json",
+            ),
+        ):
+            value = copy.deepcopy(self.rows["project_repository_owner_changed"])
+            value["project_id"] = project_id
+            identity = derive_event_identity(
+                value["project_id"],
+                value["operation_nonce"],
+                value["actor"],
+                value["type"],
+                value["target"],
+                value["payload"],
+                value["confirmed_canonical_oid"],
+            )
+            value.update(
+                event_id=identity.event_id,
+                idempotency_key=identity.idempotency_key,
+                operation_sha256=identity.operation_sha256,
+            )
+            variant = validate_event(value)
+            descriptor = next(
+                item for item in required_preconditions(variant, expected_head=HEAD)
+                if item.name == "current-repository-owner"
+            )
+            self.assertEqual(descriptor.path, expected_path)
+
+        revocation = validate_event(self.rows["revocation"])
+        self.assertEqual(
+            next(item for item in required_preconditions(revocation, expected_head=revocation.confirmed_canonical_oid) if item.name == "coverage-state-07").path,
+            "users/07.enc.json",
+        )
+        reader_rule = validate_event(self.rows["records_reader_rule_configured"])
+        reader_rule_descriptors = [
+            item
+            for item in required_preconditions(reader_rule, expected_head=HEAD)
+            if item.name.startswith("active-reader-rules-")
+        ]
+        self.assertEqual(
+            [item.name for item in reader_rule_descriptors],
+            [f"active-reader-rules-{shard:02d}" for shard in range(32)],
+        )
+        self.assertEqual(
+            [item.path for item in reader_rule_descriptors],
+            [f"derived/reader-authority/{shard:02d}.enc.json" for shard in range(32)],
+        )
+        self.assertEqual(
+            {item.relation for item in reader_rule_descriptors},
+            {"active-continuous-reader-rules-are-current"},
+        )
+        exemption = validate_event(self.rows["exemption_rule_withdrawn"])
+        self.assertEqual(
+            next(item for item in required_preconditions(exemption, expected_head=HEAD) if item.name == "current-exemption-union-07").path,
+            "derived/status-detail/07.enc.json",
+        )
+        exemption_rule = validate_event(self.rows["exemption_rule_configured"])
+        derived_state = next(
+            item for item in required_preconditions(exemption_rule, expected_head=HEAD)
+            if item.name == "current-derived-state"
+        )
+        self.assertEqual(
+            (derived_state.artifact_kind, derived_state.repository_role, derived_state.branch, derived_state.path, derived_state.binding_mode, derived_state.relation),
+            ("derived-state", "records", "derived", "derived/state.enc.json", "generation", "standing-rules-and-installed-profile-are-current"),
+        )
+        reader = validate_event(self.rows["records_reader_withdrawn"])
+        self.assertEqual(
+            next(item for item in required_preconditions(reader, expected_head=HEAD) if item.name == "reader-authority-state").path,
+            "derived/reader-authority/10.enc.json",
+        )
+
+        keyring = validate_event(self.rows["keyring_activated"])
+        keyring_repository_set = next(
+            item for item in required_preconditions(keyring, expected_head=HEAD)
+            if item.name == "keyring-affected-repositories"
+        )
+        self.assertEqual(
+            (keyring_repository_set.artifact_kind, keyring_repository_set.repository_role, keyring_repository_set.branch, keyring_repository_set.path, keyring_repository_set.binding_mode, keyring_repository_set.relation),
+            ("canonical-project-state", "records", "events", "", "events-head", "affected-repository-ids-equal-authorization-resources"),
+        )
+
+        materialized = validate_event(self.rows["exemption_materialized"])
+        materialized_rule_state = next(
+            item for item in required_preconditions(materialized, expected_head=HEAD)
+            if item.name == "active-exemption-rule-state"
+        )
+        self.assertEqual(
+            (materialized_rule_state.artifact_kind, materialized_rule_state.repository_role, materialized_rule_state.branch, materialized_rule_state.path, materialized_rule_state.binding_mode, materialized_rule_state.relation),
+            ("derived-state", "records", "derived", "derived/state.enc.json", "generation", "referenced-standing-rule-is-current"),
+        )
+
+        override = validate_event(self.rows["override_withdrawn"])
+        grant = next(
+            item for item in required_preconditions(override, expected_head=HEAD)
+            if item.name == "override-grant"
+        )
+        self.assertEqual(grant.path, event_module.event_path(override.target["override_event_id"]))
+
+        published = validate_event(self.rows["agreement_activated"])
+        published_descriptor = next(
+            item for item in required_preconditions(published, expected_head=HEAD)
+            if item.name == "published-agreement"
+        )
+        self.assertEqual(published_descriptor.path, event_module.event_path(published.payload["published_event_id"]))
+
+        terminal = validate_event(self.rows["enforcement_scope_activated"])
+        terminal_descriptors = {
+            item.name: item
+            for item in required_preconditions(terminal, expected_head=HEAD)
+            if item.name.startswith("scope-terminal-")
+        }
+        self.assertEqual(
+            terminal_descriptors["scope-terminal-activation-absence"].path,
+            "events/1y/gG/1ygGR5kYEjiYEAFqy-V_hXJrB_RvauGDtKoMAkQwdFk.enc.json",
+        )
+        self.assertEqual(
+            terminal_descriptors["scope-terminal-abandonment-absence"].path,
+            "events/JR/O1/JRO1_GbfulQ9Y5yznKx0W_ToGGA5a_SdoU5cjm5G4Eg.enc.json",
+        )
+        self.assertNotEqual(
+            terminal_descriptors["scope-terminal-activation-absence"].path,
+            terminal_descriptors["scope-terminal-abandonment-absence"].path,
+        )
+
+        published = validate_event(self.rows["agreement_published"])
+        publication_descriptors = required_preconditions(published, expected_head=HEAD)
+        self.assertEqual(
+            tuple(item.name for item in publication_descriptors),
+            ("project-lifecycle", "current-project-agreement", "publication-snapshot-absence", "publication-metadata-absence"),
+        )
+        project_agreement = publication_descriptors[1]
+        self.assertEqual(
+            (project_agreement.artifact_kind, project_agreement.repository_role, project_agreement.branch, project_agreement.path, project_agreement.binding_mode, project_agreement.relation),
+            ("canonical-project-state", "records", "events", "", "events-head", "project-agreement-and-recipient-are-current"),
+        )
+        publication_snapshot_absence = publication_descriptors[2]
+        self.assertEqual(
+            (publication_snapshot_absence.artifact_kind, publication_snapshot_absence.repository_role, publication_snapshot_absence.branch, publication_snapshot_absence.path, publication_snapshot_absence.binding_mode, publication_snapshot_absence.relation),
+            ("agreement-snapshot", "records", "events", f"agreements/{segment(published.target['agreement_id'])}/{segment(published.target['version'])}.md", "events-head", "agreement-snapshot-is-absent"),
+        )
+        publication_metadata_absence = publication_descriptors[3]
+        self.assertEqual(
+            (publication_metadata_absence.artifact_kind, publication_metadata_absence.repository_role, publication_metadata_absence.branch, publication_metadata_absence.path, publication_metadata_absence.binding_mode, publication_metadata_absence.relation),
+            ("agreement-metadata", "records", "events", f"agreements/{segment(published.target['agreement_id'])}/{segment(published.target['version'])}.meta.json", "events-head", "agreement-metadata-is-absent"),
+        )
+
+
+    def test_acceptance_correction_declares_existing_basis_and_link(self):
+        from dracla.conformance import derive_event_identity
+
+        correction = copy.deepcopy(self.rows["acceptance"])
+        correction["payload"]["supersedes"] = correction["event_id"]
+        identity = derive_event_identity(
+            correction["project_id"],
+            correction["operation_nonce"],
+            correction["actor"],
+            correction["type"],
+            correction["target"],
+            correction["payload"],
+            correction["confirmed_canonical_oid"],
+        )
+        correction.update(
+            event_id=identity.event_id,
+            idempotency_key=identity.idempotency_key,
+            operation_sha256=identity.operation_sha256,
+        )
+        event = validate_event(correction)
+        descriptors = required_preconditions(event, expected_head=event.confirmed_canonical_oid)
+        self.assertEqual(
+            tuple(item.name for item in descriptors),
+            (
+                "project-lifecycle",
+                "active-agreement",
+                "current-configuration",
+                "superseded-acceptance",
+                "current-acceptance-basis",
+                "prior-generations",
+            ),
+        )
+        superseded = descriptors[3]
+        self.assertEqual(
+            (superseded.artifact_kind, superseded.repository_role, superseded.branch, superseded.path, superseded.binding_mode, superseded.relation),
+            ("canonical-event", "records", "events", event_module.event_path(correction["payload"]["supersedes"]), "events-head", "superseded-acceptance-exists-and-matches-correction"),
+        )
+        basis = descriptors[4]
+        self.assertEqual(
+            (basis.artifact_kind, basis.repository_role, basis.branch, basis.path, basis.binding_mode, basis.relation),
+            ("status-detail", "records", "derived", "derived/status-detail/07.enc.json", "generation", "current-acceptance-basis-matches-superseded-acceptance"),
+        )
+
+
+    def test_precondition_models_are_frozen_serializable_and_closed(self):
+        canonical_generation = self.rows["project_connected"]["event_id"]
+        derived_generation = self.rows["acceptance"]["event_id"]
+        bindings = (
+            (EventsHeadBinding(HEAD), "events-head"),
+            (GenerationBinding(HEAD, canonical_generation, derived_generation), "generation"),
+            (CanonicalShaBinding("a" * 40, "b" * 40), "canonical-sha"),
+            (CrossProjectBinding("successor", HEAD, (11, 12, 13)), "cross-project"),
+            (RegistryGenerationBinding("c" * 40, 3), "registry-generation"),
+        )
+        for binding, mode in bindings:
+            with self.subTest(mode=mode):
+                self.assertIsInstance(binding, PreconditionBinding)
+                self.assertEqual(binding.mode, mode)
+                serialized = asdict(binding)
+                self.assertIsInstance(serialized, dict)
+                with self.assertRaises(FrozenInstanceError):
+                    setattr(binding, next(iter(serialized)), "changed")
+
+        malformed = (
+            lambda: EventsHeadBinding("not-an-oid"),
+            lambda: GenerationBinding(HEAD, "not-an-event-id", derived_generation),
+            lambda: CanonicalShaBinding("a" * 40, "sha256:" + "b" * 64),
+            lambda: CrossProjectBinding("successor", "not-an-oid", (11, 12, 13)),
+            lambda: CrossProjectBinding("successor", HEAD, []),
+            lambda: CrossProjectBinding("successor", HEAD, (11, 11)),
+            lambda: RegistryGenerationBinding("c" * 40, -1),
+        )
+        for make_binding in malformed:
+            with self.assertRaises(PreconditionValidationError):
+                make_binding()
+
+        requirement = PreconditionRequirement(
+            "project-lifecycle",
+            "coverage-source",
+            "coverage",
+            "coverage",
+            "source.enc.json",
+            "canonical-sha",
+            "project-lifecycle-policy",
+            HEAD,
+        )
+        self.assertEqual(
+            asdict(requirement),
+            {
+                "name": "project-lifecycle",
+                "artifact_kind": "coverage-source",
+                "repository_role": "coverage",
+                "branch": "coverage",
+                "path": "source.enc.json",
+                "binding_mode": "canonical-sha",
+                "relation": "project-lifecycle-policy",
+                "expected_head": HEAD,
+            },
+        )
+        with self.assertRaises(FrozenInstanceError):
+            requirement.name = "other"
+
+
+    def test_precondition_declaration_boundaries_reject_invalid_inputs(self):
+        event = validate_event(self.rows["config_updated"])
+        with self.assertRaises(EventValidationError):
+            required_preconditions(object(), expected_head=HEAD)
+        with self.assertRaises(PreconditionValidationError):
+            event_module._requirement(
+                "bad", kind="kind", role="records", branch="events", path="path",
+                binding="unsupported", relation="relation", expected_head=HEAD,
+            )
+        with self.assertRaises(PreconditionValidationError):
+            event_module._subject_shards(event, relation="unsupported")
+        for invalid_head in (None, "A" * 40, 7):
+            with self.subTest(invalid_head=invalid_head), self.assertRaises(EventValidationError):
+                required_preconditions(event, expected_head=invalid_head)
+
+        for event_type in ("acceptance", "revocation"):
+            contributor_event = validate_event(self.rows[event_type])
+            descriptors = required_preconditions(
+                contributor_event,
+                expected_head=contributor_event.confirmed_canonical_oid,
+            )
+            self.assertTrue(descriptors)
+            self.assertTrue(
+                all(
+                    item.expected_head == contributor_event.confirmed_canonical_oid
+                    for item in descriptors
+                )
+            )
+            with self.subTest(event_type=event_type), self.assertRaises(PreconditionValidationError):
+                required_preconditions(contributor_event, expected_head=HEAD)
 
 
     def test_models_and_nested_event_values_are_immutable(self):
