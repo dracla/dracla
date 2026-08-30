@@ -1,12 +1,14 @@
-"""Closed revision-13 event models and event identity validation.
+"""Closed revision-13 event models and declaration helpers.
 
-This module is deliberately a local boundary.  It validates complete events
-and recomputes their byte-level identity.  It never fetches repositories,
+This module is deliberately a local boundary.  It validates complete events,
+recomputes their byte-level identity, and declares the history relations that
+must be resolved before preparation.  It never fetches repositories,
 decrypts artifacts, or folds events.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -17,7 +19,7 @@ from urllib.parse import urlsplit
 
 from .artifacts import segment
 from .canonical import MAX_SAFE_INTEGER, canonical_json, parse_canonical_json
-from .encoding import Base64UrlError, base64url_decode
+from .encoding import Base64UrlError, base64url_decode, base64url_encode
 from .event_identity import (
     AuthorizationEvidence,
     EventIdentity,
@@ -26,6 +28,7 @@ from .event_identity import (
     derive_automation_nonce,
     derive_github_retry_nonce,
     derive_scope_terminal_nonce,
+    event_path,
     stable_actor_identity,
     validate_authorizations,
 )
@@ -33,6 +36,10 @@ from .event_identity import (
 
 class EventValidationError(ValueError):
     """An event is not a closed, semantically valid v1 event."""
+
+
+class PreconditionValidationError(EventValidationError):
+    """A precondition declaration is malformed or cannot be bound."""
 
 
 EVENT_TYPES = frozenset(
@@ -214,6 +221,15 @@ def _event_id(value: Any, label: str) -> str:
     except (Base64UrlError, TypeError):
         _error(f"{label} must be canonical base64url for 32 bytes")
     return value
+
+
+def _binding_field(validator: Any, value: Any, label: str) -> Any:
+    """Apply a closed event validator at the exported binding boundary."""
+
+    try:
+        return validator(value, label)
+    except EventValidationError as error:
+        _error(str(error), PreconditionValidationError)
 
 
 def _url(value: Any, label: str) -> str:
@@ -768,6 +784,315 @@ class ValidatedEvent:
         return canonical_json(self.to_dict())
 
 
+@dataclass(frozen=True, slots=True)
+class PreconditionRequirement:
+    """A history-owned relation that must be resolved before preparation."""
+
+    name: str
+    artifact_kind: str
+    repository_role: str
+    branch: str
+    path: str
+    binding_mode: str
+    relation: str
+    expected_head: str
+
+
+@dataclass(frozen=True, slots=True)
+class EventsHeadBinding:
+    """Evidence binding for a value read from the canonical events head."""
+
+    events_head: str
+
+    def __post_init__(self) -> None:
+        _binding_field(_oid, self.events_head, "events head")
+
+    @property
+    def mode(self) -> str:
+        return "events-head"
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationBinding:
+    """Evidence binding for a derived generation read at an events head."""
+
+    events_head: str
+    canonical_generation: str
+    derived_generation: str
+
+    def __post_init__(self) -> None:
+        _binding_field(_oid, self.events_head, "generation events head")
+        _binding_field(_event_id, self.canonical_generation, "canonical generation")
+        _binding_field(_event_id, self.derived_generation, "derived generation")
+
+    @property
+    def mode(self) -> str:
+        return "generation"
+
+
+@dataclass(frozen=True, slots=True)
+class CanonicalShaBinding:
+    """Evidence binding for coverage state linked by source.canonical_sha."""
+
+    coverage_commit_oid: str
+    canonical_sha: str
+
+    def __post_init__(self) -> None:
+        _binding_field(_oid, self.coverage_commit_oid, "coverage commit")
+        _binding_field(_oid, self.canonical_sha, "canonical sha")
+
+    @property
+    def mode(self) -> str:
+        return "canonical-sha"
+
+
+@dataclass(frozen=True, slots=True)
+class CrossProjectBinding:
+    """Evidence binding for a successor project's independently resolved state."""
+
+    successor_project_id: str
+    successor_events_head: str
+    repository_ids: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        _binding_field(_string, self.successor_project_id, "successor project ID")
+        _binding_field(_oid, self.successor_events_head, "successor events head")
+        if type(self.repository_ids) is not tuple or not self.repository_ids:
+            _error("cross-project repository IDs are malformed", PreconditionValidationError)
+        repository_ids = tuple(
+            _binding_field(_positive, repository_id, "successor repository ID")
+            for repository_id in self.repository_ids
+        )
+        if len(set(repository_ids)) != len(repository_ids):
+            _error("cross-project repository IDs contain duplicates", PreconditionValidationError)
+
+    @property
+    def mode(self) -> str:
+        return "cross-project"
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryGenerationBinding:
+    """Evidence binding for a signed-registry entry and generation."""
+
+    registry_commit_oid: str
+    registry_generation: int
+
+    def __post_init__(self) -> None:
+        _binding_field(_oid, self.registry_commit_oid, "registry commit")
+        _binding_field(_nonnegative, self.registry_generation, "registry generation")
+
+    @property
+    def mode(self) -> str:
+        return "registry-generation"
+
+
+PreconditionBinding = (
+    EventsHeadBinding
+    | GenerationBinding
+    | CanonicalShaBinding
+    | CrossProjectBinding
+    | RegistryGenerationBinding
+)
+
+_PRECONDITION_MATRIX: dict[str, tuple[str, ...]] = {
+    "project_connected": ("generations-absence",),
+    "acceptance": ("project-lifecycle", "active-agreement", "current-configuration", "prior-generations"),
+    "revocation": ("project-lifecycle", "coverage-state", "prior-generations"),
+    "agreement_published": ("project-lifecycle",),
+    "agreement_activated": ("project-lifecycle", "published-agreement", "active-agreement"),
+    "project_repository_owner_changed": ("project-lifecycle", "current-repository-owner"),
+    "project_succeeded": ("project-lifecycle", "successor-project"),
+    "config_updated": ("project-lifecycle",),
+    "keyring_activated": ("project-lifecycle", "keyring-affected-repositories"),
+    "enforcement_scope_requested": ("project-lifecycle", "current-scope"),
+    "enforcement_scope_activated": ("project-lifecycle", "current-scope", "scope-request", "scope-terminal-activation-absence", "scope-terminal-abandonment-absence"),
+    "enforcement_scope_abandoned": ("project-lifecycle", "current-scope", "scope-request", "scope-terminal-activation-absence", "scope-terminal-abandonment-absence"),
+    "override": ("project-lifecycle", "coverage-state"),
+    "override_withdrawn": ("project-lifecycle", "override-grant"),
+    "retry_requested": ("project-lifecycle",),
+    "exemption": ("project-lifecycle", "current-exemption-union", "prior-generations"),
+    "exemption_snapshot": ("project-lifecycle", "current-exemption-union", "prior-generations"),
+    "exemption_source_withdrawn": ("project-lifecycle", "source-event", "current-exemption-union", "prior-generations"),
+    "exemption_rule_configured": ("project-lifecycle", "prior-generations"),
+    "exemption_rule_withdrawn": ("project-lifecycle", "rule-event", "current-exemption-union", "prior-generations"),
+    "exemption_materialized": ("project-lifecycle", "rule-event", "current-exemption-union", "materialization-cursor", "prior-generations"),
+    "records_reader_authorized": ("project-lifecycle", "current-reader-authority", "prior-generations"),
+    "records_reader_snapshot_authorized": ("project-lifecycle", "current-reader-authority", "prior-generations"),
+    "records_reader_withdrawn": ("project-lifecycle", "source-event", "reader-authority-state", "prior-generations"),
+    "records_reader_rule_configured": ("project-lifecycle", "active-reader-rules", "prior-generations"),
+    "records_reader_rule_withdrawn": ("project-lifecycle", "rule-event", "reader-authority-state", "prior-generations"),
+    "records_reader_materialized": ("project-lifecycle", "rule-event", "current-reader-authority", "materialization-cursor", "prior-generations"),
+}
+
+
+def _event_name(event: Any) -> str:
+    if not isinstance(event, ValidatedEvent):
+        _error("event must be a ValidatedEvent")
+    return event.type
+
+def _requirement(
+    name: str,
+    *,
+    kind: str,
+    role: str,
+    branch: str,
+    path: str,
+    binding: str,
+    relation: str,
+    expected_head: str,
+) -> PreconditionRequirement:
+    if binding not in {"events-head", "generation", "canonical-sha", "cross-project", "registry-generation"}:
+        _error("precondition binding mode is not closed", PreconditionValidationError)
+    return PreconditionRequirement(name, kind, role, branch, path, binding, relation, expected_head)
+
+
+def _coverage_shard_path(user_id: int) -> str:
+    return f"users/{user_id % 32:02d}.enc.json"
+
+def _reader_shard_path(source_event_id: str) -> str:
+    """Return the reader shard selected by the first five digest bits."""
+
+    shard = hashlib.sha256(source_event_id.encode("ascii")).digest()[0] >> 3
+    return f"derived/reader-authority/{shard:02d}.enc.json"
+
+
+def _scope_terminal_child_event_id(project_id: str, request_event_id: str, terminal_type: str) -> str:
+    """Derive a terminal child ID without inventing its payload or actor.
+
+    M1-4 defines the event ID as a function of the project and operation
+    nonce.  The terminal nonce is itself request/type bound, so the sibling
+    path is derivable even though its eventual event payload is not known at
+    this validation boundary.
+    """
+
+    nonce = derive_scope_terminal_nonce(request_event_id, terminal_type)
+    idempotency_digest = hashlib.sha256(
+        b"dracla-idempotency-v1\0"
+        + canonical_json({"project_id": project_id, "operation_nonce": nonce})
+    ).digest()
+    event_digest = hashlib.sha256(b"dracla-event-v1\0" + idempotency_digest).digest()
+    return base64url_encode(event_digest)
+
+def _scope_terminal_child_path(project_id: str, request_event_id: str, terminal_type: str) -> str:
+    return event_path(_scope_terminal_child_event_id(project_id, request_event_id, terminal_type))
+
+
+def _subject_shards(event: ValidatedEvent, *, relation: str) -> tuple[int, ...]:
+    """Return every shard whose authenticated projection relation is needed."""
+
+    if relation == "coverage-state":
+        if event.type == "revocation":
+            users = [event.target["coverage_tuple"]["github_user_id"]]
+        else:
+            users = [subject["github_user_id"] for subject in event.payload["subjects"]]
+    elif relation == "current-exemption-union":
+        if event.type == "exemption_rule_withdrawn":
+            return tuple(range(32))
+        if "subject" in event.target:
+            users = [event.target["subject"]["github_user_id"]]
+        else:
+            users = [subject["github_user_id"] for subject in event.target["subjects"]]
+    else:
+        _error("unsupported subject-shard relation", PreconditionValidationError)
+    return tuple(sorted({user_id % 32 for user_id in users}))
+
+
+def _registry_entry_path(project_id: str) -> str:
+    # Registry paths are owned by the separate signed registry namespace, not
+    # the records/coverage artifact resolver.
+    return f"projects/{segment(project_id)}.json"
+
+def _validate_head(value: Any) -> str:
+    return _oid(value, "expected_head")
+
+
+def required_preconditions(event: ValidatedEvent, *, expected_head: str) -> tuple[PreconditionRequirement, ...]:
+    """Describe all history-dependent relations needed before preparation."""
+
+    expected_head = _validate_head(expected_head)
+    event_type = _event_name(event)
+    if event.confirmed_canonical_oid is not None and event.confirmed_canonical_oid != expected_head:
+        _error("event confirmed head does not match expected head", PreconditionValidationError)
+    source_id = event.target.get("source_event_id", event.target.get("rule_event_id", event.event_id))
+    coverage_shards = _subject_shards(event, relation="coverage-state") if "coverage-state" in _PRECONDITION_MATRIX[event_type] else ()
+    exemption_shards = _subject_shards(event, relation="current-exemption-union") if "current-exemption-union" in _PRECONDITION_MATRIX[event_type] else ()
+    specs = {
+        "project-lifecycle": ("coverage-source", "coverage", "coverage", "source.enc.json", "canonical-sha", "project-lifecycle-policy"),
+        "active-agreement": ("active-agreement", "coverage", "coverage", "agreements/active.enc.json", "canonical-sha", "active-agreement-matches-target"),
+        "current-configuration": ("project-config", "records", "events", "config/project.enc.json", "events-head", "acceptance-fields-and-confirmations-match-configuration"),
+        "prior-generations": ("materialization-generations", "records", "events", "config/materialization-generations.enc.json", "events-head", "prior-generations-at-head"),
+        "coverage-state": ("coverage-shard", "coverage", "coverage", "", "canonical-sha", "coverage-row-matches-target"),
+        "published-agreement": ("canonical-event", "records", "events", "", "events-head", "published-event-exists-and-matches-target"),
+        "current-repository-owner": ("signed-registry-entry", "registry", "main", _registry_entry_path(event.project_id), "registry-generation", "repository-owner-and-set-are-current"),
+        "keyring-affected-repositories": ("project-config", "records", "events", "config/project.enc.json", "events-head", "affected-repository-ids-equal-authorization-resources"),
+        "current-scope": ("signed-registry-entry", "registry", "main", _registry_entry_path(event.project_id), "registry-generation", "scope-is-current"),
+        "scope-request": ("canonical-event", "records", "events", "", "events-head", "request-exists-and-matches-terminal"),
+        "scope-terminal-activation-absence": ("canonical-event", "records", "events", "", "events-head", "activation-terminal-child-is-absent"),
+        "scope-terminal-abandonment-absence": ("canonical-event", "records", "events", "", "events-head", "abandonment-terminal-child-is-absent"),
+        "override-grant": ("canonical-event", "records", "events", event_path(event.target.get("override_event_id", event.event_id)), "events-head", "override-grant-event-matches-target"),
+        "current-exemption-union": ("status-detail", "records", "derived", "", "generation", "exemption-union-provenance-is-current"),
+        "source-event": ("canonical-event", "records", "events", "", "events-head", "source-event-exists-and-matches-target"),
+        "rule-event": ("canonical-event", "records", "events", "", "events-head", "rule-event-exists-and-matches-target"),
+        "materialization-cursor": ("reader-authority", "records", "derived", _reader_shard_path(source_id), "generation", "prior-materialization-cursor-is-current"),
+        "current-reader-authority": ("reader-authority", "records", "derived", _reader_shard_path(source_id), "generation", "reader-source-and-rule-state-is-current"),
+        "active-reader-rules": ("reader-authority", "records", "derived", "", "generation", "active-continuous-reader-rules-are-current"),
+        "reader-authority-state": ("reader-authority", "records", "derived", _reader_shard_path(source_id), "generation", "reader-class-currentness-and-source-state"),
+        "successor-project": ("canonical-event", "records", "events", "", "cross-project", f"successor-connected-reciprocal:{event.target.get('successor_project_id', '')}"),
+    }
+    if "published-agreement" in _PRECONDITION_MATRIX[event_type]:
+        specs["published-agreement"] = (*specs["published-agreement"][:3], event_path(event.payload["published_event_id"]), *specs["published-agreement"][4:])
+    if "scope-request" in _PRECONDITION_MATRIX[event_type]:
+        specs["scope-request"] = (*specs["scope-request"][:3], event_path(event.payload["request_event_id"]), *specs["scope-request"][4:])
+    if "source-event" in _PRECONDITION_MATRIX[event_type]:
+        specs["source-event"] = (*specs["source-event"][:3], event_path(event.target["source_event_id"]), *specs["source-event"][4:])
+    if "rule-event" in _PRECONDITION_MATRIX[event_type]:
+        specs["rule-event"] = (*specs["rule-event"][:3], event_path(event.target["rule_event_id"]), *specs["rule-event"][4:])
+    if "successor-project" in _PRECONDITION_MATRIX[event_type]:
+        specs["successor-project"] = (*specs["successor-project"][:3], event_path(event.payload["successor_connected_event_id"]), *specs["successor-project"][4:])
+    if event_type == "exemption_materialized":
+        specs["materialization-cursor"] = (
+            "status-detail",
+            "records",
+            "derived",
+            f"derived/status-detail/{event.target['subject']['github_user_id'] % 32:02d}.enc.json",
+            "generation",
+            "prior-materialization-cursor-is-current",
+        )
+    names: list[str] = []
+    for name in _PRECONDITION_MATRIX[event_type]:
+        if name == "coverage-state":
+            names.extend(f"coverage-state-{shard:02d}" for shard in coverage_shards)
+        elif name == "current-exemption-union":
+            names.extend(f"current-exemption-union-{shard:02d}" for shard in exemption_shards)
+        elif name == "active-reader-rules":
+            names.extend(f"active-reader-rules-{shard:02d}" for shard in range(32))
+        else:
+            names.append(name)
+
+    result: list[PreconditionRequirement] = []
+    for name in names:
+        if name == "generations-absence":
+            spec = ("materialization-generations", "records", "events", "config/materialization-generations.enc.json", "events-head", "artifact-absent-at-head")
+        elif name.startswith("coverage-state-"):
+            shard = int(name.rsplit("-", 1)[1])
+            spec = (*specs["coverage-state"][:3], _coverage_shard_path(shard), *specs["coverage-state"][4:])
+        elif name.startswith("current-exemption-union-"):
+            shard = int(name.rsplit("-", 1)[1])
+            spec = (*specs["current-exemption-union"][:3], f"derived/status-detail/{shard:02d}.enc.json", *specs["current-exemption-union"][4:])
+        elif name.startswith("active-reader-rules-"):
+            shard = int(name.rsplit("-", 1)[1])
+            spec = (*specs["active-reader-rules"][:3], f"derived/reader-authority/{shard:02d}.enc.json", *specs["active-reader-rules"][4:])
+        elif name == "scope-terminal-activation-absence":
+            spec = (*specs[name][:3], _scope_terminal_child_path(event.project_id, event.payload["request_event_id"], "enforcement_scope_activated"), *specs[name][4:])
+        elif name == "scope-terminal-abandonment-absence":
+            spec = (*specs[name][:3], _scope_terminal_child_path(event.project_id, event.payload["request_event_id"], "enforcement_scope_abandoned"), *specs[name][4:])
+        else:
+            spec = specs[name]
+        result.append(_requirement(name, kind=spec[0], role=spec[1], branch=spec[2], path=spec[3], binding=spec[4], relation=spec[5], expected_head=expected_head))
+    return tuple(result)
+
+
 def _parse_event_fields(value: Any) -> tuple[int, str, str, str, str, str, str, str, Mapping[str, Any], tuple[AuthorizationEvidence, ...], str | None, Mapping[str, Any], Mapping[str, Any]]:
     obj = _object(value, "event")
     expected = ("schema_version", "project_id", "event_id", "idempotency_key", "operation_nonce", "operation_sha256", "type", "recorded_at", "dracla_version", "actor", "authorizations", "confirmed_canonical_oid", "target", "payload")
@@ -951,6 +1276,14 @@ __all__ = [
     "CurrentKids",
     "EVENT_TYPES",
     "EventValidationError",
+    "EventsHeadBinding",
+    "GenerationBinding",
+    "CanonicalShaBinding",
+    "CrossProjectBinding",
+    "RegistryGenerationBinding",
+    "PreconditionBinding",
+    "PreconditionRequirement",
+    "PreconditionValidationError",
     "MembershipEvidence",
     "ProjectConfiguration",
     "Recipient",
