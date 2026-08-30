@@ -20,6 +20,7 @@
     ["keyring_activate", "repository", "project_repository_admin"],
     ["agreement_publish", "repository", "records_repository_admin"],
     ["agreement_activate", "repository", "records_repository_admin"],
+    ["agreement_activation_restore", "repository", "records_repository_admin"],
     ["project_config_update", "repository", "records_repository_admin"],
     ["enforcement_scope_repository_bind", "repository", "contributing_repository_admin"],
     ["enforcement_scope_repository_widen", "repository", "contributing_repository_admin"],

@@ -1,10 +1,10 @@
 # DraCLA Requirements
 
 Status: Locked
-Date: 24 August 2026
-Revision: 13 — makes merge-queue enforcement per pull-request queue entry
-instead of reconstructing every preceding pull request represented in a
-cumulative temporary branch; see section 20.
+Date: 31 August 2026
+Revision: 14 — adds an explicit, authorized agreement-activation restore
+operation without allowing ordinary activation to revive retired version
+currency; see section 20.
 
 ## 1. Purpose
 
@@ -198,15 +198,15 @@ Published versions MUST NOT be modified in place.
 
 Publishing a version and activating it are distinct acts. A project MAY publish
 multiple immutable versions. Publishing MUST NOT affect coverage, and an
-inactive version MUST NOT be offered for signing. Activation is immediate,
-selects exactly one active and signable version for an agreement, and replaces
-the version that was active before it. A project with no active version has no
-signable agreement.
+inactive version MUST NOT be offered for signing. Ordinary activation is
+immediate, selects exactly one active and signable version for an agreement,
+and replaces the version that was active before it. A project with no active
+version has no signable agreement.
 
 When a project activates a new agreement version, DraCLA MUST preserve all
 earlier versions and their acceptances.
 
-Every activation event MUST carry a `supersedes_coverage` boolean:
+Every ordinary activation event MUST carry a `supersedes_coverage` boolean:
 
 - If `true`, an acceptance of an earlier version MUST NOT provide current
   coverage for a merge decision made after the activation takes effect, and the
@@ -220,8 +220,22 @@ declares it on the activation, consistent with `REQ-AGR-4`. The declaration MUST
 be carried on the append-only activation event, not in mutable configuration,
 because it determines who is covered.
 
-Future-effective or scheduled activations MUST NOT be supported. Contributors
-MUST NOT be shown or allowed to sign a version before it is active.
+An ordinary activation MUST NOT reactivate a version removed from currency by
+an earlier superseding activation. A project MAY instead perform an explicit
+agreement-activation restore that names one prior ordinary activation event.
+The restore MUST be separately attributable and authorized, MUST reinstate exactly the
+active version and accepted-version set established by that named activation,
+and MUST itself be append-only and immediately effective. It MUST NOT infer
+equivalence from agreement text or mutable configuration.
+
+A restore MAY make an earlier acceptance provide coverage again only when that
+acceptance remains the contributor's current signature basis and lost coverage
+solely because its version left the accepted-version set. It MUST NOT revive a
+contributor revocation, a corrected or superseded acceptance, or any other
+independently invalid basis.
+
+Future-effective or scheduled activation or restore MUST NOT be supported.
+Contributors MUST NOT be shown or allowed to sign a version before it is active.
 
 ### REQ-AGR-3: Presentation before acceptance
 
@@ -340,11 +354,11 @@ an idempotent result.
 ### REQ-REV-4: Enforcement after revocation
 
 After revocation, DraCLA MUST report the contributor as not currently covered
-for the selected tuple in every repository where it is enforced. Activating
-another version or changing repository enforcement scope MUST NOT revive an
-earlier acceptance. Coverage resumes only from a later acceptance for that same
-tuple. Existing accepted contributions, other coverage tuples, and historical
-evidence remain unchanged.
+for the selected tuple in every repository where it is enforced. Ordinary
+activation, agreement-activation restore, or a repository enforcement-scope
+change MUST NOT revive an earlier acceptance. Coverage resumes only from a
+later acceptance for that same tuple. Existing accepted contributions, other
+coverage tuples, and historical evidence remain unchanged.
 
 ### REQ-REV-5: Re-signing
 
@@ -788,7 +802,7 @@ The initial release MUST enforce this minimum authorization matrix:
 | Action | Resource and minimum current authority |
 | --- | --- |
 | Connect a project or explicit successor | `admin` on the records repository, and GitHub must authorize the actor to configure every App installation being bound under its current account policies |
-| Publish or activate an agreement; change signer fields, project policy, exemptions, or exemption rules | `admin` on the records repository |
+| Publish, activate, or restore an agreement; change signer fields, project policy, exemptions, or exemption rules | `admin` on the records repository |
 | Authorize or withdraw a records reader, reader snapshot, or continuous reader rule | `admin` on the records repository |
 | Bind, widen, narrow, or remove enforcement scope for a repository | `admin` on that contributing repository |
 | Bind, widen, narrow, or remove an organization-wide selector | organization owner for that organization |
@@ -1195,8 +1209,11 @@ The initial release verification MUST include at least:
   single parent;
 - concurrent append loss followed by semantic revalidation, covering the
   idempotent no-op, valid retry, and conflict outcomes;
-- immediate agreement activation, refusal to sign inactive versions, and a
-  non-superseding activation that does not revive an already invalid acceptance;
+- immediate agreement activation, refusal to sign inactive versions, a
+  non-superseding activation that does not revive an already invalid acceptance,
+  rejection of ordinary retired-version revival, and an authorized restore that
+  reinstates one prior activation state without reviving revoked or superseded
+  signature bases;
 - forward-looking revocation across every earlier version for one coverage
   tuple, including current and later enforcement-scope repositories; a clear
   success explanation; and restoration only through a later acceptance reached
@@ -1266,6 +1283,36 @@ after the revised baseline is approved. Editorial corrections that do not alter
 meaning MAY be made through normal review.
 
 ## 20. Revision history
+
+### Revision 14 — 31 August 2026
+
+PR 23 review exposed that the active-agreement projection could not distinguish
+a never-activated version from one removed by a superseding activation. Merely
+adding a retired-version set would prevent accidental revival but would leave
+projects unable to recover from activating a bad agreement while retaining
+still-current signatures on the prior agreement state. The project owner
+approved an explicit restore operation:
+
+- **Ordinary activation remains monotone with respect to retirement
+  (`REQ-AGR-2`).** It cannot target a version already retired by a superseding
+  activation.
+- **Restore is explicit (`REQ-AGR-2`).** A separately authorized append-only
+  event names one prior ordinary activation and reinstates exactly that
+  activation's active version and accepted-version set.
+- **Signature invalidation remains independent (`REQ-AGR-2`).** Restore changes
+  version currency only; it cannot revive a contributor revocation, correction,
+  superseded signature basis, or another independently invalid acceptance.
+
+*Rationale.* Rollback is an administrative legal-state transition, not evidence
+that two documents mean the same thing. Giving it its own authenticated event
+keeps ordinary activation fail-closed, preserves auditability, and avoids
+inferring equivalence from agreement text.
+
+*Affected:* `REQ-AGR-2`. Interacts with `REQ-AGR-1` (the target activation and
+published versions remain immutable), `REQ-AGR-4` (no interpretation of
+agreement text), `REQ-REV-4` (revocation remains independently effective),
+`REQ-REC-3` (append-only canonical ordering), `REQ-REC-8` (attributable
+administrative changes), and `REQ-SEC-6` (live authorization).
 
 ### Revision 13 — 24 August 2026
 
@@ -1551,7 +1598,10 @@ decided individually by the project owner, and incorporated together:
   and early signing, permits multiple published versions but only one active
   signable version, and defines chained `supersedes_coverage` behavior without
   revival of an already non-current acceptance. This supersedes Revision 2's
-  staged-activation clause.
+  staged-activation clause. Revision 14 narrows the non-revival statement:
+  ordinary activation still cannot revive retired currency, while an explicit
+  restore may reinstate one prior activation state without reviving an
+  independently invalid signature basis.
 - **Commit attribution limitation (`R1-8`).** `REQ-CHECK-2` and
   `REQ-PORTAL-5` identify GitHub's commit-author association as attribution,
   not proof, and explicitly document the residual aggregate coverage oracle.

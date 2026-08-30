@@ -1,8 +1,8 @@
 # DraCLA High-Level Design
 
 Status: Locked
-Date: 29 August 2026
-Requirements baseline: `design/requirements.md` (Locked, revision 13, 24 August 2026)
+Date: 31 August 2026
+Requirements baseline: `design/requirements.md` (Locked, revision 14, 31 August 2026)
 
 This document proposes an implementation architecture for the locked
 requirements baseline. Per `REQ` acceptance section 19, it maps major
@@ -33,7 +33,7 @@ deviates from or defers.
 | D18 | Every mutation freezes its complete authorized operation in one encrypted records-repository cell before acquiring the coverage decision fence | A crash before canonical append must be recoverable without the original browser request, while records plaintext must not enter the coverage capability. The prepared/appending CAS is also the append right, so terminal recovery cannot race a delayed writer. See §5.4. |
 | D11 | Provisioning runs in the `dracla` CLI with the administrator's own credentials, not a third GitHub App | A provisioning App would hold `administration`, `workflows`, and `secrets` write in the adopter's org. `workflows: write` retained is a code-execution channel into their PII repo (DR-011), and an uninstall that fails to fire leaves it. An exact `uvx dracla@<version>` invocation keeps the adoption cost to one versioned command against three consent screens. |
 | D12 | The CLI is the reporting and read-out surface, not just an installer | Gives maintainers a zero-infrastructure path for common queries and demonstrates `REQ-REC-5` directly: the records are readable with the same tool an auditor would use. |
-| D10 | An agreement version declares whether it invalidates prior acceptances | A typo fix and a new patent grant are not the same event. `REQ-AGR-4` forbids inferring legal meaning from agreement text, so DraCLA must not assume every version bump is substantive. Implemented by `REQ-AGR-2`. |
+| D10 | Agreement currency changes are explicit: ordinary activation declares whether it invalidates prior acceptances, while restore names one prior activation state | A typo fix, a new patent grant, and recovery from a bad activation are different acts. `REQ-AGR-4` forbids inferring legal meaning from agreement text, so DraCLA records each choice as an attributable event. Implemented by `REQ-AGR-2`. |
 
 ---
 
@@ -556,7 +556,8 @@ is required. Implementations reject a field belonging to another row.
 | `acceptance` | `coverage_tuple`, `recipient`, `version`, `digest` | `fields`, `confirmations`, `supersedes` (event ID or `null`) |
 | `revocation` | `coverage_tuple` | `effect` fixed to `cutoff_all_prior_versions` |
 | `agreement_published` | `agreement_id`, `version` | `recipient`, `ref`, `content_commit_oid`, `digest`, `snapshot_content_path`, `snapshot_metadata_path`, `snapshot_sha256` |
-| `agreement_activated` | `agreement_id`, `version` | `published_event_id`, `supersedes_coverage` |
+| `agreement_activated` | `agreement_id`, `version` | `published_event_id`, `supersedes_coverage`, `accepted_versions` (non-empty set of version strings) |
+| `agreement_activation_restored` | `agreement_id`, `activation_event_id` | `accepted_versions` (non-empty set copied from the target activation), `reason` |
 | `project_connected` | empty object | `recipient`, `repository_owner`, `project_slug`, `repository_ids`, `bootstrap`, `project_configuration`, `successor_of` (project ID or `null`) |
 | `project_repository_owner_changed` | `prior_repository_owner` | `new_repository_owner`, `project_slug`, `repository_ids`, `registry_commit_oid`, `registry_generation` |
 | `project_succeeded` | `successor_project_id` | `successor_connected_event_id` |
@@ -668,6 +669,7 @@ not a slash-containing token accepted on the wire.
 | `keyring_activated` | `keyring_activate` | `repository` | `project_repository_admin` |
 | `agreement_published` | `agreement_publish` | `repository` | `records_repository_admin` |
 | `agreement_activated` | `agreement_activate` | `repository` | `records_repository_admin` |
+| `agreement_activation_restored` | `agreement_activation_restore` | `repository` | `records_repository_admin` |
 | `config_updated` | `project_config_update` | `repository` | `records_repository_admin` |
 | repository scope bind | `enforcement_scope_repository_bind` | `repository` | `contributing_repository_admin` |
 | repository scope widen | `enforcement_scope_repository_widen` | `repository` | `contributing_repository_admin` |
@@ -791,10 +793,13 @@ Envelope decisions, each closing a specific gap:
   alongside the digest, and `REQ-AGR-1` explicitly permits an immutable content
   reference in place of inlined text (§6.5). The snapshot in `agreements/` is
   what makes the record survive the reference being deleted.
-- **`agreement_published` and `agreement_activated` are separate types.**
-  Publishing preserves any number of immutable versions; activating selects
-  exactly one version as active and signable. Keeping them distinct lets a
-  project prepare a version without exposing it to contributors (§6.5).
+- **`agreement_published`, `agreement_activated`, and
+  `agreement_activation_restored` are separate types.** Publishing preserves
+  any number of immutable versions; activating selects exactly one version as
+  active and signable; restoring deliberately reinstates the currency state
+  established by one prior activation. Keeping them distinct lets a project
+  prepare a version without exposing it to contributors and prevents ordinary
+  activation from becoming an implicit rollback (§6.5).
 - **The published agreement and acceptance target bind immutable recipient
   evidence.** The legal recipient is
   bound into the version and every acceptance rather than read later from
@@ -839,7 +844,9 @@ Envelope decisions, each closing a specific gap:
 **Naming.** `supersedes` (event linkage) and `supersedes_coverage` (agreement
 flag, D10) are unrelated despite the shared word. Implementations should treat
 the latter as `invalidates_prior_acceptances`; the requirement-facing name is
-kept here only to match D10.
+kept here only to match D10. `agreement_activation_restored` is the sole
+currency operation allowed to reintroduce a retired version; it is not a
+synonym for non-superseding activation.
 
 Event files are sharded by `event_id` prefix so existence is a single content
 read rather than a history scan.
@@ -1060,7 +1067,8 @@ users/<shard>.enc.json packed, keyed by user_id:
                              subject_user_id, tree_oid,
                              grant_event_id, active: true } } } }
 agreements/active.enc.json { agreement_id, active_version,
-                          accepted_versions, activation_event_id,
+                          accepted_versions, retired_versions,
+                          activation_event_id,
                           projection_format: 1, shard_count: 32 }
 exemptions.enc.json { "<user_id>": { active: true } }
 .dracla/bootstrap.json       non-secret initial key-discovery manifest (§6.10.2)
@@ -1123,11 +1131,11 @@ recipient plus `(user_id, agreement_id)`. A revocation makes every earlier
 acceptance of every version for that tuple uncovered. A later acceptance
 restores coverage from its canonical position onward. If the latest tuple event
 permits coverage, its acceptance row provides coverage only when its `version` is in
-`agreements/active.enc.json.accepted_versions`. Activation updates that small file
-synchronously: a superseding activation replaces the set with the new version;
-a non-superseding activation adds the new version without reviving versions
-removed by an earlier superseding activation or acceptances cut off by a later
-revocation (§6.5). Enforcement scope is resolved by project routing before any
+`agreements/active.enc.json.accepted_versions`. Activation or explicit restore
+updates that small file synchronously. Ordinary activation cannot reintroduce a
+retired version; restore reinstates one named activation state without changing
+the tuple's latest event, so a later revocation or acceptance supersession remains
+effective (§6.5). Enforcement scope is resolved by project routing before any
 subject row is read; it is not part of the tuple, is not signer evidence, and
 does not live in the row.
 
@@ -1175,7 +1183,7 @@ immutable coverage head, validates the shard blob identity there, and commits
 the complete transition with that head as `expectedHeadOid`. A head mismatch
 writes nothing; the writer re-resolves the branch, re-reads the shard, and
 re-applies only its own key. The blob SHA is validated read evidence, not a
-separate GitHub write precondition. Activations update only
+separate GitHub write precondition. Activations and restores update only
 `agreements/active.enc.json`; they do not rewrite all subject shards (§6.5).
 
 ### 5.4 Freshness guard (`REQ-CHECK-3`, `REQ-CHECK-4`)
@@ -1538,6 +1546,7 @@ event type may be submitted through an authenticated portal form.
 | `keyring_activated` | `keyring_activated` | `keyring_activated` |
 | `agreement_published` | `agreement_published` | `agreement_published` |
 | `agreement_activated` | `agreement_activated` | `agreement_activated` |
+| `agreement_activation_restored` | `agreement_activation_restored` | the named target `agreement_activated`, or an `agreement_activation_restored` that names the same target activation |
 | `enforcement_scope_requested` | fixed `enforcement_scope_requested` → `enforcement_scope_activated` protocol (§7.1) | `enforcement_scope_activated`, whose repeated `desired_scope` exactly equals the form operation |
 | `exemption` | `exemption` | `exemption` |
 | `exemption_snapshot` | `exemption_snapshot` | `exemption_snapshot` |
@@ -1575,6 +1584,15 @@ Its actor, nonce, idempotency key, and `operation_sha256` may differ because it
 is the prior event that made the new submission a no-op; the authenticated form
 separately binds the new actor, nonce, and operation digest.
 
+For an agreement restore no-op, the terminal event must be the current currency
+transition in the replay fold. A target `agreement_activated` qualifies only
+when its event ID is the form's named `activation_event_id`; a prior
+`agreement_activation_restored` qualifies only when it names that same target.
+In either case its resulting or repeated `accepted_versions` must exactly equal
+the requested set. `reason` is attributable audit context for a transition that
+actually writes, not part of currency-state equality. These checks require one
+deterministic event read and never a history scan or agreement-text comparison.
+
 An eligible no-op retry reads that event's deterministic path from the exact
 `confirmed_canonical_oid` commit and verifies those fields; it returns the
 original no-op even if a later event changed current state. It can never enter
@@ -1611,8 +1629,8 @@ projection look fresh — passing a contributor who had already revoked.
 publication, overrides, exemptions, and administrator commits all open and
 close a marker and begin and finish a project-fence mutation — a guard
 that only one code path maintains is a liveness
-signal for that path, not a freshness proof for canonical. Activations carry
-their own project-wide marker, append canonical, update
+signal for that path, not a freshness proof for canonical. Agreement currency
+transitions carry their own project-wide marker, append canonical, update
 `agreements/active.enc.json`, and then close the marker (§6.5), using the same
 open-before-commit, interrupted-operation-recovery lifecycle as every other
 writer.
@@ -1684,9 +1702,10 @@ full observation is the recovery path.
 
 Daily rather than six-hourly because the dispatch path handles failed
 materialization promptly, while opportunistic repair handles most marker
-interruptions. Agreement activation and successful bounded derived-shard updates are
-request-driven; exports are explicit only. Check recovery has the separate enforcer schedule above; team
-observation has no Actions-minute cost. §9.2 gives the remaining cost.
+interruptions. Agreement activation or restore and successful bounded
+derived-shard updates are request-driven; exports are explicit only. Check
+recovery has the separate enforcer schedule above; team observation has no
+Actions-minute cost. §9.2 gives the remaining cost.
 
 That re-drive is a recovery optimization; per `REQ-CHECK-4` core correctness
 does not depend on either driver, because the guard fails closed without them.
@@ -2173,7 +2192,7 @@ that repository administrators may retain a GitHub-supported bypass capability
 claim to; adopter documentation states plainly that a required merge-group check
 constrains everyone except principals the repository's own rules exempt.
 
-### 6.5 Agreement activation (`REQ-AGR-1`, `REQ-AGR-2`, D10)
+### 6.5 Agreement activation and restore (`REQ-AGR-1`, `REQ-AGR-2`, D10)
 
 **An agreement is published by reference, and snapshotted.** `REQ-AGR-1` asks
 for "the exact agreement content **or an immutable content reference**", and the
@@ -2219,7 +2238,8 @@ may be published, but the portal offers none of them for signing until one is
 active.
 
 Activation is immediate and selects exactly one active, signable version. Its
-append-only event carries `supersedes_coverage`:
+append-only event carries `supersedes_coverage` and the exact resulting
+`accepted_versions` set:
 
 - `true` replaces `accepted_versions` with only the newly active version;
   contributors with older acceptances must re-sign.
@@ -2228,17 +2248,63 @@ append-only event carries `supersedes_coverage`:
   activation, but cannot revive a version removed by an earlier superseding
   activation.
 
-The flag lives in the activation event, not in the published snapshot metadata.
-DraCLA never inspects agreement text to choose it. The `agreements/` tree is the
-durable human-readable snapshot; the events remain canonical.
+The portal compares that event set with the authenticated current active
+projection before preparation. For a superseding activation it must equal the
+singleton target version; for a non-superseding activation it must equal the
+current set union the target version. Either ordinary form rejects a target
+already in `retired_versions`. A superseding activation produces:
 
-**The transition uses the ordinary freshness guard and is O(1).** The portal:
+`retired_versions = (current retired_versions ∪ current accepted_versions) − {target version}`
 
-1. validates that the version is published and the actor is authorized;
+A non-superseding activation leaves `retired_versions` unchanged. The active
+version must be a member of `accepted_versions`, and the
+accepted and retired sets are closed, duplicate-free, lexically ordered, and
+disjoint.
+
+The flag and resulting set live in the activation event, not in published
+snapshot metadata. DraCLA never inspects agreement text to choose either. The
+`agreements/` tree is the durable human-readable snapshot; the events remain
+canonical.
+
+**Rollback is a distinct restore event.**
+`agreement_activation_restored` names one earlier `agreement_activated` event
+for the same project and agreement, repeats that event's exact
+`accepted_versions`, and records a non-empty administrator-supplied reason.
+The target event is read from its deterministic canonical event path at the
+confirmed head; it is never selected by timestamp, version ordering, mutable
+configuration, or agreement-text comparison. The restore makes the target
+activation's version active and reinstates exactly its accepted-version set.
+It moves every currently accepted version outside that restored set into
+`retired_versions` and removes the restored set from retirement. The exact
+result is:
+
+`retired_versions = (current retired_versions ∪ current accepted_versions) − restored accepted_versions`
+
+Thus only the explicit restore operation can reintroduce retired currency.
+For either transition, the active projection's legacy-named
+`activation_event_id` records the event that produced its current currency
+state: the ordinary activation ID after activation, or the restore event ID
+after restore. The restore's target activation remains in the canonical restore
+event rather than being conflated with that latest-transition field.
+
+Restore changes version currency, not a contributor's signature history. An
+earlier acceptance provides coverage again only if it is still that
+contributor's current signature basis and was excluded solely by
+`accepted_versions`. A later revocation, correction, superseding acceptance, or
+other independently invalid basis remains effective. This keeps rollback O(1)
+in subject count and avoids rewriting coverage shards.
+
+**Both transitions use the ordinary freshness guard and are O(1).** The
+portal:
+
+1. validates the published target for ordinary activation, or the exact prior
+   activation target for restore, and verifies the actor's action-specific
+   records-repository authorization;
 2. prepares the frozen operation, acquires the mutation fence, and opens
    `{ operation_sha256, started_at, subjects: [], project_wide: true }` in
    `inflight.enc.json`;
-3. appends `agreement_activated` to canonical;
+3. appends `agreement_activated` or `agreement_activation_restored` to
+   canonical;
 4. updates `agreements/active.enc.json` by compare-and-swap and advances
    `source.enc.json` to the canonical commit while preserving the replayed
    project lifecycle fields; and
@@ -2246,7 +2312,7 @@ durable human-readable snapshot; the events remain canonical.
 
 While the marker is open, every check for the project is indeterminate and
 cannot pass. A crash after the canonical append is completed by replay; a crash
-before it leaves the frozen activation prepared for recovery, which revalidates
+before it leaves the frozen activation or restore prepared for recovery, which revalidates
 and continues it or records an explicit terminal no-op/conflict as §5.4 allows.
 It is never discarded because the event is absent or the operation is old. No
 subject shard is rewritten, and the normal transition waits for no scheduler;
@@ -2468,6 +2534,7 @@ conflict inspection has no mutation form or idempotency key.
 | Activate a verified project-key generation | `keyring_activated` | `admin` on every repository whose project-key material changes | Pins the `keys` commit and current records/coverage `kid` values after live and recovery verification (§6.10.2) |
 | Publish a version | `agreement_published` | `admin` on records | Records the immutable recipient, reference, digest, and snapshot (§6.5) |
 | Activate a version | `agreement_activated` | `admin` on records | Selects the active signable version immediately; `supersedes_coverage` decides currency (§6.5) |
+| Restore a prior agreement activation | `agreement_activation_restored` | `admin` on records | Reinstates the exact active version and accepted-version set established by the named activation; ordinary activation cannot do this (§6.5) |
 | Bind, widen, narrow, or remove a repository scope | `enforcement_scope_requested`, then `enforcement_scope_activated` | `admin` on that contributing repository | Publishes one reconciled routing generation; evidence is preserved (§7) |
 | Bind, widen, narrow, or remove an organization selector | `enforcement_scope_requested`, then `enforcement_scope_activated` | owner of that organization | Publishes one reconciled routing generation; evidence is preserved (§7) |
 | Inspect a multiple-project conflict | none (read-only) | `admin` on the affected contributing repository | Shows only the affected repository, matching project IDs and scope entries, and required resolution authorities (§7) |
@@ -5114,9 +5181,9 @@ not provider guarantees. Release telemetry must record both
 observed multipliers and reduce the stated project envelope if either exceeds
 the modelled case.
 
-An agreement activation costs one project-wide marker update and one encrypted
-`agreements/active.enc.json` compare-and-swap regardless of how many contributors
-it affects (§6.5); no shard fold is required, so activation does not appear in
+An agreement activation or restore costs one project-wide marker update and one
+encrypted `agreements/active.enc.json` compare-and-swap regardless of how many
+contributors it affects (§6.5); no shard fold is required, so the transition does not appear in
 the per-subject request budget.
 
 **Result** (Cloudflare requests, normal one-delivery merge-group case,
@@ -5234,10 +5301,10 @@ Daily is defensible because only one scheduled duty is latency-sensitive:
 | From-scratch verification replay | Daily or weekly — it is an integrity check |
 | Derived index/status/reader shards | Affected bounded shards are generated synchronously; the daily run verifies and repairs them |
 | JSON/CSV exports | Never scheduled or mutation-driven; explicit control-workflow or local CLI request only |
-| Agreement activations | Not scheduled; activation is immediate and request-driven (§6.5) |
+| Agreement activations and restores | Not scheduled; each transition is immediate and request-driven (§6.5) |
 | Interrupted mutation recovery | Minutes, ideally — but the Worker repairs opportunistically (§5.4), and an unfinished mutation fails closed |
 
-Keeping activation off the schedule also *improves* correctness: the
+Keeping agreement currency transitions off the schedule also *improves* correctness: the
 project-wide freshness marker blocks checks during the O(1) active-version
 update, leaving no clock-driven transition window.
 
@@ -5279,6 +5346,10 @@ key control, and adopter-controlled recovery. Revision 13, approved on
 24 August 2026, makes merge-queue enforcement independently authoritative per
 pull-request queue entry, removes cumulative predecessor reconstruction, and
 defines completion of each entry's check as its decision time.
+Revision 14, approved on 31 August 2026, adds one explicit authorized agreement
+activation restore. It reinstates the exact currency state of a named prior
+activation while ordinary activation remains unable to revive retired versions;
+it does not revive an independently invalid contributor signature basis.
 
 The 29 August 2026 HLD true-up resolves §6.6's single-row supersession
 contradiction. A signer correction advances the subject-agreement row and
@@ -5287,7 +5358,7 @@ status `superseded`.
 
 | Req | Change | Where |
 |---|---|---|
-| `REQ-AGR-2` | Publishing is separate from immediate activation; only the active version is signable; `supersedes_coverage` never revives a previously invalid acceptance | §6.5, D10 |
+| `REQ-AGR-2` | Publishing is separate from immediate activation; only the active version is signable; ordinary activation never revives retired currency; an explicit authorized restore may reinstate one prior activation state without reviving independently invalid signature bases | §6.5, D10 |
 | `REQ-CHECK-2` | `Co-authored-by` trailers no longer determine a public check result, and are surfaced to authorized viewers instead; exemptions use individual, snapshot, and explicit continuous sources whose effective result is their union; exact PR/tree/subject overrides are consumed from the already-fetched subject shards | §5.3, §6.3, §6.3.1, §6.4, §6.8, D14 |
 | `REQ-CHECK-3`, `REQ-CHECK-4` | Every merge-queue entry resolves and freshly evaluates exactly one associated pull request; preceding entries retain their completed decisions, while a rebuilt entry observes current canonical state; successful publication holds both the coverage fence and a routing-gate publication reservation until GitHub completion is confirmed | §5.4, §6.4, §7.2, §9, A2 |
 | `REQ-SIGN-5` | Every mutating contributor and administrative form is bound to one exact canonical head and action digest; an already-satisfied action binds its terminal canonical event, so a delayed no-op retry cannot become a later write | §5.4, §6.8 |
@@ -5329,7 +5400,7 @@ that requires acknowledgement:
 | `REQ-SEC-1` | **Resolved** — fields derive from config; acceptance and revocation use no edge counter or IP-derived identifier (§5.1, §8.4) |
 | `REQ-CHECK-3` | **Resolved** — admin bypass is documented (§6.4) |
 | `REQ-OPS-3` | **Deviation acknowledged** — the reconciler consumes metered private-repo Actions minutes on the Free baseline (§9); bounded by incremental reconciliation, and must be sized in A3 |
-| `REQ-AGR-2` | **Resolved** — activation is immediate, inactive versions are not signable, and `accepted_versions` implements chained currency without scheduled state (§6.5) |
+| `REQ-AGR-2` | **Resolved** — activation and restore are immediate, inactive versions are not signable, ordinary activation cannot revive retired currency, and explicit restore reinstates one prior activation state without scheduled behavior (§6.5) |
 | `REQ-PORTAL-5` | **Residual risk, not met in spirit** — the public check is an arbitrary-target coverage oracle by construction (§6.3). Its output is bounded and the residual is documented, not claimed closed. |
 | `REQ-CONFIG-1` | **Limitation acknowledged** — two recipients in one org share an installation, so their separation is software-only in the hosted model (§7) |
 | `REQ-REC-3` | **Resolved** — the mandatory README root is created through Contents API initialization, then the actual initial branch is renamed to `events`; wrapped keyrings use a separate `keys` branch and every later `events` commit contains one event (§6.10.1) |
@@ -5357,7 +5428,7 @@ explicitly defer it.
 
 ### 10.5 Baseline status
 
-Resolved. The baseline is **Locked at revision 13** and this document is
+Resolved. The baseline is **Locked at revision 14** and this document is
 written against it. Revision 2 incorporated the two amendments of §10.1;
 revision 3 ratified rules this design had declared on its own authority —
 scope authorization (`REQ-CONFIG-5`, §7), credential lifecycle (`REQ-SEC-9`,
@@ -5389,6 +5460,11 @@ Revision 13 makes the required merge-group check authoritative per pull-request
 queue entry, forbids rediscovering preceding entries from a cumulative
 temporary commit, and treats a rebuilt or newly requested check as a fresh
 decision against current canonical state.
+Revision 14 adds an explicit, separately authorized, append-only agreement
+activation restore that names one prior activation state. Ordinary activation
+cannot target retired currency, and restore does not undo contributor
+revocation, correction, acceptance supersession, or another independently
+invalid signature basis.
 Requirements section 20 records each change with its rationale,
 affected IDs, and what it does not resolve, as section 19 requires.
 

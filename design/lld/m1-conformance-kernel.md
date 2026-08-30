@@ -1,14 +1,14 @@
 # M1 low-level design — conformance kernel
 
 Status: Locked
-Date: 29 August 2026
-Requirements baseline: `design/requirements.md` (Locked, revision 13)
-HLD baseline: `design/high-level-design.md` (Locked, 29 August 2026)
+Date: 31 August 2026
+Requirements baseline: `design/requirements.md` (Locked, revision 14)
+HLD baseline: `design/high-level-design.md` (Locked, 31 August 2026)
 Roadmap milestone: `docs/roadmap.md` M1
 
 ## 1. Purpose
 
-M1 turns the revision-13 byte, schema, identity, replay, and bounded-state
+M1 turns the revision-14 byte, schema, identity, replay, and bounded-state
 contracts into transport-independent libraries and one shared conformance
 corpus. It does not operate a portal, call GitHub, write repository refs,
 publish checks, or provision infrastructure.
@@ -35,7 +35,8 @@ than encoding the implementer's guess.
 ## 2. Scope and decisions realized
 
 M1 directly realizes HLD D4a, D5's projection contract, D6, D7's
-one-recipient/one-agreement data rules, D8, D9, D10's supersession flag, D14,
+one-recipient/one-agreement data rules, D8, D9, D10's explicit agreement
+currency transitions, D14,
 D15, D17's coverage fence, D18's prepared-operation cell, and the data portions
 of D2 and D16. Its governing HLD sections are:
 
@@ -72,7 +73,7 @@ M1 does not implement:
 - the CLI, Hydra composition, administration surface, installer, workflow,
   reconciler driver, or export streaming;
 - Entity CLA events or coverage. The reserved Entity event names remain invalid
-  revision-13 values; and
+  revision-14 values; and
 - a second projection format, configurable shard count, live resharding,
   compression, alternate algorithm, or schema-version negotiation.
 
@@ -88,9 +89,9 @@ and `docs/roadmap.md` before implementation is split.
 | M1-2 — Version 1 encrypted-artifact envelope | Landed in PR #13 | M1-1 | Existing implementation summary only |
 | M1-3 — Wrapped-key copies and canonical keyrings | Ready after LLD review | M1-1, M1-2 | Python keyring bytes, validation, and vectors |
 | M1-4 — Event identity and authorization vocabulary | Planned | M1-1 | Python identity/authorization primitives and vectors |
-| M1-5 — Closed revision-13 event schema and semantic validation | Planned | M1-2, M1-4 | Complete local event validation and vectors |
+| M1-5 — Closed revision-14 event schema and semantic validation | Planned | M1-2, M1-4 | Complete local event validation and vectors |
 | M1-6 — Canonical replay foundation and project/contributor lifecycle | Planned | M1-5 | Replay engine plus foundational lifecycle folds |
-| M1-7 — Administrative, scope, exemption, reader, and override replay | Planned | M1-6 | Complete revision-13 replay fold |
+| M1-7 — Administrative, scope, exemption, reader, and override replay | Planned | M1-6 | Complete revision-14 replay fold |
 | M1-8 — Authenticated action forms and replay-stable no-op bindings | Planned | M1-4, M1-5, M1-7 | Action-form bytes, verification, and terminal binding |
 | M1-9 — Prepared-operation, in-flight, and decision-fence contracts | Planned | M1-2, M1-5, M1-8 | Pure persisted-state models and transitions |
 | M1-10 — Coverage projection contracts and bounded shards | Planned | M1-7, M1-9 | Deterministic coverage materialization and validation |
@@ -141,7 +142,7 @@ from the pre-design modules in `core/dracla/events.py`, `append.py`,
 
 Public exports that are needed by another milestone are re-exported from
 `dracla.conformance`. Internal validators remain module-private. A delivery
-slice may factor private helpers differently, but may not move revision-13
+slice may factor private helpers differently, but may not move revision-14
 behavior back into the legacy modules.
 
 Python is the authoring runtime. `coverage.py` and `derived.py` provide the
@@ -424,7 +425,7 @@ No target/payload union, chronological replay, GitHub authority query, event
 encryption, or append. The PR owns only identity and closed authorization
 vocabulary primitives, vectors, tests, exports, and traceability.
 
-## M1-5 — Closed revision-13 event schema and semantic validation
+## M1-5 — Closed revision-14 event schema and semantic validation
 
 Status: Planned. Depends on M1-2 and M1-4.
 
@@ -446,7 +447,7 @@ Add `events.py` with `ValidatedEvent`, named nested-object models, and:
 - `validate_side_artifact_package(event, artifacts, *, preconditions,
   expected_head) -> None`.
 
-The validator implements all 27 HLD §5.1 event rows and every named nested
+The validator implements all 28 HLD §5.1 event rows and every named nested
 object. It validates exact top-level fields, actor rules, authorization rows,
 confirmed-head rule, event-specific target/payload members, scalar formats,
 ordered sets, configuration fields/confirmations, repository and bootstrap
@@ -548,16 +549,18 @@ rather than recomputing affectedness for this case.
 
 `enforcement_scope_activated` affects no class because `enforcement_scope` is
 stored in neither: it is a read input, so a scope change rewrites no shard and
-advances no generation, exactly as an agreement activation does not.
-`agreement_published`, `agreement_activated`, `config_updated`,
+advances no generation, exactly as an agreement currency transition does not.
+`agreement_published`, `agreement_activated`, `agreement_activation_restored`,
+`config_updated`,
 `keyring_activated`, `project_repository_owner_changed`, `project_succeeded`,
 `enforcement_scope_requested`, `enforcement_scope_abandoned`, `override`,
 `override_withdrawn`, and `retry_requested` change no derived class: overrides
 live only in coverage, and the rest carry no subject row.
 
-`agreement_activated` is in that list deliberately. §6.5 makes activation O(1):
-it updates `agreements/active.enc.json` and `source.enc.json`, and "no subject
-shard is rewritten". Declaring the two subject classes affected would advance
+Both agreement currency events are in that list deliberately. §6.5 makes
+activation and restore O(1): each updates `agreements/active.enc.json` and
+`source.enc.json`, and "no subject shard is rewritten". Declaring the two
+subject classes affected would advance
 their generations and fail every index and status read closed until every
 changed row had been rewritten, turning an O(1) transition into a derived bulk
 rewrite. Version currency is therefore not stored on the derived side at all:
@@ -696,6 +699,26 @@ the events head would prove nothing. Each mode is an authenticated relation the
 locked design already defines. Where the event carries a non-null
 `confirmed_canonical_oid`, it must equal `expected_head` too, so the two
 bindings cannot disagree.
+
+**Agreement currency preconditions are exact-state checks.** An
+`agreement_activated` event requires project-lifecycle evidence, the named
+`agreement_published` event at its deterministic canonical path, and the current
+active-agreement projection. The projection comparison checks the event's
+`accepted_versions` against the exact superseding or non-superseding transition,
+checks `accepted_versions` and `retired_versions` are closed, ordered, unique,
+and disjoint, and rejects an ordinary activation whose target version is
+retired.
+
+An `agreement_activation_restored` event instead requires project-lifecycle
+evidence, the named prior `agreement_activated` event at its deterministic
+canonical path, and the current active-agreement projection. The target must be
+an ordinary activation for the same project and agreement; the restore's
+`accepted_versions` must byte-for-byte equal the target activation's set. The
+current projection supplies the authenticated before-state for the exact
+retirement transition. Both canonical event reads use `events-head`; the active
+projection uses `canonical-sha`. A restore cannot target another restore or
+infer a target from a version, timestamp, agreement text, or mutable
+configuration.
 
 **Reader withdrawals use a shrink-only path.** `records_reader_withdrawn` and
 `records_reader_rule_withdrawn` bind under `events-head` only: the requirement
@@ -862,9 +885,16 @@ invalid event, impossible transition, and any history-dependent relation
 failure as corruption rather than filtering the event.
 
 This slice implements project connection and owner transfer, successor closure,
-configuration and key activation, agreement publication/activation,
+configuration and key activation, agreement publication/activation/restore,
 acceptance, revocation, supersession, immutable recipient/one-agreement rules,
-active/accepted-version semantics, and forward-looking tuple cutoff.
+active/accepted/retired-version semantics, and forward-looking tuple cutoff.
+`ReplayState` retains the active version, accepted-version set,
+retired-version set, and most recent currency-transition event ID. Ordinary
+activation applies the exact set relation carried by its event and rejects a
+retired target. Restore resolves its named ordinary activation from replayed
+canonical state, requires the repeated accepted-version set to match, and
+reinstates that activation's version and accepted set while moving the displaced
+current set into retirement. It never changes a contributor tuple decision.
 
 `ReplayResult` distinguishes a valid fold from corruption and carries the exact
 last event identity needed by projection generations. It does not claim a Git
@@ -905,8 +935,8 @@ A dedicated case asserts every complete valid fold returns an empty
 `unresolved` set, so an implementation cannot quietly start populating it.
 
 Replay vectors cover empty/pre-connect state, initial connection, configuration
-and key changes, multiple publication/activation modes, acceptance,
-revocation, immediate re-signing, correction supersession, recipient and tuple
+and key changes, multiple publication/activation modes, explicit restore,
+acceptance, revocation, immediate re-signing, correction supersession, recipient and tuple
 isolation, owner transfer, successor closure, and allowed post-successor
 maintenance. They prove timestamps cannot reorder outcomes and replaying the
 same valid sequence is deterministic.
@@ -914,8 +944,10 @@ same valid sequence is deterministic.
 Negative sequences cover duplicate/conflicting identities, activation before
 publication, inactive signing, wrong recipient/project/agreement, acceptance
 before connection, invalid supersession, non-current confirmed state, illegal
-post-successor activity, conflicting successor, and version revival after a
-superseding activation.
+post-successor activity, conflicting successor, ordinary version revival after
+a superseding activation, restore of a missing, cross-project, cross-agreement,
+or non-activation target, and a restore set that differs from the target
+activation.
 
 ### Non-goals and PR boundary
 
@@ -933,7 +965,7 @@ truth; `REQ-CONFIG-3`, `REQ-CONFIG-5`, `REQ-CHECK-2`, `REQ-REC-8`, and
 
 ### Owned surface
 
-Complete `ReplayState` and `apply_event` for every remaining revision-13 type:
+Complete `ReplayState` and `apply_event` for every remaining revision-14 type:
 
 - requested/activated/abandoned enforcement scope, with **at most** one
   terminal per request. §7.1 appends the request first and permits registry
@@ -1046,9 +1078,21 @@ returned as a no-op. A scope action validates the repeated desired scope
 directly on `enforcement_scope_activated`. Internal automation and terminal-only
 event types are not form actions.
 
+Agreement restore is the one registry row with two terminal alternatives. The
+named target `agreement_activated` establishes the no-op only when its event ID
+equals the submitted `activation_event_id`; a prior
+`agreement_activation_restored` establishes it only when it names the same
+target. Either event's resulting or repeated `accepted_versions` must equal the
+submitted set exactly. The caller proves that terminal event is the current
+currency transition when issuing the form; retry validation then needs only the
+one bound event read. A restore `reason` is validated and digest-bound for a
+write but is not part of state equality for a no-op.
+
 ### Acceptance evidence
 
-Vectors cover every Table 5.4-A row and terminal alternative, fixed JCS/tag
+Vectors cover every Table 5.4-A row and terminal alternative, including both
+agreement-restore terminals and rejection of a mismatched target or accepted
+set, fixed JCS/tag
 bytes, active/predecessor keys, exact expiry boundaries, constant-time
 verification path, and old no-op forms after later state changes. They prove a
 non-no-op form requires the exact current head while a bound terminal no-op
@@ -1150,7 +1194,8 @@ empty projection before any `agreement_activated` exists, and the §6.3 check
 path reads this file unconditionally. The pre-activation encoding is therefore
 required and is closed here rather than left to each implementation:
 `agreement_id`, `active_version`, and `activation_event_id` are `null`,
-`accepted_versions` is `[]`, `projection_format` is 1, and `shard_count` is 32.
+`accepted_versions` and `retired_versions` are `[]`, `projection_format` is 1,
+and `shard_count` is 32.
 No member is omitted.
 
 This follows §5.1's stated convention that `null` is explicit rather than
@@ -1224,8 +1269,9 @@ new capability; `worker-enforce` reads the derived boolean and never performs
 these transitions. Materializing the union into coverage instead is forbidden:
 it would put provenance inside the enforcement capability.
 
-The tuple cutoff, accepted-version fold, source-aware exemption, and active
-override relation follow the HLD exactly. Override keys and repeated identities
+The tuple cutoff, accepted/retired-version fold, explicit restore,
+source-aware exemption, and active override relation follow the HLD exactly.
+Override keys and repeated identities
 are recomputed. A malformed entry cannot be ignored in favor of an otherwise
 covered row. `CoverageDelta` identifies affected logical files/shards but does
 not write them.
@@ -1235,12 +1281,15 @@ not write them.
 Vectors materialize deterministic empty and populated projections, including
 the pre-activation encoding above and the first activation that replaces it,
 all 32 shard boundaries, multiple agreement versions, revocation/re-signing,
-superseding/non-superseding activation, exemptions, overrides, lifecycle
+superseding/non-superseding activation, restoration of an earlier activation,
+exemptions, overrides, lifecycle
 successor state, subject/project-wide marker effects, and idle/reserved fences.
 
 Negative cases cover wrong format/count/shard, missing/unknown fields, a
-partially populated activation set, a non-null `active_version` with empty
-`accepted_versions`, unsafe or duplicate IDs, malformed scope, source/event
+partially populated activation set, overlapping or unsorted accepted and retired
+sets, a non-null `active_version` with empty `accepted_versions`, ordinary
+retired-version revival, a restore whose target or copied set is invalid, unsafe
+or duplicate IDs, malformed scope, source/event
 mismatch, invalid override key or repeated tuple, forbidden private fields,
 missing lifecycle relation, and every fail-closed marker/fence inconsistency.
 
@@ -1490,47 +1539,47 @@ The `reason_code` vocabulary is exactly:
 | `replay_unresolved` | `indeterminate` | `uncovered` | `indeterminate` |
 
 **Rows store durable facts; `status` and `reason_code` are derived at read.** A
-stored `status` would have to change whenever an activation changed which
+stored `status` would have to change whenever a currency transition changed which
 versions are accepted, and §6.5 forbids rewriting subject shards for that. Each
 agreement entry therefore stores only what canonical history fixes for that
 subject — `version`, `accepted_at`, `revoked_at`, and a `basis` naming the
 signature event and kind (`acceptance`, `revocation`, `none`, or `unresolved`)
 that the row rests on; `event_id` is `null` exactly when `kind` is `none`.
-Those values never change when another subject's agreement is activated.
+Those values never change when agreement currency is activated or restored.
 
 A subject may have no entry for the active agreement — most obviously when an
-administrator exempted them before any agreement was published, since
-`agreement_activated` rewrites no subject shard. The reader synthesizes that row
+administrator exempted them before any agreement was published, since agreement
+activation and restore rewrite no subject shard. The reader synthesizes that row
 rather than writing one: an absent entry is read as `basis.kind` `none` with a
 null version and null timestamps, and the precedence below then yields `exempt`
 and `no_acceptance_recorded` from that class's own exemption evidence — the
 subject's `exemption_sources` union in status detail, the `exempt` boolean in
 the index. The two are materialized from the same union, so they agree.
-Synthesis is O(1) per row and keeps activation free of shard rewrites.
+Synthesis is O(1) per row and keeps currency transitions free of shard rewrites.
 
 `resolve_read_status` produces the pair a reader is served, from the stored
 facts, the coverage `agreements/active.enc.json` object, and the operational
 state. Version currency is read from coverage rather than mirrored into derived
 state: a mirror would advance no class generation, so a stale
-`derived/state.enc.json` from before an activation would still carry matching
+`derived/state.enc.json` from before a currency transition would still carry matching
 generations and valid shard digests and could keep reporting the former version
 as current. The coverage file is the artifact §6.5 step 4 compare-and-swaps
-during activation, and the reader already resolves one immutable coverage head
+during activation or restore, and the reader already resolves one immutable coverage head
 for the marker and fence, so it costs no extra resolution. `worker-portal` holds
 both keys, so no capability changes.
 
 Resolving one coverage head is not by itself enough to make that object fresh. A
-stale or rolled-back coverage ref can name a commit from before an activation
+stale or rolled-back coverage ref can name a commit from before a currency transition
 that still holds an idle fence and the former active version, and because
-activation advances no derived generation the generation and digest checks would
+the transition advances no derived generation, the generation and digest checks would
 all pass. The read therefore requires `source.enc.json.canonical_sha` at the
 resolved coverage head to equal the resolved events head — the same
 `canonical-sha` binding the precondition contract uses — and denies the read on
 any mismatch. §5.4 step 7 advances that value with every mutation, so a coverage
-commit predating an activation cannot satisfy it. Version
+commit predating an activation or restore cannot satisfy it. Version
 currency and operational liveness are both read-time inputs for the same
 reason: neither is a property of the subject's own history. This is why
-activation touches no shard, and why the same `resolve_read_status` already
+currency transitions touch no shard, and why the same `resolve_read_status` already
 carries the operational overlay.
 
 More than one basis can apply at once, so the `reason_code` is selected by this
@@ -1545,13 +1594,14 @@ total order, highest first, and the first that applies wins:
 3. `exempt_source_active` — the subject's exemption source union is non-empty.
    It outranks every remaining code, so an exempt subject reads `exempt` even
    with revoked or superseded acceptance history;
-4. `superseded_by_activation` — an activation removed this acceptance's version
-   from `accepted_versions`. It outranks the next code because §6.6 defines an
+4. `superseded_by_activation` — this acceptance's version is in
+   `retired_versions`, proving a currency transition removed it from
+   `accepted_versions`. It outranks the next code because §6.6 defines an
    acceptance invalidated by an activation as `superseded`, so ranking the
    generic code first would report `revoked` for a normal lifecycle and leave
    this code unreachable;
 5. `version_not_accepted` — an acceptance is current and its version is outside
-   `accepted_versions` for some reason other than an activation;
+   both `accepted_versions` and `retired_versions`;
 6. `revoked_by_contributor`; and
 7. `no_acceptance_recorded`.
 
@@ -1591,12 +1641,13 @@ canonical history where an auditor looks for it.
 signature basis stored — an exemption layered over a revoked or accepted history
 leaves that history intact and visible once the exemption is withdrawn.
 
-`superseded_by_activation` serves the stored acceptance basis, not the
-activation, because the activation rewrites no subject shard and its event ID
+`superseded_by_activation` serves the stored acceptance basis, not the currency
+transition, because the transition rewrites no subject shard and its event ID
 is therefore not in the row. A read does not name the superseding activation at
 all. The active-agreement object carries only `activation_event_id` for the
-most recent activation, which after a superseding V2 followed by a
-non-superseding V3 is V3 — not the activation that invalidated V1 — so
+most recent currency transition. After a superseding V2 followed by a
+non-superseding V3 it is V3, and after a restore it is the restore event — none
+necessarily identifies the activation that invalidated V1 — so
 reporting it would misattribute the supersession. Identifying the exact
 activation requires canonical history, and no bounded read is specified for it;
 `superseded_by_activation` states that an activation invalidated this version,
@@ -1607,15 +1658,16 @@ only its version stopped being current.
 A revoked row does not retain its earlier acceptance timestamp: `accepted_at` is
 non-null only while an acceptance is the current basis, and `revoked_at` only
 for `revoked_by_contributor`. `version_not_accepted` keeps both because the
-acceptance is real and current — only the version is outside
-`accepted_versions`, which is what makes it distinguishable from an unsigned
-subject.
+acceptance is real and current — only the version is outside both
+`accepted_versions` and `retired_versions`, which makes it distinguishable from
+an unsigned subject.
 
-**`superseded` is reachable only through activation.** Under §6.6's fixed
-cardinality of one row per subject per agreement, a signer correction from A1
-to A2 advances the row to A2. A1 remains immutable and auditable in canonical
+**`superseded` is reachable only through an agreement currency transition.**
+Under §6.6's fixed cardinality of one row per subject per agreement, a signer
+correction from A1 to A2 advances the row to A2. A1 remains immutable and auditable in canonical
 history through A2's `supersedes: A1` linkage, but it has no separate dashboard
-row. The reason vocabulary therefore contains `superseded_by_activation` and
+row. The legacy reason vocabulary therefore remains
+`superseded_by_activation` for both activation and restore retirement, and
 intentionally has no `superseded_by_later_acceptance`; this preserves the §9.2
 page and shard sizing.
 
@@ -2154,7 +2206,8 @@ byte-for-byte; rejection cases compare stable error categories. Mutation cases
 change project, purpose, path, kind, schema, canonical encoding, padding, and
 ciphertext/tag, and both runtimes reject every one. Projection-decoder cases
 accept every closed plaintext this milestone defines — including dashboard-index
-subject records — and reject unknown, missing, and mistyped members in each,
+subject records and active-agreement accepted/retired set invariants — and
+reject unknown, missing, and mistyped members in each,
 without computing any update.
 
 ### Non-goals and PR boundary
@@ -2228,7 +2281,8 @@ assertion either. For each requirement the contract names, the Worker reads the
 exact authenticated artifact or deterministic event path at the confirmed
 canonical head and verifies the relation itself, exactly as §5.4 step 0 and the
 step 4 re-check require. Adding a second scope terminal, activating an
-unpublished version, withdrawing an exemption source that is not in the
+unpublished or retired version, restoring a missing or mismatched activation,
+withdrawing an exemption source that is not in the
 subject's union, or acting on a succeeded project therefore fail at the edge
 before the prepared cell is written.
 
@@ -2247,7 +2301,7 @@ cannot make replay accept an impossible event.
 
 ### Acceptance evidence
 
-Both runtimes accept every valid case for all 27 event types and reject every
+Both runtimes accept every valid case for all 28 event types and reject every
 negative case, including cross-row fields, wrong actor or authorization,
 malformed scalars and sets, identity or path mismatch, invalid JCS, unsafe
 numbers, and both reserved Entity names. A registry-agreement test proves the
@@ -2506,7 +2560,7 @@ share the same mistake.
 Each PR is reviewed against its parent and against this LLD. Before submission:
 
 - inspect the complete diff and generated/vector changes;
-- prove legacy plaintext modules did not gain revision-13 behavior;
+- prove legacy plaintext modules did not gain revision-14 behavior;
 - prove no private test value appears in logs or public artifacts;
 - update `design/verification-matrix.md` with requirement/HLD references,
   automated command, test/vector case, and result; and

@@ -1,4 +1,4 @@
-"""Revision-13 event identities, operation nonces, and authorization evidence.
+"""Revision-14 event identities, operation nonces, and authorization evidence.
 
 This module intentionally stops at the identity and authorization boundary.  It
 does not know the v1 event target/payload union (that belongs to ``events``),
@@ -33,7 +33,7 @@ _TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z
 
 
 class EventIdentityError(ValueError):
-    """An event identity input is outside the revision-13 contract."""
+    """An event identity input is outside the revision-14 contract."""
 
 
 class AuthorizationError(EventIdentityError):
@@ -68,6 +68,7 @@ AUTHORIZATION_TABLE: tuple[tuple[str, str, str, str], ...] = (
     ("keyring_activated", "keyring_activate", "repository", "project_repository_admin"),
     ("agreement_published", "agreement_publish", "repository", "records_repository_admin"),
     ("agreement_activated", "agreement_activate", "repository", "records_repository_admin"),
+    ("agreement_activation_restored", "agreement_activation_restore", "repository", "records_repository_admin"),
     ("config_updated", "project_config_update", "repository", "records_repository_admin"),
     ("enforcement_scope_requested", "enforcement_scope_repository_bind", "repository", "contributing_repository_admin"),
     ("enforcement_scope_requested", "enforcement_scope_repository_widen", "repository", "contributing_repository_admin"),
@@ -115,6 +116,7 @@ _EVENT_TYPES = frozenset(
         "revocation",
         "agreement_published",
         "agreement_activated",
+        "agreement_activation_restored",
         "project_connected",
         "project_repository_owner_changed",
         "project_succeeded",
@@ -178,6 +180,7 @@ _FIXED_EVENT_ROWS: Mapping[str, tuple[str, str, str]] = MappingProxyType(
         "project_succeeded": ("project_succeed", "repository", "records_repository_admin"),
         "agreement_published": ("agreement_publish", "repository", "records_repository_admin"),
         "agreement_activated": ("agreement_activate", "repository", "records_repository_admin"),
+        "agreement_activation_restored": ("agreement_activation_restore", "repository", "records_repository_admin"),
         "config_updated": ("project_config_update", "repository", "records_repository_admin"),
         "exemption_snapshot": ("exemption_snapshot_add", "repository", "records_repository_admin"),
         "exemption_source_withdrawn": ("exemption_source_withdraw", "repository", "records_repository_admin"),

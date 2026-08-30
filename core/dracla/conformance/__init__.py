@@ -53,6 +53,25 @@ from .event_identity import (  # noqa: F401
     stable_actor_identity,
     validate_authorizations,
 )
+from .events import (  # noqa: F401
+    Bootstrap,
+    ConfigurationField,
+    CoverageTuple,
+    CurrentKids,
+    EVENT_TYPES,
+    EventValidationError,
+    MembershipEvidence,
+    ProjectConfiguration,
+    Recipient,
+    RepositoryIds,
+    RepositoryOwner,
+    ScopeSelector,
+    Subject,
+    Team,
+    ValidatedEvent,
+    parse_event_jcs,
+    validate_event,
+)
 from .keyrings import (  # noqa: F401
     CAPABILITIES,
     KEYRING_VERSION,

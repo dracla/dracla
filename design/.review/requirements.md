@@ -3,17 +3,17 @@ artifact: swe-design-review-attestation
 schema_version: 2
 scope_key: 4db2ef9e8f4e757bdb28ee17e24742ec883bcf15304114f92b480b6e39de5b67
 scope: {"kind": "path", "primary_target": "design/requirements.md", "repository": "/home/omry/dev/dracla", "selector": "design/requirements.md"}
-review_content_identity_sha256: 7999c98202622c8b2d9f60cc98725d5d5a1545e9ba4f5a2942c74388942ebb9f
-target_content_identity_sha256: 1d97bf7ce96f1fcf73e7aa4e6cafd89d204c80f1abc8e9d611044eead3a3ff7e
-baseline_content_identity_sha256: 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945
-target_documents: [{"path": "design/requirements.md", "repository": "/home/omry/dev/dracla", "sha256": "4fa82854b15bceab81773a78e145f7fe4a7a3827a0587ba2df512c024e9f04e4"}]
+review_content_identity_sha256: ddd45af20a6897193507a9cbea5429de1a34ff5543091c50c71768282a70716f
+target_content_identity_sha256: 8b399d8bd08630dab1217e676f4763e2c1c564387612840a3dff2506cd85e192
+baseline_content_identity_sha256: null
+target_documents: [{"path": "design/requirements.md", "repository": "/home/omry/dev/dracla", "sha256": "eb04181fabcade4a8bc807795b1fba70a012eb935dca2a6d84eca952b3c067df"}]
 baseline_documents: []
 document_repository: "/home/omry/dev/dracla"
 document_path: "design/requirements.md"
-document_revision_provenance: "10356a77f57abf7410a329a8ca3dc7867c621c1e"
-document_sha256: 4fa82854b15bceab81773a78e145f7fe4a7a3827a0587ba2df512c024e9f04e4
+document_revision_provenance: "73d8a754c95923b4cb307bed1cf51415cce3c317"
+document_sha256: eb04181fabcade4a8bc807795b1fba70a012eb935dca2a6d84eca952b3c067df
 verdict: clean
-attested_at: 2026-08-24T11:07:41Z
+attested_at: 2026-08-30T21:41:41Z
 ---
 <!-- swe-design-review-attestation:v2 -->
 
