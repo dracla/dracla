@@ -42,6 +42,10 @@ class PreconditionValidationError(EventValidationError):
     """A precondition declaration is malformed or cannot be bound."""
 
 
+class SideArtifactValidationError(EventValidationError):
+    """An event side-artifact package is not the required package."""
+
+
 EVENT_TYPES = frozenset(
     {
         "acceptance",
@@ -1160,6 +1164,28 @@ class SideArtifactRequirement:
     path: str
     relation: str
     affected_classes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class SideArtifact:
+    """One final plaintext side-artifact entry."""
+
+    kind: str
+    path: str
+    bytes: bytes
+    sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.kind) is not str or not self.kind:
+            _error("side artifact kind must be a non-empty string", SideArtifactValidationError)
+        if type(self.path) is not str or not self.path:
+            _error("side artifact path must be a non-empty string", SideArtifactValidationError)
+        if type(self.bytes) is not bytes:
+            _error("side artifact bytes must be bytes", SideArtifactValidationError)
+        digest = "sha256:" + hashlib.sha256(self.bytes).hexdigest()
+        if self.sha256 is not None and self.sha256 != digest:
+            _error("side artifact digest does not match bytes", SideArtifactValidationError)
+        object.__setattr__(self, "sha256", digest)
 
 
 _AFFECTED_CLASSES: dict[str, tuple[str, ...]] = {
@@ -2332,6 +2358,143 @@ def parse_event_jcs(
     return validate_event(value, expected_project_id=expected_project_id, expected_path=expected_path)
 
 
+def _coerce_side_artifact(value: Any) -> SideArtifact:
+    if isinstance(value, SideArtifact):
+        return value
+    if type(value) is not dict:
+        _error("side artifact entry must be an object", SideArtifactValidationError)
+    allowed = {"kind", "path", "bytes", "bytes_b64", "sha256"}
+    if set(value) - allowed or "kind" not in value or "path" not in value:
+        _error("side artifact entry has missing or extra fields", SideArtifactValidationError)
+    if type(value["kind"]) is not str or not value["kind"]:
+        _error("side artifact kind must be a non-empty string", SideArtifactValidationError)
+    if type(value["path"]) is not str or not value["path"]:
+        _error("side artifact path must be a non-empty string", SideArtifactValidationError)
+    kind = value["kind"]
+    path = value["path"]
+    raw = value.get("bytes")
+    if raw is None:
+        encoded = value.get("bytes_b64")
+        if type(encoded) is not str:
+            _error("side artifact must carry bytes", SideArtifactValidationError)
+        try:
+            from .encoding import base64url_decode
+
+            raw = base64url_decode(encoded, label="bytes_b64")
+        except (Base64UrlError, TypeError):
+            _error("side artifact bytes_b64 is invalid", SideArtifactValidationError)
+    if type(raw) is not bytes:
+        _error("side artifact bytes must be bytes", SideArtifactValidationError)
+    return SideArtifact(kind, path, raw, value.get("sha256"))
+
+
+def _expected_generations(event: ValidatedEvent, prior: Mapping[str, Any] | None, affected: Sequence[str] | None = None) -> dict[str, str]:
+    classes = ("derived_index", "status_detail", "reader_authority")
+    if event.type == "project_connected":
+        return {name: event.event_id for name in classes}
+    if prior is None:
+        _error("generation side artifact lacks prior authenticated generations", SideArtifactValidationError)
+    affected_names = set(affected if affected is not None else _AFFECTED_CLASSES.get(event.type, ()))
+    return {name: event.event_id if name in affected_names else prior[name] for name in classes}
+
+
+def _artifact_map(artifacts: Any) -> dict[str, SideArtifact]:
+    if isinstance(artifacts, Mapping) or isinstance(artifacts, (str, bytes, bytearray)):
+        _error("side artifacts must be an ordered sequence", SideArtifactValidationError)
+    if not isinstance(artifacts, Sequence):
+        _error("side artifacts must be an ordered sequence", SideArtifactValidationError)
+    values = [_coerce_side_artifact(item) for item in artifacts]
+    paths = [item.path for item in values]
+    if len(set(paths)) != len(paths):
+        _error("side artifact paths must be unique", SideArtifactValidationError)
+    if paths != sorted(paths):
+        _error("side artifacts must be ordered by path", SideArtifactValidationError)
+    return {item.path: item for item in values}
+
+
+def _validate_agreement_snapshot(event: ValidatedEvent, artifact: SideArtifact) -> None:
+    payload = event.payload
+    try:
+        artifact.bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        _error("agreement snapshot is not valid UTF-8", SideArtifactValidationError)
+    snapshot_digest = "sha256:" + hashlib.sha256(artifact.bytes).hexdigest()
+    if snapshot_digest != payload["snapshot_sha256"] or snapshot_digest != payload["digest"]:
+        _error("agreement snapshot digest does not match event", SideArtifactValidationError)
+
+
+def _validate_metadata(event: ValidatedEvent, artifact: SideArtifact) -> None:
+    payload = event.payload
+    target = event.target
+    expected = {
+        "metadata_version": 1,
+        "agreement_id": target["agreement_id"],
+        "version": target["version"],
+        "recipient": payload["recipient"],
+        "ref": payload["ref"],
+        "content_commit_oid": payload["content_commit_oid"],
+        "digest": payload["digest"],
+        "snapshot_sha256": payload["snapshot_sha256"],
+    }
+    try:
+        actual = parse_canonical_json(artifact.bytes)
+    except (TypeError, ValueError, RecursionError):
+        _error("agreement metadata is not canonical JSON", SideArtifactValidationError)
+    if type(actual) is not dict or set(actual) != set(expected):
+        _error("agreement metadata has missing or extra fields", SideArtifactValidationError)
+    if type(actual["metadata_version"]) is not int or actual["metadata_version"] != 1:
+        _error("agreement metadata version must be integer 1", SideArtifactValidationError)
+    if actual != expected:
+        _error("agreement metadata does not match event", SideArtifactValidationError)
+
+
+def validate_side_artifact_package(
+    event: ValidatedEvent,
+    artifacts: Any,
+    *,
+    preconditions: Any,
+    expected_head: str,
+) -> None:
+    """Validate exact side-artifact bytes and all supplied history evidence."""
+
+    expected_head = _validate_head(expected_head)
+    if event.confirmed_canonical_oid is not None and event.confirmed_canonical_oid != expected_head:
+        _error("event confirmed head does not match expected head", SideArtifactValidationError)
+    evidence = _validate_preconditions(event, preconditions, expected_head)
+    expected = _side_artifact_requirements(event, evidence)
+    actual = _artifact_map(artifacts)
+    if set(actual) != {item.path for item in expected}:
+        _error("side-artifact package membership does not match event", SideArtifactValidationError)
+    for requirement in expected:
+        artifact = actual[requirement.path]
+        if artifact.kind != requirement.kind:
+            _error("side-artifact kind does not match event", SideArtifactValidationError)
+        if requirement.kind == "agreement_snapshot":
+            _validate_agreement_snapshot(event, artifact)
+        elif requirement.kind == "agreement_metadata":
+            _validate_metadata(event, artifact)
+        elif requirement.kind == "project_config":
+            expected_bytes = canonical_json(_thaw(event.payload["project_configuration"]))
+            if artifact.bytes != expected_bytes:
+                _error("project configuration side artifact does not match event", SideArtifactValidationError)
+        else:
+            prior = None
+            if event.type != "project_connected":
+                prior = evidence["prior-generations"].value
+            expected_generations = _expected_generations(event, prior, _affected_classes_for(event, evidence))
+            try:
+                actual_generations = parse_canonical_json(artifact.bytes)
+            except (TypeError, ValueError, RecursionError):
+                _error("materialization generations are not canonical JSON", SideArtifactValidationError)
+            expected_generations = {"generations_version": 1, **expected_generations}
+            if type(actual_generations) is not dict or set(actual_generations) != set(expected_generations):
+                _error("materialization generations have missing or extra fields", SideArtifactValidationError)
+            if type(actual_generations["generations_version"]) is not int or actual_generations["generations_version"] != 1:
+                _error("materialization generations version must be integer 1", SideArtifactValidationError)
+            if actual_generations != expected_generations:
+                _error("materialization generations do not match event or prior state", SideArtifactValidationError)
+
+
 __all__ = [
     "Bootstrap",
     "ConfigurationField",
@@ -2348,7 +2511,9 @@ __all__ = [
     "PreconditionRequirement",
     "PreconditionEvidence",
     "PreconditionValidationError",
+    "SideArtifact",
     "SideArtifactRequirement",
+    "SideArtifactValidationError",
     "MembershipEvidence",
     "ProjectConfiguration",
     "Recipient",
@@ -2361,5 +2526,6 @@ __all__ = [
     "parse_event_jcs",
     "required_preconditions",
     "required_side_artifacts",
+    "validate_side_artifact_package",
     "validate_event",
 ]
