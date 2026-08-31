@@ -936,7 +936,10 @@ activation applies the exact set relation carried by its event and rejects a
 retired target. Restore resolves its named ordinary activation from replayed
 canonical state, requires the repeated accepted-version set to match, and
 reinstates that activation's version and accepted set while moving the displaced
-current set into retirement. It never changes a contributor tuple decision.
+current set into retirement. The exact transition is
+`retired_versions = (current retired_versions ∪ current accepted_versions) − restored accepted_versions`,
+so every restored accepted version is removed from retirement. Restore never
+changes a contributor tuple decision.
 
 `ReplayResult` distinguishes a valid fold from corruption and carries the exact
 last event identity needed by projection generations. It does not claim a Git
