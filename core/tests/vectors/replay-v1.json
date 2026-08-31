@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "contract": "canonical-replay-foundation",
+  "base_commit_oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "valid_cases": [
+    {
+      "name": "empty",
+      "project_id": "project-1",
+      "record_types": [],
+      "expected_project_state": "unconnected",
+      "expected_unresolved": []
+    },
+    {
+      "name": "connection",
+      "project_id": "project-1",
+      "record_types": ["project_connected"],
+      "expected_project_state": "active",
+      "expected_unresolved": []
+    },
+    {
+      "name": "connect-publish-activate",
+      "project_id": "project-1",
+      "record_types": ["project_connected", "agreement_published", "agreement_activated"],
+      "expected_project_state": "active",
+      "expected_active_version": "1",
+      "expected_accepted_versions": ["1"],
+      "expected_retired_versions": [],
+      "expected_unresolved": []
+    },
+    {
+      "name": "config-and-keyring",
+      "project_id": "project-1",
+      "record_types": ["project_connected", "config_updated", "keyring_activated"],
+      "expected_project_state": "active",
+      "expected_keyring_generation": 2,
+      "expected_unresolved": []
+    },
+    {
+      "name": "accepted-version-reactivation",
+      "project_id": "project-1",
+      "record_types": ["project_connected", "agreement_published", "agreement_activated", "agreement_published", "agreement_activated", "agreement_activated"],
+      "expected_project_state": "active",
+      "expected_active_version": "1",
+      "expected_accepted_versions": ["1", "2"],
+      "expected_retired_versions": [],
+      "expected_unresolved": []
+    },
+    {
+      "name": "activation-modes-restore",
+      "project_id": "project-1",
+      "record_types": ["project_connected", "agreement_published", "agreement_activated", "agreement_published", "agreement_activated", "agreement_published", "agreement_activated", "agreement_activation_restored"],
+      "expected_project_state": "active",
+      "expected_active_version": "2",
+      "expected_accepted_versions": ["2"],
+      "expected_retired_versions": ["1", "3"],
+      "expected_unresolved": []
+    },
+    {
+      "name": "tuple-cutoff-resign-correction",
+      "project_id": "project-1",
+      "record_types": ["project_connected", "agreement_published", "agreement_activated", "acceptance", "revocation", "acceptance", "acceptance"],
+      "expected_project_state": "active",
+      "expected_active_version": "1",
+      "expected_accepted_versions": ["1"],
+      "expected_latest_decision": "covered",
+      "expected_unresolved": []
+    },
+    {
+      "name": "tuple-isolation",
+      "project_id": "project-1",
+      "record_types": ["project_connected", "agreement_published", "agreement_activated", "acceptance", "acceptance"],
+      "expected_project_state": "active",
+      "expected_active_version": "1",
+      "expected_accepted_versions": ["1"],
+      "expected_latest_decision": "covered",
+      "expected_unresolved": []
+    },
+    {
+      "name": "owner-transfer-successor-maintenance",
+      "project_id": "project-1",
+      "record_types": ["project_connected", "project_repository_owner_changed", "agreement_published", "agreement_activated", "acceptance", "project_succeeded", "keyring_activated", "revocation"],
+      "expected_project_state": "succeeded",
+      "expected_active_version": "1",
+      "expected_accepted_versions": ["1"],
+      "expected_retired_versions": [],
+      "expected_successor_project_id": "successor-project",
+      "expected_unresolved": []
+    },
+    {
+      "name": "timestamps",
+      "project_id": "project-1",
+      "record_types": ["project_connected", "agreement_published", "agreement_activated"],
+      "expected_project_state": "active",
+      "expected_active_version": "1",
+      "expected_accepted_versions": ["1"],
+      "expected_unresolved": []
+    }
+  ],
+  "negative_cases": [
+    {"name": "wrong-project", "failure": "event belongs to another project"},
+    {"name": "broken-ancestry", "failure": "canonical event ancestry does not continue the current head"},
+    {"name": "duplicate-event-id", "failure": "duplicate event identity"},
+    {"name": "idempotency-fingerprint-conflict", "failure": "conflicting operation fingerprint"},
+    {"name": "duplicate-commit", "failure": "duplicate commit"},
+    {"name": "base-commit-reuse", "failure": "base commit"},
+    {"name": "activation-before-publication", "failure": "second or unknown agreement"},
+    {"name": "inactive-signing", "failure": "inactive agreement version"},
+    {"name": "wrong-recipient", "failure": "immutable legal recipient"},
+    {"name": "wrong-agreement", "failure": "second or unknown agreement"},
+    {"name": "acceptance-before-connection", "failure": "project connection"},
+    {"name": "invalid-supersession", "failure": "current tuple acceptance"},
+    {"name": "non-current-confirmed", "failure": "confirmed at its canonical parent"},
+    {"name": "illegal-post-success", "failure": "forbidden after project success"},
+    {"name": "conflicting-successor", "failure": "requires an active"},
+    {"name": "ordinary-retired-revival", "failure": "retired version"},
+    {"name": "restore-missing-target", "failure": "earlier ordinary activation"},
+    {"name": "restore-cross-project", "failure": "another project"},
+    {"name": "restore-cross-agreement", "failure": "second or unknown agreement"},
+    {"name": "restore-non-activation", "failure": "ordinary activation"},
+    {"name": "restore-set-mismatch", "failure": "accepted versions"},
+    {"name": "m1-7-out-of-scope", "failure": "M1-7"}
+  ]
+}
