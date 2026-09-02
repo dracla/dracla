@@ -1,4 +1,4 @@
-"""Revision-13 conformance primitives.
+"""Revision-14 conformance primitives.
 
 This package is deliberately separate from the legacy plaintext protocol
 spike.  Its public values are byte-level contracts shared by every DraCLA
@@ -109,4 +109,24 @@ from .keyrings import (  # noqa: F401
     unwrap_key_copy,
     wrap_key_copy,
     wrapped_key_aad,
+)
+from .replay import (  # noqa: F401
+    ActiveAgreement,
+    AgreementActivation,
+    AgreementPublication,
+    CanonicalEventRecord,
+    ContributorTupleDecision,
+    ProjectLifecycle,
+    ReplayCorruptionError,
+    ReplayError,
+    ReplayResult,
+    ReplayState,
+    active_agreement,
+    apply_event,
+    current_configuration,
+    effective_contributor_tuple_decision,
+    initial_replay_state,
+    latest_contributor_tuple_decision,
+    project_lifecycle,
+    replay_events,
 )
