@@ -118,6 +118,6 @@
     {"name": "restore-cross-agreement", "failure": "second or unknown agreement"},
     {"name": "restore-non-activation", "failure": "ordinary activation"},
     {"name": "restore-set-mismatch", "failure": "accepted versions"},
-    {"name": "m1-7-out-of-scope", "failure": "M1-7"}
+    {"name": "m1-7-out-of-scope", "failure": "not enabled"}
   ]
 }
