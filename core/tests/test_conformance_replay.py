@@ -20,21 +20,30 @@ from dracla.conformance import (  # noqa: E402
     AgreementPublication,
     CanonicalEventRecord,
     ContributorTupleDecision,
+    EffectiveEnforcementScope,
+    OverrideGrant,
     ProjectLifecycle,
     ReplayCorruptionError,
     ReplayError,
     ReplayResult,
     ReplayState,
+    ScopeRequest,
     active_agreement,
+    active_overrides,
     apply_event,
     base64url_encode,
     current_configuration,
+    derive_github_retry_nonce,
+    derive_scope_terminal_nonce,
     derive_event_identity,
+    effective_enforcement_scope,
     effective_contributor_tuple_decision,
     initial_replay_state,
     latest_contributor_tuple_decision,
     project_lifecycle,
     replay_events,
+    retry_event_ids,
+    scope_request,
     validate_event,
 )
 
@@ -137,6 +146,66 @@ class TestCanonicalReplay(unittest.TestCase):
                 item["resource_id"] = 12
             elif item["operation"].endswith("control_repository"):
                 item["resource_id"] = 13
+        return self.validate(value)
+
+    def scope_terminal_event(self, event_type, request, **changes):
+        value = copy.deepcopy(self.rows[event_type])
+        value["target"]["change_id"] = request.target["change_id"]
+        value["payload"]["request_event_id"] = request.event_id
+        if event_type == "enforcement_scope_activated":
+            value["payload"]["desired_scope"] = copy.deepcopy(
+                request.to_dict()["payload"]["desired_scope"]
+            )
+        value["authorizations"] = [item.to_dict() for item in request.authorizations]
+        for path, replacement in changes.items():
+            target = value
+            parts = path.split(".")
+            for part in parts[:-1]:
+                target = target[part]
+            target[parts[-1]] = copy.deepcopy(replacement)
+        value["operation_nonce"] = derive_scope_terminal_nonce(request.event_id, event_type)
+        return self.validate(value)
+
+    def scope_request_event(
+        self,
+        nonce,
+        operation,
+        prior_scope,
+        desired_scope,
+        prior_generation,
+        change_id,
+        resource_id,
+    ):
+        value = copy.deepcopy(self.rows["enforcement_scope_requested"])
+        value["operation_nonce"] = base64url_encode(int(nonce).to_bytes(16, "big"))
+        value["target"]["change_id"] = change_id
+        value["payload"]["prior_scope"] = copy.deepcopy(prior_scope)
+        value["payload"]["desired_scope"] = copy.deepcopy(desired_scope)
+        value["payload"]["prior_registry_generation"] = prior_generation
+        kind = "organization" if "_organization_" in operation else "repository"
+        authorization = value["authorizations"][0]
+        authorization["operation"] = operation
+        authorization["resource_kind"] = kind
+        authorization["resource_id"] = resource_id
+        authorization["required_authority"] = (
+            "organization_owner" if kind == "organization" else "contributing_repository_admin"
+        )
+        return self.validate(value)
+
+    def retry_event(self, **changes):
+        value = copy.deepcopy(self.rows["retry_requested"])
+        for path, replacement in changes.items():
+            target = value
+            parts = path.split(".")
+            for part in parts[:-1]:
+                target = target[part]
+            target[parts[-1]] = copy.deepcopy(replacement)
+        value["operation_nonce"] = derive_github_retry_nonce(
+            value["target"]["repository_id"],
+            value["target"]["check_kind"],
+            value["target"]["check_identity"],
+            value["payload"]["github_delivery_id"],
+        )
         return self.validate(value)
 
     def successor_owner_transfer_event(self, prior, nonce, generation, registry_commit_oid):
@@ -566,7 +635,7 @@ class TestCanonicalReplay(unittest.TestCase):
         return self.negative_result(records)
 
     def negative_m17(self):
-        event = self.event("enforcement_scope_requested", 276)
+        event = self.event("exemption", 276)
         return self.negative_result([self.record(event, BASE, 1)])
 
     def test_timestamp_does_not_order_records(self):
@@ -1213,6 +1282,541 @@ class TestCanonicalReplay(unittest.TestCase):
                 ),
             )
         self.assertIsNone(effective_contributor_tuple_decision(state, key))
+
+    def test_scope_pending_activation_abandonment_and_queries(self):
+        records = []
+        self.append(records, "project_connected", 500)
+        request = self.append(records, "enforcement_scope_requested", 501)
+
+        pending = replay_events("project-1", BASE, records)
+        self.assertTrue(pending.valid, pending.error)
+        request_state = scope_request(pending.state, request.event_id)
+        self.assertIsInstance(request_state, ScopeRequest)
+        self.assertTrue(request_state.pending)
+        self.assertEqual(request_state.change_id, "change-org")
+        self.assertEqual(request_state.prior_registry_generation, 0)
+        scope = effective_enforcement_scope(pending.state)
+        self.assertIsInstance(scope, EffectiveEnforcementScope)
+        self.assertEqual(scope.selectors, ())
+        self.assertEqual(scope.registry_generation, 0)
+        self.assertIsNone(scope.activation_event_id)
+
+        activation = self.scope_terminal_event("enforcement_scope_activated", request)
+        records.append(self.record(activation, records[-1].commit_oid, len(records) + 1))
+        activated = replay_events("project-1", BASE, records)
+        self.assertTrue(activated.valid, activated.error)
+        scope = effective_enforcement_scope(activated.state)
+        self.assertEqual(scope.selectors, tuple(request.payload["desired_scope"]))
+        self.assertEqual(scope.registry_generation, 1)
+        self.assertEqual(scope.activation_event_id, activation.event_id)
+        self.assertEqual(scope_request(activated.state, request.event_id).terminal_kind, "activated")
+        immutable, error = self.immutable_fold_result(records)
+        self.assertIsNone(error)
+        self.assertEqual(activated.state, immutable)
+        with self.assertRaises(TypeError):
+            scope.selectors[0]["organization_id"] = 99
+
+        abandoned_records = records[:1]
+        abandoned_request = self.append(
+            abandoned_records,
+            "enforcement_scope_requested",
+            502,
+            **{"target.change_id": "change-abandoned"},
+        )
+        abandonment = self.scope_terminal_event(
+            "enforcement_scope_abandoned", abandoned_request
+        )
+        abandoned_records.append(
+            self.record(
+                abandonment,
+                abandoned_records[-1].commit_oid,
+                len(abandoned_records) + 1,
+            )
+        )
+        abandoned = replay_events("project-1", BASE, abandoned_records)
+        self.assertTrue(abandoned.valid, abandoned.error)
+        self.assertEqual(
+            scope_request(abandoned.state, abandoned_request.event_id).terminal_kind,
+            "abandoned",
+        )
+        self.assertEqual(effective_enforcement_scope(abandoned.state).selectors, ())
+
+    def test_all_scope_operations_bind_one_changed_selector(self):
+        repository = {
+            "kind": "repository",
+            "repository_id": 31,
+            "owner_snapshot": "owner",
+            "name_snapshot": "repo-31",
+        }
+        organization = {
+            "kind": "organization",
+            "organization_id": 41,
+            "login_snapshot": "org-41",
+        }
+        cases = (
+            ("enforcement_scope_repository_bind", [], [repository], repository),
+            (
+                "enforcement_scope_repository_widen",
+                [organization],
+                [organization, repository],
+                repository,
+            ),
+            (
+                "enforcement_scope_repository_narrow",
+                [organization, repository],
+                [organization],
+                repository,
+            ),
+            ("enforcement_scope_repository_remove", [repository], [], repository),
+            ("enforcement_scope_organization_bind", [], [organization], organization),
+            (
+                "enforcement_scope_organization_widen",
+                [repository],
+                [organization, repository],
+                organization,
+            ),
+            (
+                "enforcement_scope_organization_narrow",
+                [organization, repository],
+                [repository],
+                organization,
+            ),
+            ("enforcement_scope_organization_remove", [organization], [], organization),
+        )
+        connected_record = self.record(self.event("project_connected", 510), BASE, 1)
+        connected = replay_events("project-1", BASE, [connected_record]).state
+        for offset, (operation, prior, desired, selector) in enumerate(cases, start=1):
+            with self.subTest(operation=operation):
+                resource_id = selector.get("repository_id", selector.get("organization_id"))
+                request = self.scope_request_event(
+                    510 + offset,
+                    operation,
+                    prior,
+                    desired,
+                    7,
+                    f"change-{offset}",
+                    resource_id,
+                )
+                state = replace(
+                    connected,
+                    enforcement_scope=tuple(prior),
+                    enforcement_scope_registry_generation=7,
+                )
+                result = apply_event(state, self.record(request, state.current_head_oid, offset + 1))
+                self.assertTrue(scope_request(result, request.event_id).pending)
+
+    def test_scope_terminal_corruption_edges_have_apply_parity(self):
+        records = []
+        self.append(records, "project_connected", 540)
+        request = self.append(records, "enforcement_scope_requested", 541)
+        activation = self.scope_terminal_event("enforcement_scope_activated", request)
+        good = records + [self.record(activation, records[-1].commit_oid, 3)]
+
+        second_terminal = self.scope_terminal_event("enforcement_scope_abandoned", request)
+        reason = self.assert_replay_apply_corruption_parity(
+            good + [self.record(second_terminal, good[-1].commit_oid, 4)]
+        )
+        self.assertIn("more than one terminal", reason)
+
+        mismatched = self.scope_terminal_event(
+            "enforcement_scope_activated",
+            request,
+            **{
+                "payload.desired_scope": [
+                    {
+                        "kind": "organization",
+                        "organization_id": 41,
+                        "login_snapshot": "org-41",
+                    },
+                    {
+                        "kind": "repository",
+                        "repository_id": 31,
+                        "owner_snapshot": "owner",
+                        "name_snapshot": "repo-31",
+                    }
+                ]
+            },
+        )
+        reason = self.assert_replay_apply_corruption_parity(
+            records + [self.record(mismatched, records[-1].commit_oid, 3)]
+        )
+        self.assertIn("desired scope", reason)
+
+        stale_generation = self.scope_terminal_event(
+            "enforcement_scope_activated",
+            request,
+            **{"payload.registry_generation": 0},
+        )
+        reason = self.assert_replay_apply_corruption_parity(
+            records + [self.record(stale_generation, records[-1].commit_oid, 3)]
+        )
+        self.assertIn("does not advance", reason)
+
+        duplicate_change = self.scope_request_event(
+            542,
+            "enforcement_scope_organization_bind",
+            [],
+            [dict(item) for item in request.payload["desired_scope"]],
+            0,
+            request.target["change_id"],
+            41,
+        )
+        reason = self.assert_replay_apply_corruption_parity(
+            records + [self.record(duplicate_change, records[-1].commit_oid, 3)]
+        )
+        self.assertIn("change ID", reason)
+
+        wrong_relation_value = self.rows["enforcement_scope_abandoned"]
+        wrong_relation = copy.deepcopy(wrong_relation_value)
+        wrong_relation["target"]["change_id"] = request.target["change_id"]
+        wrong_relation["payload"]["request_event_id"] = request.event_id
+        wrong_authorization = wrong_relation["authorizations"][0]
+        wrong_authorization["operation"] = "enforcement_scope_organization_remove"
+        wrong_authorization["resource_kind"] = "organization"
+        wrong_authorization["resource_id"] = 41
+        wrong_authorization["required_authority"] = "organization_owner"
+        wrong_relation["operation_nonce"] = derive_scope_terminal_nonce(
+            request.event_id, "enforcement_scope_abandoned"
+        )
+        wrong_relation = self.validate(wrong_relation)
+        reason = self.assert_replay_apply_corruption_parity(
+            records + [self.record(wrong_relation, records[-1].commit_oid, 3)]
+        )
+        self.assertIn("authorization relation", reason)
+
+    def test_scope_registry_commit_cannot_be_reused(self):
+        records = []
+        self.append(records, "project_connected", 550)
+        first_request = self.append(records, "enforcement_scope_requested", 551)
+        first_activation = self.scope_terminal_event("enforcement_scope_activated", first_request)
+        records.append(self.record(first_activation, records[-1].commit_oid, 3))
+        current_scope = [dict(item) for item in first_request.payload["desired_scope"]]
+        second_request = self.scope_request_event(
+            552,
+            "enforcement_scope_organization_remove",
+            current_scope,
+            [],
+            1,
+            "change-remove",
+            41,
+        )
+        records.append(self.record(second_request, records[-1].commit_oid, 4))
+        second_activation = self.scope_terminal_event(
+            "enforcement_scope_activated",
+            second_request,
+            **{
+                "payload.registry_generation": 2,
+                "payload.registry_commit_oid": first_activation.payload["registry_commit_oid"],
+            },
+        )
+        reason = self.assert_replay_apply_corruption_parity(
+            records + [self.record(second_activation, records[-1].commit_oid, 5)]
+        )
+        self.assertIn("reuses a registry commit", reason)
+
+    def test_owner_transfer_advances_scope_registry_generation(self):
+        records = []
+        self.append(records, "project_connected", 555)
+        owner = self.owner_transfer_event(556)
+        records.append(self.record(owner, records[-1].commit_oid, 2))
+        request = self.scope_request_event(
+            557,
+            "enforcement_scope_organization_bind",
+            [],
+            [
+                {
+                    "kind": "organization",
+                    "organization_id": 41,
+                    "login_snapshot": "org-41",
+                }
+            ],
+            1,
+            "change-after-owner-transfer",
+            41,
+        )
+        records.append(self.record(request, records[-1].commit_oid, 3))
+        result = replay_events("project-1", BASE, records)
+        self.assertTrue(result.valid, result.error)
+        self.assertEqual(
+            effective_enforcement_scope(result.state).registry_generation,
+            1,
+        )
+
+        activated_records = []
+        self.append(activated_records, "project_connected", 558)
+        first_request = self.append(
+            activated_records, "enforcement_scope_requested", 559
+        )
+        activation = self.scope_terminal_event(
+            "enforcement_scope_activated", first_request
+        )
+        activated_records.append(
+            self.record(activation, activated_records[-1].commit_oid, 3)
+        )
+        stale_owner = self.owner_transfer_event(560)
+        reason = self.assert_replay_apply_corruption_parity(
+            activated_records
+            + [self.record(stale_owner, activated_records[-1].commit_oid, 4)]
+        )
+        self.assertIn("does not advance current registry state", reason)
+
+        owner_value = stale_owner.to_dict()
+        owner_value["operation_nonce"] = base64url_encode((561).to_bytes(16, "big"))
+        owner_value["payload"]["registry_generation"] = 2
+        owner_value["payload"]["registry_commit_oid"] = "c" * 40
+        advancing_owner = self.validate(owner_value)
+        activated_records.append(
+            self.record(advancing_owner, activated_records[-1].commit_oid, 4)
+        )
+        current_scope = [dict(item) for item in first_request.payload["desired_scope"]]
+        next_request = self.scope_request_event(
+            562,
+            "enforcement_scope_organization_remove",
+            current_scope,
+            [],
+            2,
+            "change-after-scope-and-owner-transfer",
+            41,
+        )
+        activated_records.append(
+            self.record(next_request, activated_records[-1].commit_oid, 5)
+        )
+        result = replay_events("project-1", BASE, activated_records)
+        self.assertTrue(result.valid, result.error)
+        self.assertEqual(
+            effective_enforcement_scope(result.state).registry_generation,
+            2,
+        )
+
+    def test_override_grant_withdrawal_and_retry_audit(self):
+        records = []
+        self.append(records, "project_connected", 560)
+        grant = self.append(
+            records,
+            "override",
+            561,
+            **{
+                "payload.subjects": [
+                    {"github_user_id": 7, "login_snapshot": "contributor"},
+                    {"github_user_id": 8, "login_snapshot": "second"},
+                ]
+            },
+        )
+        retry = self.retry_event()
+        records.append(self.record(retry, records[-1].commit_oid, 3))
+        state = replay_events("project-1", BASE, records).state
+        grants = active_overrides(state, 11, 1, "a" * 40)
+        self.assertEqual(len(grants), 1)
+        self.assertIsInstance(grants[0], OverrideGrant)
+        self.assertEqual(grants[0].event_id, grant.event_id)
+        self.assertEqual(grants[0].key_inputs, (11, 1, "a" * 40))
+        self.assertEqual([item["github_user_id"] for item in grants[0].subjects], [7, 8])
+        self.assertEqual(retry_event_ids(state), (retry.event_id,))
+
+        withdrawal = self.event(
+            "override_withdrawn",
+            562,
+            **{"target.override_event_id": grant.event_id},
+        )
+        records.append(self.record(withdrawal, records[-1].commit_oid, 4))
+        folded = replay_events("project-1", BASE, records)
+        self.assertTrue(folded.valid, folded.error)
+        self.assertEqual(active_overrides(folded.state), ())
+        retained = folded.state.override_grants[grant.event_id]
+        self.assertFalse(retained.active)
+        self.assertEqual(retained.withdrawal_event_id, withdrawal.event_id)
+        self.assertEqual(folded.state.to_dict()["retry_events"], [retry.event_id])
+        immutable, error = self.immutable_fold_result(records)
+        self.assertIsNone(error)
+        self.assertEqual(folded.state, immutable)
+
+    def test_override_and_retry_corruption_and_successor_rules(self):
+        records = []
+        self.append(records, "project_connected", 570)
+        missing = self.event(
+            "override_withdrawn",
+            571,
+            **{"target.override_event_id": "A" * 43},
+        )
+        self.assertIn(
+            "earlier grant",
+            self.assert_replay_apply_corruption_parity(
+                records + [self.record(missing, records[-1].commit_oid, 2)]
+            ),
+        )
+
+        grant = self.append(records, "override", 572)
+        wrong_relation_value = copy.deepcopy(self.rows["override_withdrawn"])
+        wrong_relation_value["operation_nonce"] = base64url_encode((573).to_bytes(16, "big"))
+        wrong_relation_value["target"]["override_event_id"] = grant.event_id
+        wrong_relation_value["authorizations"][0]["resource_id"] = 99
+        wrong_relation = self.validate(wrong_relation_value)
+        self.assertIn(
+            "target repository",
+            self.assert_replay_apply_corruption_parity(
+                records + [self.record(wrong_relation, records[-1].commit_oid, 3)]
+            ),
+        )
+
+        withdrawal = self.event(
+            "override_withdrawn", 574, **{"target.override_event_id": grant.event_id}
+        )
+        records.append(self.record(withdrawal, records[-1].commit_oid, 3))
+        repeated = self.event(
+            "override_withdrawn", 575, **{"target.override_event_id": grant.event_id}
+        )
+        self.assertIn(
+            "more than one withdrawal",
+            self.assert_replay_apply_corruption_parity(
+                records + [self.record(repeated, records[-1].commit_oid, 4)]
+            ),
+        )
+
+        succeeded = []
+        self.append(succeeded, "project_connected", 580)
+        self.append(succeeded, "project_succeeded", 581)
+        retry = self.retry_event(**{"payload.github_delivery_id": "after-success"})
+        succeeded.append(self.record(retry, succeeded[-1].commit_oid, 3))
+        allowed = replay_events("project-1", BASE, succeeded)
+        self.assertTrue(allowed.valid, allowed.error)
+        forbidden_grant = self.event("override", 582)
+        result = replay_events(
+            "project-1",
+            BASE,
+            succeeded + [self.record(forbidden_grant, succeeded[-1].commit_oid, 4)],
+        )
+        self.assertIn("forbidden after project success", result.reason)
+
+    def test_override_subject_projection_keys_cannot_overlap(self):
+        records = []
+        self.append(records, "project_connected", 585)
+        first = self.append(records, "override", 586)
+        second = self.append(
+            records,
+            "override",
+            587,
+            **{
+                "payload.subjects": [
+                    {"github_user_id": 8, "login_snapshot": "second"}
+                ]
+            },
+        )
+        overlapping = self.event(
+            "override",
+            588,
+            **{
+                "payload.subjects": [
+                    {"github_user_id": 7, "login_snapshot": "contributor"},
+                    {"github_user_id": 8, "login_snapshot": "second"},
+                ]
+            },
+        )
+        reason = self.assert_replay_apply_corruption_parity(
+            records + [self.record(overlapping, records[-1].commit_oid, 4)]
+        )
+        self.assertIn("overlaps an active subject projection key", reason)
+
+        withdrawal = self.event(
+            "override_withdrawn",
+            589,
+            **{"target.override_event_id": first.event_id},
+        )
+        records.append(self.record(withdrawal, records[-1].commit_oid, 4))
+        replacement = self.append(records, "override", 599)
+        result = replay_events("project-1", BASE, records)
+        self.assertTrue(result.valid, result.error)
+        self.assertEqual(
+            [grant.event_id for grant in active_overrides(result.state)],
+            [second.event_id, replacement.event_id],
+        )
+        immutable, error = self.immutable_fold_result(records)
+        self.assertIsNone(error)
+        self.assertEqual(result.state, immutable)
+
+    def test_scope_narrow_and_abandonment_remain_valid_after_success(self):
+        records = []
+        self.append(records, "project_connected", 590)
+        initial_request = self.append(records, "enforcement_scope_requested", 591)
+        initial_activation = self.scope_terminal_event(
+            "enforcement_scope_activated", initial_request
+        )
+        records.append(self.record(initial_activation, records[-1].commit_oid, 3))
+        organization_scope = [dict(item) for item in initial_request.payload["desired_scope"]]
+        repository = {
+            "kind": "repository",
+            "repository_id": 31,
+            "owner_snapshot": "owner",
+            "name_snapshot": "repo-31",
+        }
+        expanded_scope = [*organization_scope, repository]
+        widen_request = self.scope_request_event(
+            592,
+            "enforcement_scope_repository_widen",
+            organization_scope,
+            expanded_scope,
+            1,
+            "pre-success-widen",
+            31,
+        )
+        records.append(self.record(widen_request, records[-1].commit_oid, 4))
+        widen_activation = self.scope_terminal_event(
+            "enforcement_scope_activated",
+            widen_request,
+            **{
+                "payload.registry_generation": 2,
+                "payload.registry_commit_oid": "c" * 40,
+            },
+        )
+        records.append(self.record(widen_activation, records[-1].commit_oid, 5))
+        self.append(records, "project_succeeded", 593)
+        narrow = self.scope_request_event(
+            594,
+            "enforcement_scope_organization_narrow",
+            expanded_scope,
+            [repository],
+            2,
+            "post-success-narrow",
+            41,
+        )
+        records.append(self.record(narrow, records[-1].commit_oid, 7))
+        abandonment = self.scope_terminal_event("enforcement_scope_abandoned", narrow)
+        records.append(self.record(abandonment, records[-1].commit_oid, 8))
+        result = replay_events("project-1", BASE, records)
+        self.assertTrue(result.valid, result.error)
+        self.assertEqual(scope_request(result.state, narrow.event_id).terminal_kind, "abandoned")
+
+        widen = self.scope_request_event(
+            595,
+            "enforcement_scope_repository_widen",
+            organization_scope,
+            expanded_scope,
+            1,
+            "post-success-widen",
+            31,
+        )
+        result = replay_events(
+            "project-1", BASE, records[:3] + [self.record(self.event("project_succeeded", 596), records[2].commit_oid, 4), self.record(widen, f"{4:040x}", 5)]
+        )
+        self.assertIn("forbidden after project success", result.reason)
+
+    def test_m17_a_query_argument_boundaries(self):
+        state = initial_replay_state("project-1", BASE)
+        self.assertEqual(active_overrides(state), ())
+        self.assertEqual(retry_event_ids(state), ())
+        self.assertIsNone(scope_request(state, "missing"))
+        for query, arguments in (
+            (effective_enforcement_scope, (object(),)),
+            (active_overrides, (object(),)),
+            (retry_event_ids, (object(),)),
+            (scope_request, (object(), "event")),
+            (scope_request, (state, 1)),
+            (active_overrides, (state, True)),
+            (active_overrides, (state, 1, 0)),
+            (active_overrides, (state, 1, 1, "not-an-oid")),
+        ):
+            with self.subTest(query=query.__name__, arguments=arguments):
+                with self.assertRaises(ReplayError):
+                    query(*arguments)
 
     def _apply_or_result(self, state, event, parent, number):
         try:
