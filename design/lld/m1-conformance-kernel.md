@@ -1062,7 +1062,12 @@ The public state adds immutable values with these identities and contents:
   business truth and has no latest-value shortcut;
 - an exemption source is keyed by `(source_event_id, github_user_id)` and
   retains the subject snapshot, `source_kind`, optional team, basis,
-  instrument reference, optional rule event ID, and source-add event ID;
+  instrument reference, optional rule event ID, source-add event ID, and the
+  subject-local monotonic source-add sequence. Direct and snapshot sources use
+  their creating event ID; a continuous-team source uses the standing-rule
+  event ID while `added_event_id` names its latest add materialization. A
+  per-subject next-sequence counter advances on every addition and never
+  rewinds on withdrawal;
 - an exemption standing rule is keyed by its configuration event ID and
   retains the team, basis, instrument reference, active flag, and per-subject
   latest-materialization cursor. The cursor advances on both add and withdraw
