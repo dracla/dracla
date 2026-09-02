@@ -1,10 +1,10 @@
-"""Canonical, transport-independent replay for the M1-6 event subset.
+"""Canonical, transport-independent replay for revision-14 events.
 
 Replay is deliberately a small state machine.  The records branch is ordered
 by the commit ancestry supplied by its caller; this module neither discovers
-Git history nor sorts events by a timestamp or an event identifier.  M1-7
-events are rejected here so that a partially implemented fold cannot silently
-give administrative events weaker semantics.
+Git history nor sorts events by a timestamp or an event identifier.  During
+the stacked M1-7 delivery, event families not yet implemented remain rejected
+so a partial fold cannot silently assign them weaker semantics.
 """
 
 from __future__ import annotations
@@ -56,6 +56,7 @@ _M1_7_TYPES = frozenset(
         "records_reader_materialized",
     }
 )
+_IMPLEMENTED_TYPES = _M1_6_TYPES | _M1_7_TYPES
 
 
 class ReplayError(ValueError):
@@ -100,6 +101,38 @@ def _thaw(value: Any) -> Any:
             _thaw(item)
             for item in sorted(value, key=lambda item: canonical_json(_thaw(item)))
         ]
+    return value
+
+
+def _subject_value(value: Any, label: str = "subject") -> Mapping[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != {"github_user_id", "login_snapshot"}:
+        raise ReplayError(f"{label} is malformed")
+    if type(value["github_user_id"]) is not int or value["github_user_id"] <= 0:
+        raise ReplayError(f"{label} GitHub user ID is invalid")
+    if type(value["login_snapshot"]) is not str or not value["login_snapshot"]:
+        raise ReplayError(f"{label} login snapshot is invalid")
+    return _freeze(value)
+
+
+def _team_value(value: Any, label: str = "team") -> Mapping[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != {
+        "organization_id",
+        "team_id",
+        "slug_snapshot",
+    }:
+        raise ReplayError(f"{label} is malformed")
+    if type(value["organization_id"]) is not int or value["organization_id"] <= 0:
+        raise ReplayError(f"{label} organization ID is invalid")
+    if type(value["team_id"]) is not int or value["team_id"] <= 0:
+        raise ReplayError(f"{label} team ID is invalid")
+    if type(value["slug_snapshot"]) is not str or not value["slug_snapshot"]:
+        raise ReplayError(f"{label} slug snapshot is invalid")
+    return _freeze(value)
+
+
+def _nonempty_string(value: Any, label: str) -> str:
+    if type(value) is not str or not value:
+        raise ReplayError(f"{label} must be a non-empty string")
     return value
 
 
@@ -324,6 +357,352 @@ class ProjectLifecycle:
 
 
 @dataclass(frozen=True, slots=True)
+class ScopeRequest:
+    """Durable scope intent and its optional terminal outcome."""
+
+    event_id: str
+    change_id: str
+    prior_scope: tuple[Mapping[str, Any], ...]
+    desired_scope: tuple[Mapping[str, Any], ...]
+    prior_registry_generation: int
+    authorization_relation: tuple[str, str, int, str]
+    terminal_event_id: str | None = None
+    terminal_kind: str | None = None
+
+    def __post_init__(self) -> None:
+        _nonempty_string(self.event_id, "scope request event_id")
+        _nonempty_string(self.change_id, "scope request change_id")
+        if type(self.prior_registry_generation) is not int or self.prior_registry_generation < 0:
+            raise ReplayError("scope request prior registry generation is invalid")
+        if (
+            not isinstance(self.authorization_relation, tuple)
+            or len(self.authorization_relation) != 4
+            or any(type(item) is not str or not item for item in self.authorization_relation[:2])
+            or type(self.authorization_relation[2]) is not int
+            or self.authorization_relation[2] <= 0
+            or type(self.authorization_relation[3]) is not str
+            or not self.authorization_relation[3]
+        ):
+            raise ReplayError("scope request authorization relation is malformed")
+        object.__setattr__(self, "prior_scope", tuple(_freeze(item) for item in self.prior_scope))
+        object.__setattr__(self, "desired_scope", tuple(_freeze(item) for item in self.desired_scope))
+        if (self.terminal_event_id is None) != (self.terminal_kind is None):
+            raise ReplayError("scope request terminal identity is incomplete")
+        if self.terminal_kind not in {None, "activated", "abandoned"}:
+            raise ReplayError("scope request terminal kind is unsupported")
+
+    @property
+    def pending(self) -> bool:
+        return self.terminal_event_id is None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_id": self.event_id,
+            "change_id": self.change_id,
+            "prior_scope": [_thaw(item) for item in self.prior_scope],
+            "desired_scope": [_thaw(item) for item in self.desired_scope],
+            "prior_registry_generation": self.prior_registry_generation,
+            "authorization_relation": list(self.authorization_relation),
+            "terminal_event_id": self.terminal_event_id,
+            "terminal_kind": self.terminal_kind,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class EffectiveEnforcementScope:
+    """The activated scope and registry generation reconstructed by replay."""
+
+    selectors: tuple[Mapping[str, Any], ...] = ()
+    registry_generation: int | None = None
+    activation_event_id: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "selectors", tuple(_freeze(item) for item in self.selectors))
+        if self.activation_event_id is not None and self.registry_generation is None:
+            raise ReplayError("effective scope activation lacks a registry generation")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "selectors": [_thaw(item) for item in self.selectors],
+            "registry_generation": self.registry_generation,
+            "activation_event_id": self.activation_event_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class OverrideGrant:
+    """One head-specific grant and its optional whole-grant withdrawal."""
+
+    event_id: str
+    repository_id: int
+    pull_request_number: int
+    tree_oid: str
+    subjects: tuple[Mapping[str, Any], ...]
+    reason: str
+    instrument_ref: str | None
+    withdrawal_event_id: str | None = None
+    withdrawal_reason: str | None = None
+    withdrawal_instrument_ref: str | None = None
+
+    def __post_init__(self) -> None:
+        _nonempty_string(self.event_id, "override event_id")
+        if type(self.repository_id) is not int or self.repository_id <= 0:
+            raise ReplayError("override repository ID is invalid")
+        if type(self.pull_request_number) is not int or self.pull_request_number <= 0:
+            raise ReplayError("override pull request number is invalid")
+        _oid(self.tree_oid, "override tree_oid")
+        _nonempty_string(self.reason, "override reason")
+        if self.instrument_ref is not None:
+            _nonempty_string(self.instrument_ref, "override instrument_ref")
+        if not self.subjects:
+            raise ReplayError("override subjects must be non-empty")
+        subjects = tuple(_subject_value(item, "override subject") for item in self.subjects)
+        if len({item["github_user_id"] for item in subjects}) != len(subjects):
+            raise ReplayError("override subjects contain duplicate identities")
+        object.__setattr__(self, "subjects", subjects)
+        if self.withdrawal_event_id is None and (
+            self.withdrawal_reason is not None or self.withdrawal_instrument_ref is not None
+        ):
+            raise ReplayError("override withdrawal evidence lacks an event identity")
+        if self.withdrawal_event_id is not None:
+            _nonempty_string(self.withdrawal_event_id, "override withdrawal event_id")
+            _nonempty_string(self.withdrawal_reason, "override withdrawal reason")
+            if self.withdrawal_instrument_ref is not None:
+                _nonempty_string(
+                    self.withdrawal_instrument_ref,
+                    "override withdrawal instrument_ref",
+                )
+
+    @property
+    def active(self) -> bool:
+        return self.withdrawal_event_id is None
+
+    @property
+    def key_inputs(self) -> tuple[int, int, str]:
+        return (self.repository_id, self.pull_request_number, self.tree_oid)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_id": self.event_id,
+            "repository_id": self.repository_id,
+            "pull_request_number": self.pull_request_number,
+            "tree_oid": self.tree_oid,
+            "subjects": [_thaw(item) for item in self.subjects],
+            "reason": self.reason,
+            "instrument_ref": self.instrument_ref,
+            "withdrawal_event_id": self.withdrawal_event_id,
+            "withdrawal_reason": self.withdrawal_reason,
+            "withdrawal_instrument_ref": self.withdrawal_instrument_ref,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ExemptionSource:
+    """One independently withdrawable member of a subject exemption union."""
+
+    source_event_id: str
+    subject: Mapping[str, Any]
+    source_kind: str
+    team: Mapping[str, Any] | None
+    basis: str | None
+    instrument_ref: str | None
+    rule_event_id: str | None
+    added_event_id: str
+    sequence: int
+
+    def __post_init__(self) -> None:
+        if self.source_kind not in {"bot", "individual", "snapshot", "continuous_team"}:
+            raise ReplayError("exemption source kind is unsupported")
+        _nonempty_string(self.source_event_id, "exemption source_event_id")
+        _nonempty_string(self.added_event_id, "exemption added_event_id")
+        if type(self.sequence) is not int or self.sequence < 0:
+            raise ReplayError("exemption source sequence is invalid")
+        subject = _subject_value(self.subject, "exemption subject")
+        if self.source_kind in {"bot", "individual"}:
+            if self.team is not None or self.rule_event_id is not None:
+                raise ReplayError("direct exemption source carries team or rule evidence")
+        elif self.source_kind == "snapshot":
+            if self.team is None or self.rule_event_id is not None:
+                raise ReplayError("snapshot exemption source team or rule evidence is invalid")
+        else:
+            if (
+                self.team is None
+                or self.rule_event_id != self.source_event_id
+                or self.added_event_id == self.rule_event_id
+            ):
+                raise ReplayError("continuous exemption source identity is invalid")
+        if self.source_kind != "bot":
+            _nonempty_string(self.basis, "exemption basis")
+            _nonempty_string(self.instrument_ref, "exemption instrument_ref")
+        else:
+            if self.basis is not None:
+                _nonempty_string(self.basis, "bot exemption basis")
+            if self.instrument_ref is not None:
+                _nonempty_string(self.instrument_ref, "bot exemption instrument_ref")
+        object.__setattr__(self, "subject", subject)
+        object.__setattr__(
+            self,
+            "team",
+            _team_value(self.team, "exemption team") if self.team is not None else None,
+        )
+
+    @property
+    def github_user_id(self) -> int:
+        return self.subject["github_user_id"]
+
+    @property
+    def source_key(self) -> tuple[str, int]:
+        return (self.source_event_id, self.github_user_id)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_event_id": self.source_event_id,
+            "subject": _thaw(self.subject),
+            "source_kind": self.source_kind,
+            "team": _thaw(self.team),
+            "basis": self.basis,
+            "instrument_ref": self.instrument_ref,
+            "rule_event_id": self.rule_event_id,
+            "added_event_id": self.added_event_id,
+            "sequence": self.sequence,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ExemptionRule:
+    """A continuous-team rule and its per-subject transition cursors."""
+
+    event_id: str
+    team: Mapping[str, Any]
+    basis: str
+    instrument_ref: str
+    materialization_cursors: Mapping[int, str] = field(default_factory=dict)
+    withdrawal_event_id: str | None = None
+
+    def __post_init__(self) -> None:
+        _nonempty_string(self.event_id, "exemption rule event_id")
+        _nonempty_string(self.basis, "exemption rule basis")
+        _nonempty_string(self.instrument_ref, "exemption rule instrument_ref")
+        if self.withdrawal_event_id is not None:
+            _nonempty_string(self.withdrawal_event_id, "exemption rule withdrawal event_id")
+        object.__setattr__(self, "team", _team_value(self.team, "exemption rule team"))
+        cursors = dict(self.materialization_cursors)
+        if any(
+            type(subject_id) is not int
+            or subject_id <= 0
+            or type(event_id) is not str
+            or not event_id
+            for subject_id, event_id in cursors.items()
+        ):
+            raise ReplayError("exemption materialization cursor is malformed")
+        object.__setattr__(
+            self,
+            "materialization_cursors",
+            MappingProxyType(cursors),
+        )
+
+    @property
+    def active(self) -> bool:
+        return self.withdrawal_event_id is None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_id": self.event_id,
+            "team": _thaw(self.team),
+            "basis": self.basis,
+            "instrument_ref": self.instrument_ref,
+            "materialization_cursors": {
+                str(key): value for key, value in self.materialization_cursors.items()
+            },
+            "withdrawal_event_id": self.withdrawal_event_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ReaderSource:
+    """One records-reader authority source and its current memberships."""
+
+    source_event_id: str
+    kind: str
+    team: Mapping[str, Any] | None
+    subjects: Mapping[int, str] = field(default_factory=dict)
+    materialization_cursors: Mapping[int, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.kind not in {"individual", "snapshot", "continuous_team"}:
+            raise ReplayError("reader source kind is unsupported")
+        _nonempty_string(self.source_event_id, "reader source_event_id")
+        if (self.kind == "individual") != (self.team is None):
+            raise ReplayError("reader source team does not match its kind")
+        subjects = dict(self.subjects)
+        cursors = dict(self.materialization_cursors)
+        for label, values in (("subject", subjects), ("cursor", cursors)):
+            if any(
+                type(subject_id) is not int
+                or subject_id <= 0
+                or type(event_id) is not str
+                or not event_id
+                for subject_id, event_id in values.items()
+            ):
+                raise ReplayError(f"reader source {label} map is malformed")
+        if self.kind == "individual" and (len(subjects) != 1 or cursors):
+            raise ReplayError("individual reader source membership is malformed")
+        if self.kind == "snapshot" and (not subjects or cursors):
+            raise ReplayError("snapshot reader source membership is malformed")
+        object.__setattr__(
+            self,
+            "team",
+            _team_value(self.team, "reader source team") if self.team is not None else None,
+        )
+        object.__setattr__(self, "subjects", MappingProxyType(subjects))
+        object.__setattr__(
+            self,
+            "materialization_cursors",
+            MappingProxyType(cursors),
+        )
+
+    def authorizes(self, subject: Any) -> bool:
+        return _coerce_subject_id(subject) in self.subjects
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_event_id": self.source_event_id,
+            "kind": self.kind,
+            "team": _thaw(self.team),
+            "subjects": {str(key): value for key, value in self.subjects.items()},
+            "materialization_cursors": {
+                str(key): value for key, value in self.materialization_cursors.items()
+            },
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ReaderRule:
+    """Lifecycle evidence for a continuous-team reader source."""
+
+    event_id: str
+    team: Mapping[str, Any]
+    withdrawal_event_id: str | None = None
+
+    def __post_init__(self) -> None:
+        _nonempty_string(self.event_id, "reader rule event_id")
+        if self.withdrawal_event_id is not None:
+            _nonempty_string(self.withdrawal_event_id, "reader rule withdrawal event_id")
+        object.__setattr__(self, "team", _team_value(self.team, "reader rule team"))
+
+    @property
+    def active(self) -> bool:
+        return self.withdrawal_event_id is None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_id": self.event_id,
+            "team": _thaw(self.team),
+            "withdrawal_event_id": self.withdrawal_event_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ReplayState:
     """Immutable state after a canonical prefix has been folded."""
 
@@ -353,6 +732,19 @@ class ReplayState:
     supersedes_coverage: bool | None = None
     latest_currency_transition_event_id: str | None = None
     tuple_decisions: Mapping[tuple[int, str, str], ContributorTupleDecision] = field(default_factory=dict)
+    scope_requests: Mapping[str, ScopeRequest] = field(default_factory=dict)
+    enforcement_scope: tuple[Mapping[str, Any], ...] = ()
+    enforcement_scope_registry_generation: int | None = None
+    enforcement_scope_activation_event_id: str | None = None
+    override_grants: Mapping[str, OverrideGrant] = field(default_factory=dict)
+    retry_events: tuple[str, ...] = ()
+    exemption_source_records: Mapping[tuple[str, int], ExemptionSource] = field(default_factory=dict)
+    exemption_rules: Mapping[str, ExemptionRule] = field(default_factory=dict)
+    known_exemption_sources: frozenset[tuple[str, int]] = frozenset()
+    exemption_sequence_next: Mapping[int, int] = field(default_factory=dict)
+    reader_source_records: Mapping[str, ReaderSource] = field(default_factory=dict)
+    reader_rules: Mapping[str, ReaderRule] = field(default_factory=dict)
+    known_reader_memberships: frozenset[tuple[str, int]] = frozenset()
     event_records: Mapping[str, CanonicalEventRecord] = field(default_factory=dict)
     unresolved: frozenset[Any] = frozenset()
     last_event_id: str | None = None
@@ -376,12 +768,25 @@ class ReplayState:
         object.__setattr__(self, "current_kids", _freeze(self.current_kids) if self.current_kids is not None else None)
         object.__setattr__(self, "accepted_versions", _ordered_versions(self.accepted_versions))
         object.__setattr__(self, "retired_versions", _ordered_versions(self.retired_versions))
+        object.__setattr__(self, "enforcement_scope", tuple(_freeze(item) for item in self.enforcement_scope))
+        object.__setattr__(self, "retry_events", tuple(self.retry_events))
+        object.__setattr__(self, "known_exemption_sources", frozenset(self.known_exemption_sources))
+        object.__setattr__(self, "known_reader_memberships", frozenset(self.known_reader_memberships))
         if set(self.accepted_versions) & set(self.retired_versions):
             raise ReplayError("replay state accepted and retired sets overlap")
+        if self.enforcement_scope_activation_event_id is not None and self.enforcement_scope_registry_generation is None:
+            raise ReplayError("effective scope activation lacks a registry generation")
         maps = {
             "publications": self.publications,
             "activations": self.activations,
             "tuple_decisions": self.tuple_decisions,
+            "scope_requests": self.scope_requests,
+            "override_grants": self.override_grants,
+            "exemption_source_records": self.exemption_source_records,
+            "exemption_rules": self.exemption_rules,
+            "exemption_sequence_next": self.exemption_sequence_next,
+            "reader_source_records": self.reader_source_records,
+            "reader_rules": self.reader_rules,
             "event_records": self.event_records,
         }
         for name, value in maps.items():
@@ -485,6 +890,19 @@ class ReplayState:
                 decision.to_dict()
                 for decision in sorted(self.tuple_decisions.values(), key=lambda value: value.tuple_key)
             ],
+            "scope_requests": [item.to_dict() for item in self.scope_requests.values()],
+            "effective_enforcement_scope": self.effective_enforcement_scope.to_dict(),
+            "override_grants": [item.to_dict() for item in self.override_grants.values()],
+            "retry_events": list(self.retry_events),
+            "exemption_sources": [item.to_dict() for item in self.exemption_source_records.values()],
+            "exemption_rules": [item.to_dict() for item in self.exemption_rules.values()],
+            "known_exemption_sources": [list(item) for item in sorted(self.known_exemption_sources)],
+            "exemption_sequence_next": {
+                str(key): value for key, value in sorted(self.exemption_sequence_next.items())
+            },
+            "reader_sources": [item.to_dict() for item in self.reader_source_records.values()],
+            "reader_rules": [item.to_dict() for item in self.reader_rules.values()],
+            "known_reader_memberships": [list(item) for item in sorted(self.known_reader_memberships)],
             "last_event_id": self.last_event_id,
             "last_commit_oid": self.last_commit_oid,
             "unresolved": [
@@ -492,6 +910,14 @@ class ReplayState:
                 for item in sorted(self.unresolved, key=lambda value: canonical_json(_thaw(value)))
             ],
         }
+
+    @property
+    def effective_enforcement_scope(self) -> EffectiveEnforcementScope:
+        return EffectiveEnforcementScope(
+            self.enforcement_scope,
+            self.enforcement_scope_registry_generation,
+            self.enforcement_scope_activation_event_id,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -582,6 +1008,19 @@ class _ReplayAccumulator:
         "supersedes_coverage",
         "latest_currency_transition_event_id",
         "tuple_decisions",
+        "scope_requests",
+        "enforcement_scope",
+        "enforcement_scope_registry_generation",
+        "enforcement_scope_activation_event_id",
+        "override_grants",
+        "retry_events",
+        "exemption_source_records",
+        "exemption_rules",
+        "known_exemption_sources",
+        "exemption_sequence_next",
+        "reader_source_records",
+        "reader_rules",
+        "known_reader_memberships",
         "event_records",
         "unresolved",
         "last_event_id",
@@ -590,6 +1029,9 @@ class _ReplayAccumulator:
         "_idempotency_index",
         "_owner_transfer_commit_index",
         "_last_owner_transfer_generation",
+        "_scope_change_index",
+        "_scope_registry_commit_index",
+        "_active_override_subject_index",
     )
 
     def __init__(self, state: ReplayState) -> None:
@@ -619,6 +1061,19 @@ class _ReplayAccumulator:
         self.supersedes_coverage = state.supersedes_coverage
         self.latest_currency_transition_event_id = state.latest_currency_transition_event_id
         self.tuple_decisions = dict(state.tuple_decisions)
+        self.scope_requests = dict(state.scope_requests)
+        self.enforcement_scope = state.enforcement_scope
+        self.enforcement_scope_registry_generation = state.enforcement_scope_registry_generation
+        self.enforcement_scope_activation_event_id = state.enforcement_scope_activation_event_id
+        self.override_grants = dict(state.override_grants)
+        self.retry_events = state.retry_events
+        self.exemption_source_records = dict(state.exemption_source_records)
+        self.exemption_rules = dict(state.exemption_rules)
+        self.known_exemption_sources = state.known_exemption_sources
+        self.exemption_sequence_next = dict(state.exemption_sequence_next)
+        self.reader_source_records = dict(state.reader_source_records)
+        self.reader_rules = dict(state.reader_rules)
+        self.known_reader_memberships = state.known_reader_memberships
         self.event_records = dict(state.event_records)
         self.unresolved = state.unresolved
         self.last_event_id = state.last_event_id
@@ -627,6 +1082,25 @@ class _ReplayAccumulator:
         self._idempotency_index: dict[str, CanonicalEventRecord] = {}
         self._owner_transfer_commit_index: dict[str, CanonicalEventRecord] = {}
         self._last_owner_transfer_generation: int | None = None
+        self._scope_change_index = {
+            request.change_id: request.event_id for request in state.scope_requests.values()
+        }
+        self._scope_registry_commit_index = {
+            record.event.payload["registry_commit_oid"]: record.event_id
+            for record in state.event_records.values()
+            if record.event.type == "enforcement_scope_activated"
+        }
+        self._active_override_subject_index = {
+            (
+                grant.repository_id,
+                grant.pull_request_number,
+                grant.tree_oid,
+                subject["github_user_id"],
+            ): grant.event_id
+            for grant in state.override_grants.values()
+            if grant.active
+            for subject in grant.subjects
+        }
 
     def freeze(self) -> ReplayState:
         """Materialize one immutable public state after a successful fold."""
@@ -658,6 +1132,19 @@ class _ReplayAccumulator:
             supersedes_coverage=self.supersedes_coverage,
             latest_currency_transition_event_id=self.latest_currency_transition_event_id,
             tuple_decisions=self.tuple_decisions,
+            scope_requests=self.scope_requests,
+            enforcement_scope=self.enforcement_scope,
+            enforcement_scope_registry_generation=self.enforcement_scope_registry_generation,
+            enforcement_scope_activation_event_id=self.enforcement_scope_activation_event_id,
+            override_grants=self.override_grants,
+            retry_events=self.retry_events,
+            exemption_source_records=self.exemption_source_records,
+            exemption_rules=self.exemption_rules,
+            known_exemption_sources=self.known_exemption_sources,
+            exemption_sequence_next=self.exemption_sequence_next,
+            reader_source_records=self.reader_source_records,
+            reader_rules=self.reader_rules,
+            known_reader_memberships=self.known_reader_memberships,
             event_records=self.event_records,
             unresolved=self.unresolved,
             last_event_id=self.last_event_id,
@@ -727,6 +1214,198 @@ def _require_keyring_authorizations(
         _corrupt("keyring authorization set does not match this project")
 
 
+def _authorization_relation(event: ValidatedEvent) -> tuple[str, str, int, str]:
+    """Return the one-row administrative authorization relation."""
+
+    if len(event.authorizations) != 1:
+        _corrupt(f"{event.type} does not carry one authorization relation")
+    item = event.authorizations[0]
+    return (item.operation, item.resource_kind, item.resource_id, item.required_authority)
+
+
+def _require_authorized_repository(event: ValidatedEvent, repository_id: int) -> None:
+    relation = _authorization_relation(event)
+    if relation[1] != "repository" or relation[2] != repository_id:
+        _corrupt(f"{event.type} authorization is not bound to its target repository")
+
+
+def _require_m17_lifecycle(
+    state: ReplayState | _ReplayAccumulator,
+    event: ValidatedEvent,
+) -> None:
+    """Apply the closed post-success allowlist shared with preconditions."""
+
+    if state.project_state == "unconnected":
+        _corrupt(f"{event.type} precedes project connection")
+    if state.project_state != "succeeded":
+        return
+    if event.type in {"retry_requested", "enforcement_scope_abandoned"}:
+        return
+    if event.type == "exemption_materialized" and event.payload["result"] == "withdraw":
+        return
+    if event.type in {
+        "records_reader_authorized",
+        "records_reader_snapshot_authorized",
+        "records_reader_withdrawn",
+        "records_reader_rule_configured",
+        "records_reader_rule_withdrawn",
+    }:
+        return
+    if event.type == "records_reader_materialized" and event.payload["result"] == "withdraw":
+        return
+    if event.type in {"enforcement_scope_requested", "enforcement_scope_activated"}:
+        operation = _authorization_relation(event)[0]
+        if operation.endswith(("_narrow", "_remove")):
+            return
+    _corrupt(f"{event.type} is forbidden after project success")
+
+
+def _scope_tuple(value: Sequence[Mapping[str, Any]]) -> tuple[Mapping[str, Any], ...]:
+    return tuple(_freeze(item) for item in value)
+
+
+def _scope_identity(selector: Mapping[str, Any]) -> tuple[str, int]:
+    if selector["kind"] == "repository":
+        return ("repository", selector["repository_id"])
+    return ("organization", selector["organization_id"])
+
+
+def _check_scope_change(event: ValidatedEvent) -> tuple[str, str, int, str]:
+    """Bind a scope operation to the one selector identity it changes."""
+
+    prior = {_scope_identity(item): item for item in event.payload["prior_scope"]}
+    desired = {_scope_identity(item): item for item in event.payload["desired_scope"]}
+    if prior == desired:
+        _corrupt("scope request is an unrecorded semantic no-op")
+    changed = set(prior) ^ set(desired)
+    if len(changed) != 1:
+        _corrupt("scope request must change exactly one selector identity")
+    relation = _authorization_relation(event)
+    operation, resource_kind, resource_id, _ = relation
+    changed_kind, changed_id = next(iter(changed))
+    if (resource_kind, resource_id) != (changed_kind, changed_id):
+        _corrupt("scope authorization does not name the changed selector")
+    if f"enforcement_scope_{resource_kind}_" not in operation:
+        _corrupt("scope operation does not match the changed selector kind")
+    added = (changed_kind, changed_id) in desired
+    if operation.endswith(("_bind", "_widen")) != added:
+        _corrupt("scope operation direction does not match the selector change")
+    return relation
+
+
+def _find_scope_change(
+    state: ReplayState | _ReplayAccumulator,
+    change_id: str,
+) -> str | None:
+    if isinstance(state, _ReplayAccumulator):
+        return state._scope_change_index.get(change_id)
+    for request in state.scope_requests.values():
+        if request.change_id == change_id:
+            return request.event_id
+    return None
+
+
+def _scope_registry_commit_used(
+    state: ReplayState | _ReplayAccumulator,
+    commit_oid: str,
+) -> bool:
+    if isinstance(state, _ReplayAccumulator):
+        return commit_oid in state._scope_registry_commit_index
+    return any(
+        record.event.type == "enforcement_scope_activated"
+        and record.event.payload["registry_commit_oid"] == commit_oid
+        for record in state.event_records.values()
+    )
+
+
+def _override_projection_key(
+    repository_id: int,
+    pull_request_number: int,
+    tree_oid: str,
+    github_user_id: int,
+) -> tuple[int, int, str, int]:
+    return (repository_id, pull_request_number, tree_oid, github_user_id)
+
+
+def _active_override_owner(
+    state: ReplayState | _ReplayAccumulator,
+    key: tuple[int, int, str, int],
+) -> str | None:
+    if isinstance(state, _ReplayAccumulator):
+        return state._active_override_subject_index.get(key)
+    for grant in state.override_grants.values():
+        if not grant.active or grant.key_inputs != key[:3]:
+            continue
+        if any(subject["github_user_id"] == key[3] for subject in grant.subjects):
+            return grant.event_id
+    return None
+
+
+def _subject_id(subject: Mapping[str, Any]) -> int:
+    return subject["github_user_id"]
+
+
+def _make_exemption_source(
+    *,
+    source_event_id: str,
+    subject: Mapping[str, Any],
+    source_kind: str,
+    team: Mapping[str, Any] | None,
+    basis: str | None,
+    instrument_ref: str | None,
+    rule_event_id: str | None,
+    added_event_id: str,
+    sequence: int,
+) -> ExemptionSource:
+    return ExemptionSource(
+        source_event_id,
+        subject,
+        source_kind,
+        team,
+        basis,
+        instrument_ref,
+        rule_event_id,
+        added_event_id,
+        sequence,
+    )
+
+
+def _manual_exemption_subject(
+    state: ReplayState | _ReplayAccumulator,
+    source_event_id: str,
+    subject: Mapping[str, Any],
+) -> bool:
+    """Return whether a manual/snapshot source created the exact subject."""
+
+    origin = state.event_records.get(source_event_id)
+    if origin is None:
+        return False
+    event = origin.event
+    if event.type == "exemption":
+        return event.target["subject"] == subject
+    if event.type == "exemption_snapshot":
+        return subject in event.target["subjects"]
+    return False
+
+
+def _manual_reader_subject(
+    state: ReplayState | _ReplayAccumulator,
+    source_event_id: str,
+    subject: Mapping[str, Any],
+) -> bool:
+    """Return whether a manual/snapshot reader source created the subject."""
+
+    origin = state.event_records.get(source_event_id)
+    if origin is None:
+        return False
+    event = origin.event
+    if event.type == "records_reader_authorized":
+        return event.target["subject"] == subject
+    if event.type == "records_reader_snapshot_authorized":
+        return subject in event.target["subjects"]
+    return False
+
+
 def _record_state(
     state: ReplayState | _ReplayAccumulator,
     record: CanonicalEventRecord,
@@ -739,6 +1418,20 @@ def _record_state(
         if record.event.type == "project_repository_owner_changed":
             state._owner_transfer_commit_index[record.event.payload["registry_commit_oid"]] = record
             state._last_owner_transfer_generation = record.event.payload["registry_generation"]
+        elif record.event.type == "enforcement_scope_requested":
+            state._scope_change_index[record.event.target["change_id"]] = record.event_id
+        elif record.event.type == "enforcement_scope_activated":
+            state._scope_registry_commit_index[record.event.payload["registry_commit_oid"]] = record.event_id
+        elif record.event.type == "override":
+            grant = state.override_grants[record.event_id]
+            for subject in grant.subjects:
+                key = (*grant.key_inputs, subject["github_user_id"])
+                state._active_override_subject_index[key] = grant.event_id
+        elif record.event.type == "override_withdrawn":
+            grant = state.override_grants[record.event.target["override_event_id"]]
+            for subject in grant.subjects:
+                key = (*grant.key_inputs, subject["github_user_id"])
+                state._active_override_subject_index.pop(key, None)
         state.current_head_oid = record.commit_oid
         state.last_event_id = record.event.event_id
         state.last_commit_oid = record.commit_oid
@@ -801,9 +1494,7 @@ def _check_record(state: ReplayState | _ReplayAccumulator, record: CanonicalEven
             _corrupt("duplicate idempotency identity")
     if event.event_id in state.event_records:
         _corrupt("duplicate event identity")
-    if event.type in _M1_7_TYPES:
-        _corrupt("M1-7 event is outside the M1-6 replay scope")
-    if event.type not in _M1_6_TYPES:
+    if event.type not in _IMPLEMENTED_TYPES:
         _corrupt("event type is outside the replay scope")
     if event.type in {"acceptance", "revocation"} and event.confirmed_canonical_oid != record.parent_oid:
         _corrupt("contributor event was not confirmed at its canonical parent")
@@ -1152,6 +1843,566 @@ def _apply_revocation(
     return _record_state(state, record, tuple_decisions=decisions)
 
 
+def _apply_scope_requested(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    relation = _check_scope_change(event)
+    change_id = event.target["change_id"]
+    if _find_scope_change(state, change_id) is not None:
+        _corrupt("scope change ID was already requested")
+    prior_scope = _scope_tuple(event.payload["prior_scope"])
+    desired_scope = _scope_tuple(event.payload["desired_scope"])
+    prior_generation = event.payload["prior_registry_generation"]
+    current_generation = state.enforcement_scope_registry_generation
+    if current_generation is None:
+        if state.enforcement_scope or prior_scope:
+            _corrupt("first scope request does not start from the empty scope")
+        current_generation = prior_generation
+    if prior_scope != state.enforcement_scope:
+        _corrupt("scope request prior scope is not the effective scope")
+    if prior_generation != current_generation:
+        _corrupt("scope request prior registry generation is stale")
+    request = ScopeRequest(
+        event.event_id,
+        change_id,
+        prior_scope,
+        desired_scope,
+        prior_generation,
+        relation,
+    )
+    requests = _map_item(state, "scope_requests", event.event_id, request)
+    return _record_state(
+        state,
+        record,
+        scope_requests=requests,
+        enforcement_scope_registry_generation=current_generation,
+    )
+
+
+def _scope_terminal_request(
+    state: ReplayState | _ReplayAccumulator,
+    event: ValidatedEvent,
+) -> ScopeRequest:
+    request = state.scope_requests.get(event.payload["request_event_id"])
+    if request is None:
+        _corrupt("scope terminal does not name an earlier request")
+    if request.change_id != event.target["change_id"]:
+        _corrupt("scope terminal change ID does not match its request")
+    if not request.pending:
+        _corrupt("scope request has more than one terminal event")
+    if _authorization_relation(event) != request.authorization_relation:
+        _corrupt("scope terminal authorization relation does not match its request")
+    if request.prior_scope != state.enforcement_scope:
+        _corrupt("scope terminal request no longer starts at the effective scope")
+    if request.prior_registry_generation != state.enforcement_scope_registry_generation:
+        _corrupt("scope terminal request registry generation is stale")
+    return request
+
+
+def _settle_scope_request(
+    state: ReplayState | _ReplayAccumulator,
+    request: ScopeRequest,
+    terminal_event_id: str,
+    terminal_kind: str,
+) -> Mapping[str, ScopeRequest]:
+    settled = replace(
+        request,
+        terminal_event_id=terminal_event_id,
+        terminal_kind=terminal_kind,
+    )
+    return _map_item(state, "scope_requests", request.event_id, settled)
+
+
+def _apply_scope_activated(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    request = _scope_terminal_request(state, event)
+    desired_scope = _scope_tuple(event.payload["desired_scope"])
+    if desired_scope != request.desired_scope:
+        _corrupt("scope activation desired scope does not match its request")
+    generation = event.payload["registry_generation"]
+    if generation <= request.prior_registry_generation:
+        _corrupt("scope activation registry generation does not advance")
+    registry_commit_oid = event.payload["registry_commit_oid"]
+    if _scope_registry_commit_used(state, registry_commit_oid):
+        _corrupt("scope activation reuses a registry commit binding")
+    requests = _settle_scope_request(state, request, event.event_id, "activated")
+    return _record_state(
+        state,
+        record,
+        scope_requests=requests,
+        enforcement_scope=desired_scope,
+        enforcement_scope_registry_generation=generation,
+        enforcement_scope_activation_event_id=event.event_id,
+    )
+
+
+def _apply_scope_abandoned(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    request = _scope_terminal_request(state, event)
+    requests = _settle_scope_request(state, request, event.event_id, "abandoned")
+    return _record_state(state, record, scope_requests=requests)
+
+
+def _apply_override(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    repository_id = event.target["repository_id"]
+    _require_authorized_repository(event, repository_id)
+    pull_request_number = event.target["pull_request_number"]
+    tree_oid = event.target["tree_oid"]
+    for subject in event.payload["subjects"]:
+        key = _override_projection_key(
+            repository_id,
+            pull_request_number,
+            tree_oid,
+            subject["github_user_id"],
+        )
+        if _active_override_owner(state, key) is not None:
+            _corrupt("override grant overlaps an active subject projection key")
+    grant = OverrideGrant(
+        event.event_id,
+        repository_id,
+        pull_request_number,
+        tree_oid,
+        tuple(event.payload["subjects"]),
+        event.payload["reason"],
+        event.payload["instrument_ref"],
+    )
+    grants = _map_item(state, "override_grants", event.event_id, grant)
+    return _record_state(state, record, override_grants=grants)
+
+
+def _apply_override_withdrawn(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    grant_id = event.target["override_event_id"]
+    grant = state.override_grants.get(grant_id)
+    if grant is None:
+        _corrupt("override withdrawal does not name an earlier grant")
+    _require_authorized_repository(event, grant.repository_id)
+    if not grant.active:
+        _corrupt("override grant has more than one withdrawal")
+    withdrawn = replace(
+        grant,
+        withdrawal_event_id=event.event_id,
+        withdrawal_reason=event.payload["reason"],
+        withdrawal_instrument_ref=event.payload["instrument_ref"],
+    )
+    grants = _map_item(state, "override_grants", grant.event_id, withdrawn)
+    return _record_state(state, record, override_grants=grants)
+
+
+def _apply_retry_requested(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_authorized_repository(event, event.target["repository_id"])
+    return _record_state(state, record, retry_events=(*state.retry_events, event.event_id))
+
+
+def _apply_exemption(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    source_kind = event.payload["source_kind"]
+    _require_records_authorization(state, event, f"exemption_{source_kind}_add")
+    subject = event.target["subject"]
+    github_user_id = _subject_id(subject)
+    sequence = state.exemption_sequence_next.get(github_user_id, 0)
+    source = _make_exemption_source(
+        source_event_id=event.event_id,
+        subject=subject,
+        source_kind=source_kind,
+        team=None,
+        basis=event.payload["basis"],
+        instrument_ref=event.payload["instrument_ref"],
+        rule_event_id=None,
+        added_event_id=event.event_id,
+        sequence=sequence,
+    )
+    sources = _map_item(state, "exemption_source_records", source.source_key, source)
+    sequences = _map_item(
+        state,
+        "exemption_sequence_next",
+        github_user_id,
+        sequence + 1,
+    )
+    return _record_state(
+        state,
+        record,
+        exemption_source_records=sources,
+        known_exemption_sources=state.known_exemption_sources | {source.source_key},
+        exemption_sequence_next=sequences,
+    )
+
+
+def _apply_exemption_snapshot(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "exemption_snapshot_add")
+    sources = dict(state.exemption_source_records)
+    sequences = dict(state.exemption_sequence_next)
+    known = set(state.known_exemption_sources)
+    for subject in event.target["subjects"]:
+        github_user_id = _subject_id(subject)
+        sequence = sequences.get(github_user_id, 0)
+        source = _make_exemption_source(
+            source_event_id=event.event_id,
+            subject=subject,
+            source_kind="snapshot",
+            team=event.payload["team"],
+            basis=event.payload["basis"],
+            instrument_ref=event.payload["instrument_ref"],
+            rule_event_id=None,
+            added_event_id=event.event_id,
+            sequence=sequence,
+        )
+        sources[source.source_key] = source
+        known.add(source.source_key)
+        sequences[github_user_id] = sequence + 1
+    return _record_state(
+        state,
+        record,
+        exemption_source_records=sources,
+        known_exemption_sources=frozenset(known),
+        exemption_sequence_next=sequences,
+    )
+
+
+def _apply_exemption_source_withdrawn(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "exemption_source_withdraw")
+    source_event_id = event.target["source_event_id"]
+    subject = event.target["subject"]
+    key = (source_event_id, _subject_id(subject))
+    if key not in state.known_exemption_sources:
+        _corrupt("exemption withdrawal names a source that never existed for the subject")
+    if not _manual_exemption_subject(state, source_event_id, subject):
+        _corrupt("exemption withdrawal source identity does not match the exact subject")
+    if key not in state.exemption_source_records:
+        return _record_state(state, record)
+    sources = dict(state.exemption_source_records)
+    del sources[key]
+    return _record_state(state, record, exemption_source_records=sources)
+
+
+def _apply_exemption_rule_configured(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "exemption_rule_configure")
+    rule = ExemptionRule(
+        event.event_id,
+        event.target["team"],
+        event.payload["basis"],
+        event.payload["instrument_ref"],
+    )
+    rules = _map_item(state, "exemption_rules", event.event_id, rule)
+    return _record_state(state, record, exemption_rules=rules)
+
+
+def _apply_exemption_rule_withdrawn(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "exemption_rule_withdraw")
+    rule_event_id = event.target["rule_event_id"]
+    rule = state.exemption_rules.get(rule_event_id)
+    if rule is None:
+        _corrupt("exemption rule withdrawal names a rule that never existed")
+    if not rule.active:
+        return _record_state(state, record)
+    retired = replace(
+        rule,
+        materialization_cursors={},
+        withdrawal_event_id=event.event_id,
+    )
+    rules = _map_item(state, "exemption_rules", rule_event_id, retired)
+    sources = {
+        key: source
+        for key, source in state.exemption_source_records.items()
+        if source.rule_event_id != rule_event_id
+    }
+    return _record_state(
+        state,
+        record,
+        exemption_rules=rules,
+        exemption_source_records=sources,
+    )
+
+
+def _apply_exemption_materialized(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    rule_event_id = event.target["rule_event_id"]
+    rule = state.exemption_rules.get(rule_event_id)
+    if rule is None or not rule.active:
+        _corrupt("exemption materialization does not name an active rule")
+    if event.payload["team"] != rule.team:
+        _corrupt("exemption materialization team does not match its rule")
+    subject = event.target["subject"]
+    github_user_id = _subject_id(subject)
+    prior = rule.materialization_cursors.get(github_user_id)
+    if event.payload["prior_materialization_event_id"] != prior:
+        _corrupt("exemption materialization predecessor is stale")
+    key = (rule_event_id, github_user_id)
+    present = key in state.exemption_source_records
+    result = event.payload["result"]
+    if result == "add" and present:
+        _corrupt("exemption materialization add observes an already-present rule source")
+    if result == "withdraw" and not present:
+        _corrupt("exemption materialization withdrawal observes a missing rule source")
+    cursors = dict(rule.materialization_cursors)
+    cursors[github_user_id] = event.event_id
+    rules = _map_item(
+        state,
+        "exemption_rules",
+        rule_event_id,
+        replace(rule, materialization_cursors=cursors),
+    )
+    sources = dict(state.exemption_source_records)
+    known = set(state.known_exemption_sources)
+    sequences = dict(state.exemption_sequence_next)
+    if result == "add":
+        sequence = sequences.get(github_user_id, 0)
+        source = _make_exemption_source(
+            source_event_id=rule_event_id,
+            subject=subject,
+            source_kind="continuous_team",
+            team=rule.team,
+            basis=rule.basis,
+            instrument_ref=rule.instrument_ref,
+            rule_event_id=rule_event_id,
+            added_event_id=event.event_id,
+            sequence=sequence,
+        )
+        sources[key] = source
+        known.add(key)
+        sequences[github_user_id] = sequence + 1
+    else:
+        del sources[key]
+    return _record_state(
+        state,
+        record,
+        exemption_rules=rules,
+        exemption_source_records=sources,
+        known_exemption_sources=frozenset(known),
+        exemption_sequence_next=sequences,
+    )
+
+
+def _apply_reader_authorized(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "records_reader_individual_add")
+    github_user_id = _subject_id(event.target["subject"])
+    source = ReaderSource(
+        event.event_id,
+        "individual",
+        None,
+        {github_user_id: event.event_id},
+    )
+    sources = _map_item(state, "reader_source_records", event.event_id, source)
+    return _record_state(
+        state,
+        record,
+        reader_source_records=sources,
+        known_reader_memberships=state.known_reader_memberships
+        | {(event.event_id, github_user_id)},
+    )
+
+
+def _apply_reader_snapshot_authorized(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "records_reader_snapshot_add")
+    subjects = {
+        _subject_id(subject): event.event_id for subject in event.target["subjects"]
+    }
+    source = ReaderSource(
+        event.event_id,
+        "snapshot",
+        event.payload["team"],
+        subjects,
+    )
+    sources = _map_item(state, "reader_source_records", event.event_id, source)
+    known = state.known_reader_memberships | {
+        (event.event_id, github_user_id) for github_user_id in subjects
+    }
+    return _record_state(
+        state,
+        record,
+        reader_source_records=sources,
+        known_reader_memberships=known,
+    )
+
+
+def _apply_reader_withdrawn(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "records_reader_source_withdraw")
+    source_event_id = event.target["source_event_id"]
+    subject = event.target["subject"]
+    github_user_id = _subject_id(subject)
+    key = (source_event_id, github_user_id)
+    if key not in state.known_reader_memberships:
+        _corrupt("reader withdrawal names a source that never existed for the subject")
+    if not _manual_reader_subject(state, source_event_id, subject):
+        _corrupt("reader withdrawal source identity does not match the exact subject")
+    source = state.reader_source_records.get(source_event_id)
+    if source is None or github_user_id not in source.subjects:
+        return _record_state(state, record)
+    memberships = dict(source.subjects)
+    del memberships[github_user_id]
+    sources = dict(state.reader_source_records)
+    if memberships:
+        sources[source_event_id] = replace(source, subjects=memberships)
+    else:
+        del sources[source_event_id]
+    return _record_state(state, record, reader_source_records=sources)
+
+
+def _apply_reader_rule_configured(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "records_reader_rule_configure")
+    rule = ReaderRule(event.event_id, event.target["team"])
+    source = ReaderSource(
+        event.event_id,
+        "continuous_team",
+        event.target["team"],
+    )
+    rules = _map_item(state, "reader_rules", event.event_id, rule)
+    sources = _map_item(state, "reader_source_records", event.event_id, source)
+    return _record_state(
+        state,
+        record,
+        reader_rules=rules,
+        reader_source_records=sources,
+    )
+
+
+def _apply_reader_rule_withdrawn(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "records_reader_rule_withdraw")
+    rule_event_id = event.target["rule_event_id"]
+    rule = state.reader_rules.get(rule_event_id)
+    if rule is None:
+        _corrupt("reader rule withdrawal names a rule that never existed")
+    if not rule.active:
+        return _record_state(state, record)
+    rules = _map_item(
+        state,
+        "reader_rules",
+        rule_event_id,
+        replace(rule, withdrawal_event_id=event.event_id),
+    )
+    sources = dict(state.reader_source_records)
+    sources.pop(rule_event_id, None)
+    return _record_state(
+        state,
+        record,
+        reader_rules=rules,
+        reader_source_records=sources,
+    )
+
+
+def _apply_reader_materialized(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    rule_event_id = event.target["rule_event_id"]
+    rule = state.reader_rules.get(rule_event_id)
+    source = state.reader_source_records.get(rule_event_id)
+    if rule is None or not rule.active or source is None or source.kind != "continuous_team":
+        _corrupt("reader materialization does not name an active rule source")
+    if event.payload["team"] != rule.team or event.payload["team"] != source.team:
+        _corrupt("reader materialization team does not match its rule")
+    github_user_id = _subject_id(event.target["subject"])
+    prior = source.materialization_cursors.get(github_user_id)
+    if event.payload["prior_materialization_event_id"] != prior:
+        _corrupt("reader materialization predecessor is stale")
+    present = github_user_id in source.subjects
+    result = event.payload["result"]
+    if result == "add" and present:
+        _corrupt("reader materialization add observes an already-present membership")
+    if result == "withdraw" and not present:
+        _corrupt("reader materialization withdrawal observes a missing membership")
+    cursors = dict(source.materialization_cursors)
+    cursors[github_user_id] = event.event_id
+    subjects = dict(source.subjects)
+    if result == "add":
+        subjects[github_user_id] = event.event_id
+    else:
+        del subjects[github_user_id]
+    updated = replace(
+        source,
+        subjects=subjects,
+        materialization_cursors=cursors,
+    )
+    sources = _map_item(state, "reader_source_records", rule_event_id, updated)
+    known = state.known_reader_memberships | {(rule_event_id, github_user_id)}
+    return _record_state(
+        state,
+        record,
+        reader_source_records=sources,
+        known_reader_memberships=known,
+    )
+
+
 def _apply_record(
     state: ReplayState | _ReplayAccumulator,
     record: CanonicalEventRecord,
@@ -1178,7 +2429,43 @@ def _apply_record(
         return _apply_acceptance(state, record)
     if event_type == "revocation":
         return _apply_revocation(state, record)
-    _corrupt("event type is not implemented by M1-6 replay")
+    if event_type == "enforcement_scope_requested":
+        return _apply_scope_requested(state, record)
+    if event_type == "enforcement_scope_activated":
+        return _apply_scope_activated(state, record)
+    if event_type == "enforcement_scope_abandoned":
+        return _apply_scope_abandoned(state, record)
+    if event_type == "override":
+        return _apply_override(state, record)
+    if event_type == "override_withdrawn":
+        return _apply_override_withdrawn(state, record)
+    if event_type == "retry_requested":
+        return _apply_retry_requested(state, record)
+    if event_type == "exemption":
+        return _apply_exemption(state, record)
+    if event_type == "exemption_snapshot":
+        return _apply_exemption_snapshot(state, record)
+    if event_type == "exemption_source_withdrawn":
+        return _apply_exemption_source_withdrawn(state, record)
+    if event_type == "exemption_rule_configured":
+        return _apply_exemption_rule_configured(state, record)
+    if event_type == "exemption_rule_withdrawn":
+        return _apply_exemption_rule_withdrawn(state, record)
+    if event_type == "exemption_materialized":
+        return _apply_exemption_materialized(state, record)
+    if event_type == "records_reader_authorized":
+        return _apply_reader_authorized(state, record)
+    if event_type == "records_reader_snapshot_authorized":
+        return _apply_reader_snapshot_authorized(state, record)
+    if event_type == "records_reader_withdrawn":
+        return _apply_reader_withdrawn(state, record)
+    if event_type == "records_reader_rule_configured":
+        return _apply_reader_rule_configured(state, record)
+    if event_type == "records_reader_rule_withdrawn":
+        return _apply_reader_rule_withdrawn(state, record)
+    if event_type == "records_reader_materialized":
+        return _apply_reader_materialized(state, record)
+    _corrupt("event type is not implemented by replay")
 
 
 def apply_event(state: ReplayState, record: CanonicalEventRecord) -> ReplayState:
@@ -1243,6 +2530,128 @@ def active_agreement(state: ReplayState) -> ActiveAgreement | None:
         state.activation_event_id,
         bool(state.supersedes_coverage),
     )
+
+
+def effective_enforcement_scope(state: ReplayState) -> EffectiveEnforcementScope:
+    """Return the currently activated scope and its canonical evidence."""
+
+    if not isinstance(state, ReplayState):
+        raise ReplayError("replay state must be a ReplayState")
+    return state.effective_enforcement_scope
+
+
+def scope_request(state: ReplayState, request_event_id: str) -> ScopeRequest | None:
+    """Return one scope request, including pending/terminal status."""
+
+    if not isinstance(state, ReplayState):
+        raise ReplayError("replay state must be a ReplayState")
+    if type(request_event_id) is not str:
+        raise ReplayError("request_event_id must be a string")
+    return state.scope_requests.get(request_event_id)
+
+
+def active_overrides(
+    state: ReplayState,
+    repository_id: int | None = None,
+    pull_request_number: int | None = None,
+    tree_oid: str | None = None,
+) -> tuple[OverrideGrant, ...]:
+    """Return active grants in ancestry order, optionally filtered by key."""
+
+    if not isinstance(state, ReplayState):
+        raise ReplayError("replay state must be a ReplayState")
+    return tuple(
+        grant
+        for grant in state.override_grants.values()
+        if grant.active
+        and (repository_id is None or grant.repository_id == repository_id)
+        and (pull_request_number is None or grant.pull_request_number == pull_request_number)
+        and (tree_oid is None or grant.tree_oid == tree_oid)
+    )
+
+
+def retry_event_ids(state: ReplayState) -> tuple[str, ...]:
+    """Return retry audit event identities in canonical ancestry order."""
+
+    if not isinstance(state, ReplayState):
+        raise ReplayError("replay state must be a ReplayState")
+    return state.retry_events
+
+
+def _coerce_subject_id(value: Any) -> int:
+    if type(value) is int and value > 0:
+        return value
+    if isinstance(value, Mapping):
+        value = value.get("github_user_id")
+    elif hasattr(value, "github_user_id"):
+        value = value.github_user_id
+    if type(value) is not int or value <= 0:
+        raise ReplayError("subject query must identify a positive GitHub user ID")
+    return value
+
+
+def exemption_sources(state: ReplayState, subject: Any) -> tuple[ExemptionSource, ...]:
+    """Return every active exemption source for one subject in source order."""
+
+    if not isinstance(state, ReplayState):
+        raise ReplayError("replay state must be a ReplayState")
+    github_user_id = _coerce_subject_id(subject)
+    return tuple(
+        sorted(
+            (
+                source
+                for source in state.exemption_source_records.values()
+                if source.github_user_id == github_user_id
+            ),
+            key=lambda source: source.sequence,
+        )
+    )
+
+
+def is_exempt(state: ReplayState, subject: Any) -> bool:
+    """Derive effective exemption from the non-empty source union."""
+
+    return bool(exemption_sources(state, subject))
+
+
+def active_exemption_rules(state: ReplayState) -> tuple[ExemptionRule, ...]:
+    """Return active continuous-team rules in canonical ancestry order."""
+
+    if not isinstance(state, ReplayState):
+        raise ReplayError("replay state must be a ReplayState")
+    return tuple(rule for rule in state.exemption_rules.values() if rule.active)
+
+
+def reader_sources(
+    state: ReplayState,
+    subject: Any | None = None,
+) -> tuple[ReaderSource, ...]:
+    """Return active reader sources, optionally limited to one subject."""
+
+    if not isinstance(state, ReplayState):
+        raise ReplayError("replay state must be a ReplayState")
+    if subject is None:
+        return tuple(state.reader_source_records.values())
+    github_user_id = _coerce_subject_id(subject)
+    return tuple(
+        source
+        for source in state.reader_source_records.values()
+        if github_user_id in source.subjects
+    )
+
+
+def is_records_reader(state: ReplayState, subject: Any) -> bool:
+    """Derive records-reader authority from the non-empty source union."""
+
+    return bool(reader_sources(state, subject))
+
+
+def active_reader_rules(state: ReplayState) -> tuple[ReaderRule, ...]:
+    """Return active continuous reader rules in canonical ancestry order."""
+
+    if not isinstance(state, ReplayState):
+        raise ReplayError("replay state must be a ReplayState")
+    return tuple(rule for rule in state.reader_rules.values() if rule.active)
 
 
 def _coerce_tuple(
@@ -1320,17 +2729,34 @@ __all__ = [
     "AgreementPublication",
     "CanonicalEventRecord",
     "ContributorTupleDecision",
+    "EffectiveEnforcementScope",
+    "ExemptionRule",
+    "ExemptionSource",
+    "OverrideGrant",
     "ProjectLifecycle",
+    "ReaderRule",
+    "ReaderSource",
     "ReplayCorruptionError",
     "ReplayError",
     "ReplayResult",
     "ReplayState",
+    "ScopeRequest",
     "active_agreement",
+    "active_exemption_rules",
+    "active_overrides",
+    "active_reader_rules",
     "apply_event",
     "current_configuration",
+    "effective_enforcement_scope",
     "effective_contributor_tuple_decision",
+    "exemption_sources",
     "initial_replay_state",
+    "is_exempt",
+    "is_records_reader",
     "latest_contributor_tuple_decision",
     "project_lifecycle",
+    "reader_sources",
     "replay_events",
+    "retry_event_ids",
+    "scope_request",
 ]

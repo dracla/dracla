@@ -1025,6 +1025,129 @@ Complete `ReplayState` and `apply_event` for every remaining revision-14 type:
 - head-specific multi-subject overrides and whole-grant withdrawal; and
 - retry requests and remaining audit-only events.
 
+M1-7 is delivered as three stacked, independently reviewable commits. They are
+review boundaries inside one roadmap task, not new dependency identifiers:
+
+1. **scope, override, and audit replay** adds the scope request/terminal
+   protocol, override grant/withdrawal, and retry audit history;
+2. **exemption replay** adds individual, bot, snapshot, and continuous-team
+   exemption sources plus standing-rule and materialization cursors; and
+3. **reader and closure replay** adds all reader sources/rules/materializations,
+   removes the temporary M1-7 rejection boundary, and proves complete-fold
+   equivalence for the closed revision-14 vocabulary.
+
+An earlier commit in the stack is not by itself a complete M1-7 fold. Each
+commit must nevertheless be internally coherent and keep full replay and
+incremental `apply_event` equivalent for the event types enabled by that
+commit.
+
+### Exact replay model
+
+The public state adds immutable values with these identities and contents:
+
+- `ScopeRequest`, keyed by request event ID, retains `change_id`, complete
+  `prior_scope` and `desired_scope`, `prior_registry_generation`, the exact
+  authorization relation `(operation, resource_kind, resource_id,
+  required_authority)`, and an optional terminal event ID and terminal kind;
+- effective scope is the complete canonical selector tuple plus its registry
+  generation and activation event ID. Before the first activation the scope is
+  the empty tuple. Because `project_connected` intentionally carries no
+  registry generation, the first valid request establishes the baseline
+  generation from `prior_registry_generation`; later requests must equal the
+  replayed generation;
+- `OverrideGrant`, keyed by grant event ID, retains repository ID, pull-request
+  number, root tree OID, the complete subject tuple, reason, instrument
+  reference, grant event ID, and optional whole-grant withdrawal event ID;
+- retry audit history is an ordered tuple of event IDs. It is not effective
+  business truth and has no latest-value shortcut;
+- an exemption source is keyed by `(source_event_id, github_user_id)` and
+  retains the subject snapshot, `source_kind`, optional team, basis,
+  instrument reference, optional rule event ID, source-add event ID, and the
+  subject-local monotonic source-add sequence. Direct and snapshot sources use
+  their creating event ID; a continuous-team source uses the standing-rule
+  event ID while `added_event_id` names its latest add materialization. A
+  per-subject next-sequence counter advances on every addition and never
+  rewinds on withdrawal;
+- an exemption standing rule is keyed by its configuration event ID and
+  retains the team, basis, instrument reference, active flag, and per-subject
+  latest-materialization cursor. The cursor advances on both add and withdraw
+  and survives source removal; rule withdrawal retires the rule and its
+  cursors;
+- a reader source is keyed by its source event ID and retains `kind`, optional
+  team, a subject map whose values are the add event IDs, and the per-subject
+  latest-materialization cursor. Individual and snapshot sources disappear
+  when their final subject is withdrawn. A continuous-team source uses its
+  rule event ID as source ID and remains present while its rule is active even
+  with no subjects;
+- reader rules are keyed by their configuration event ID and retain the team
+  and active flag. Their materialization cursor is the corresponding reader
+  source's cursor.
+
+All mappings exposed by `ReplayState` are frozen. Subject identity is the
+positive numeric GitHub user ID; login and team slugs are retained evidence,
+not identity. Private accumulator indexes mirror the public keys so ordinary
+lookup, withdrawal, and cursor validation are O(1); immutable `apply_event`
+may copy the affected mapping but must produce the same state and diagnostic as
+the accumulator path.
+
+The query surface is exact:
+
+- `effective_enforcement_scope(state) -> EffectiveEnforcementScope`;
+- `scope_request(state, request_event_id) -> ScopeRequest | None`;
+- `active_overrides(state, repository_id=None, pull_request_number=None,
+  tree_oid=None) -> tuple[OverrideGrant, ...]`;
+- `retry_event_ids(state) -> tuple[str, ...]`;
+- `exemption_sources(state, subject) -> tuple[ExemptionSource, ...]` and
+  `is_exempt(state, subject) -> bool`;
+- `active_exemption_rules(state) -> tuple[ExemptionRule, ...]`;
+- `reader_sources(state, subject=None) -> tuple[ReaderSource, ...]` and
+  `is_records_reader(state, subject) -> bool`; and
+- `active_reader_rules(state) -> tuple[ReaderRule, ...]`.
+
+Queries return source/rule models rather than booleans alone so callers retain
+the exact canonical identities supporting each answer. Results are ordered by
+canonical ancestry through their insertion order, never by timestamp or hash.
+
+### Transition matrix
+
+Every M1-7 event requires a connected project and the history-independent
+event validator to have accepted its actor, identity, nonce, and closed
+authorization vocabulary. Replay then applies the following history checks:
+
+| Event | Required replay relation | State effect |
+|---|---|---|
+| `enforcement_scope_requested` | unique change ID; prior scope equals effective scope; prior generation equals the replayed generation, except that the first request establishes the empty-scope baseline; authorization resource is named by exactly one changed selector | add pending request only |
+| `enforcement_scope_activated` | names pending request; change ID, desired scope, and authorization relation equal request; registry generation strictly advances and registry commit has not been used by another activation | settle request; replace effective scope and generation |
+| `enforcement_scope_abandoned` | names pending request; change ID and authorization relation equal request; request prior scope/generation still equal effective state | settle request; effective scope is unchanged |
+| `override` | authorization resource equals target repository; no subject overlaps an active grant for the same repository/PR/tree projection key | add one head-specific whole-subject grant |
+| `override_withdrawn` | names a grant in this project; authorization resource equals grant repository; grant is not already withdrawn | attach one whole-grant withdrawal |
+| `retry_requested` | authorization resource equals target repository | append audit identity only |
+| `exemption` | records-repository authorization matches project; operation matches `source_kind` | add one bot/individual source |
+| `exemption_snapshot` | records-repository authorization matches project | add the same source event independently for every selected subject |
+| `exemption_source_withdrawn` | named source was created for the exact subject in this project | remove that source; an already removed known source is a no-op |
+| `exemption_rule_configured` | records-repository authorization matches project | add one active continuous-team rule |
+| `exemption_rule_withdrawn` | named rule exists in this project | retire rule and remove all of its active sources/cursors; repeat is a no-op |
+| `exemption_materialized` | active rule, exact team/subject/evidence, and prior cursor match | advance cursor; add or remove that rule's subject source |
+| `records_reader_authorized` | records-repository authorization matches project | add one individual source |
+| `records_reader_snapshot_authorized` | records-repository authorization matches project | add one snapshot source containing the selected subjects |
+| `records_reader_withdrawn` | named source contains or previously contained exact subject in this project | remove subject; an already removed known membership is a no-op |
+| `records_reader_rule_configured` | records-repository authorization matches project | add active continuous-team rule/source |
+| `records_reader_rule_withdrawn` | named rule exists in this project | retire rule/source; repeat is a no-op |
+| `records_reader_materialized` | active rule, exact team/subject/evidence, and prior cursor match | advance cursor and add/remove subject membership |
+
+Known-source tombstones are replay-only identity sets. They distinguish a valid
+repeat withdrawal from a never-existing or wrong-project source without
+reintroducing removed entries into effective unions.
+
+After `project_succeeded`, replay uses the same closed allowlist as event
+preconditions: keyring maintenance, contributor revocation, retry audit,
+scope abandonment, scope narrow/remove request and activation, every human
+reader-source/rule operation, and automation withdrawals remain valid. Scope
+bind/widen, overrides, exemption additions and human exemption withdrawals,
+agreement/configuration mutation, acceptance, and automation additions are
+forbidden. This is a type-and-operation matrix, not a broad "administrative"
+exception.
+
 Add query helpers that return the effective scope, source-aware exemption,
 source-aware reader authority, active override entries, current standing rules,
 and the exact event/source identities supporting each result. Effective booleans
@@ -1033,7 +1156,8 @@ are derived from source unions, never independently stored truth.
 Automation transitions validate their standing rule, subject, team,
 membership evidence, prior materialization identity, deterministic nonce, and
 result. Scope terminal events repeat the request's exact desired scope,
-operation token, resource identity, and authorization relation. Override
+operation token, resource identity, and authorization relation. (The terminal
+nonce itself is terminal-specific as required by §5.1.) Override
 entries retain every tuple input needed for M1-10 to recompute the key.
 
 ### Acceptance evidence
@@ -1070,8 +1194,8 @@ valid no-op rather than appearing among them.
 ### Non-goals and PR boundary
 
 No live GitHub team query, registry mutation, projection encoding, form signing,
-or repository write. This PR closes the Python canonical fold; later slices
-consume it without adding business-event semantics elsewhere.
+or repository write. The three-commit stack closes the Python canonical fold;
+later slices consume it without adding business-event semantics elsewhere.
 
 ## M1-8 — Authenticated action forms and replay-stable no-op bindings
 
