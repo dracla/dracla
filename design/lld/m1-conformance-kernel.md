@@ -1119,7 +1119,7 @@ authorization vocabulary. Replay then applies the following history checks:
 | `enforcement_scope_requested` | unique change ID; prior scope equals effective scope; prior generation equals the replayed generation, except that the first request establishes the empty-scope baseline; authorization resource is named by exactly one changed selector | add pending request only |
 | `enforcement_scope_activated` | names pending request; change ID, desired scope, and authorization relation equal request; registry generation strictly advances and registry commit has not been used by another activation | settle request; replace effective scope and generation |
 | `enforcement_scope_abandoned` | names pending request; change ID and authorization relation equal request; request prior scope/generation still equal effective state | settle request; effective scope is unchanged |
-| `override` | authorization resource equals target repository | add one head-specific whole-subject grant |
+| `override` | authorization resource equals target repository; no subject overlaps an active grant for the same repository/PR/tree projection key | add one head-specific whole-subject grant |
 | `override_withdrawn` | names a grant in this project; authorization resource equals grant repository; grant is not already withdrawn | attach one whole-grant withdrawal |
 | `retry_requested` | authorization resource equals target repository | append audit identity only |
 | `exemption` | records-repository authorization matches project; operation matches `source_kind` | add one bot/individual source |
