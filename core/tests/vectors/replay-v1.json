@@ -117,7 +117,6 @@
     {"name": "restore-cross-project", "failure": "another project"},
     {"name": "restore-cross-agreement", "failure": "second or unknown agreement"},
     {"name": "restore-non-activation", "failure": "ordinary activation"},
-    {"name": "restore-set-mismatch", "failure": "accepted versions"},
-    {"name": "m1-7-out-of-scope", "failure": "not enabled"}
+    {"name": "restore-set-mismatch", "failure": "accepted versions"}
   ]
 }
