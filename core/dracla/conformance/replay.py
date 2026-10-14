@@ -66,7 +66,17 @@ _M1_7_A_TYPES = frozenset(
         "retry_requested",
     }
 )
-_IMPLEMENTED_TYPES = _M1_6_TYPES | _M1_7_A_TYPES
+_M1_7_B_TYPES = frozenset(
+    {
+        "exemption",
+        "exemption_snapshot",
+        "exemption_source_withdrawn",
+        "exemption_rule_configured",
+        "exemption_rule_withdrawn",
+        "exemption_materialized",
+    }
+)
+_IMPLEMENTED_TYPES = _M1_6_TYPES | _M1_7_A_TYPES | _M1_7_B_TYPES
 
 
 class ReplayError(ValueError):
@@ -439,6 +449,84 @@ class OverrideGrant:
 
 
 @dataclass(frozen=True, slots=True)
+class ExemptionSource:
+    """One independently withdrawable member of a subject exemption union."""
+
+    source_event_id: str
+    subject: Mapping[str, Any]
+    source_kind: str
+    team: Mapping[str, Any] | None
+    basis: str | None
+    instrument_ref: str | None
+    rule_event_id: str | None
+    added_event_id: str
+    sequence: int
+
+    def __post_init__(self) -> None:
+        if self.source_kind not in {"bot", "individual", "snapshot", "continuous_team"}:
+            raise ReplayError("exemption source kind is unsupported")
+        object.__setattr__(self, "subject", _freeze(self.subject))
+        object.__setattr__(self, "team", _freeze(self.team) if self.team is not None else None)
+
+    @property
+    def github_user_id(self) -> int:
+        return self.subject["github_user_id"]
+
+    @property
+    def source_key(self) -> tuple[str, int]:
+        return (self.source_event_id, self.github_user_id)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_event_id": self.source_event_id,
+            "subject": _thaw(self.subject),
+            "source_kind": self.source_kind,
+            "team": _thaw(self.team),
+            "basis": self.basis,
+            "instrument_ref": self.instrument_ref,
+            "rule_event_id": self.rule_event_id,
+            "added_event_id": self.added_event_id,
+            "sequence": self.sequence,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ExemptionRule:
+    """A continuous-team rule and its per-subject transition cursors."""
+
+    event_id: str
+    team: Mapping[str, Any]
+    basis: str
+    instrument_ref: str
+    materialization_cursors: Mapping[int, str] = field(default_factory=dict)
+    withdrawal_event_id: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "team", _freeze(self.team))
+        object.__setattr__(
+            self,
+            "materialization_cursors",
+            MappingProxyType(dict(self.materialization_cursors)),
+        )
+
+    @property
+    def active(self) -> bool:
+        return self.withdrawal_event_id is None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_id": self.event_id,
+            "team": _thaw(self.team),
+            "basis": self.basis,
+            "instrument_ref": self.instrument_ref,
+            "materialization_cursors": {
+                str(key): value for key, value in self.materialization_cursors.items()
+            },
+            "withdrawal_event_id": self.withdrawal_event_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ReplayState:
     """Immutable state after a canonical prefix has been folded."""
 
@@ -474,6 +562,10 @@ class ReplayState:
     enforcement_scope_activation_event_id: str | None = None
     override_grants: Mapping[str, OverrideGrant] = field(default_factory=dict)
     retry_events: tuple[str, ...] = ()
+    exemption_source_records: Mapping[tuple[str, int], ExemptionSource] = field(default_factory=dict)
+    exemption_rules: Mapping[str, ExemptionRule] = field(default_factory=dict)
+    known_exemption_sources: frozenset[tuple[str, int]] = frozenset()
+    exemption_sequence_next: Mapping[int, int] = field(default_factory=dict)
     event_records: Mapping[str, CanonicalEventRecord] = field(default_factory=dict)
     unresolved: frozenset[Any] = frozenset()
     last_event_id: str | None = None
@@ -499,6 +591,7 @@ class ReplayState:
         object.__setattr__(self, "retired_versions", _ordered_versions(self.retired_versions))
         object.__setattr__(self, "enforcement_scope", tuple(_freeze(item) for item in self.enforcement_scope))
         object.__setattr__(self, "retry_events", tuple(self.retry_events))
+        object.__setattr__(self, "known_exemption_sources", frozenset(self.known_exemption_sources))
         if set(self.accepted_versions) & set(self.retired_versions):
             raise ReplayError("replay state accepted and retired sets overlap")
         if self.enforcement_scope_activation_event_id is not None and self.enforcement_scope_registry_generation is None:
@@ -509,6 +602,9 @@ class ReplayState:
             "tuple_decisions": self.tuple_decisions,
             "scope_requests": self.scope_requests,
             "override_grants": self.override_grants,
+            "exemption_source_records": self.exemption_source_records,
+            "exemption_rules": self.exemption_rules,
+            "exemption_sequence_next": self.exemption_sequence_next,
             "event_records": self.event_records,
         }
         for name, value in maps.items():
@@ -616,6 +712,12 @@ class ReplayState:
             "effective_enforcement_scope": self.effective_enforcement_scope.to_dict(),
             "override_grants": [item.to_dict() for item in self.override_grants.values()],
             "retry_events": list(self.retry_events),
+            "exemption_sources": [item.to_dict() for item in self.exemption_source_records.values()],
+            "exemption_rules": [item.to_dict() for item in self.exemption_rules.values()],
+            "known_exemption_sources": [list(item) for item in sorted(self.known_exemption_sources)],
+            "exemption_sequence_next": {
+                str(key): value for key, value in sorted(self.exemption_sequence_next.items())
+            },
             "last_event_id": self.last_event_id,
             "last_commit_oid": self.last_commit_oid,
             "unresolved": [
@@ -727,6 +829,10 @@ class _ReplayAccumulator:
         "enforcement_scope_activation_event_id",
         "override_grants",
         "retry_events",
+        "exemption_source_records",
+        "exemption_rules",
+        "known_exemption_sources",
+        "exemption_sequence_next",
         "event_records",
         "unresolved",
         "last_event_id",
@@ -738,6 +844,7 @@ class _ReplayAccumulator:
         "_scope_change_index",
         "_scope_registry_commit_index",
         "_active_override_subject_index",
+        "_exemption_rule_cursor_index",
     )
 
     def __init__(self, state: ReplayState) -> None:
@@ -773,6 +880,14 @@ class _ReplayAccumulator:
         self.enforcement_scope_activation_event_id = state.enforcement_scope_activation_event_id
         self.override_grants = dict(state.override_grants)
         self.retry_events = state.retry_events
+        self.exemption_source_records = dict(state.exemption_source_records)
+        self.exemption_rules = dict(state.exemption_rules)
+        self._exemption_rule_cursor_index = {
+            key: dict(rule.materialization_cursors)
+            for key, rule in state.exemption_rules.items()
+        }
+        self.known_exemption_sources = set(state.known_exemption_sources)
+        self.exemption_sequence_next = dict(state.exemption_sequence_next)
         self.event_records = dict(state.event_records)
         self.unresolved = state.unresolved
         self.last_event_id = state.last_event_id
@@ -837,6 +952,16 @@ class _ReplayAccumulator:
             enforcement_scope_activation_event_id=self.enforcement_scope_activation_event_id,
             override_grants=self.override_grants,
             retry_events=self.retry_events,
+            exemption_source_records=self.exemption_source_records,
+            exemption_rules={
+                key: replace(
+                    rule,
+                    materialization_cursors=self._exemption_rule_cursor_index.get(key, {}),
+                )
+                for key, rule in self.exemption_rules.items()
+            },
+            known_exemption_sources=self.known_exemption_sources,
+            exemption_sequence_next=self.exemption_sequence_next,
             event_records=self.event_records,
             unresolved=self.unresolved,
             last_event_id=self.last_event_id,
@@ -933,6 +1058,8 @@ def _require_m17_lifecycle(
         return
     if event.type in {"retry_requested", "enforcement_scope_abandoned"}:
         return
+    if event.type == "exemption_materialized" and event.payload["result"] == "withdraw":
+        return
     if event.type in {"enforcement_scope_requested", "enforcement_scope_activated"}:
         operation = _authorization_relation(event)[0]
         if operation.endswith(("_narrow", "_remove")):
@@ -1021,6 +1148,67 @@ def _active_override_owner(
     return None
 
 
+def _subject_id(subject: Mapping[str, Any]) -> int:
+    return subject["github_user_id"]
+
+
+def _make_exemption_source(
+    *,
+    source_event_id: str,
+    subject: Mapping[str, Any],
+    source_kind: str,
+    team: Mapping[str, Any] | None,
+    basis: str | None,
+    instrument_ref: str | None,
+    rule_event_id: str | None,
+    added_event_id: str,
+    sequence: int,
+) -> ExemptionSource:
+    return ExemptionSource(
+        source_event_id,
+        subject,
+        source_kind,
+        team,
+        basis,
+        instrument_ref,
+        rule_event_id,
+        added_event_id,
+        sequence,
+    )
+
+
+def _exemption_source_subject(
+    state: ReplayState | _ReplayAccumulator,
+    source_event_id: str,
+    subject: Mapping[str, Any],
+) -> bool:
+    """Bind a known canonical source to stable subject identity, not its login."""
+
+    origin = state.event_records.get(source_event_id)
+    if origin is None:
+        return False
+    github_user_id = _subject_id(subject)
+    # The tombstone index is populated from validated subjects at each source
+    # creation. It proves membership without rescanning an entire snapshot or
+    # confusing mutable login evidence with the source's numeric identity.
+    return origin.event.type in {
+        "exemption", "exemption_snapshot", "exemption_rule_configured"
+    } and (source_event_id, github_user_id) in state.known_exemption_sources
+
+
+def _exemption_rule_cursors(
+    state: ReplayState | _ReplayAccumulator,
+    rule_event_id: str,
+    rule: ExemptionRule,
+) -> Mapping[int, str]:
+    if isinstance(state, _ReplayAccumulator):
+        cursors = state._exemption_rule_cursor_index.get(rule_event_id)
+        if cursors is None:
+            _corrupt("exemption rule is missing its materialization cursor index")
+        return cursors
+    return rule.materialization_cursors
+
+
 def _record_state(
     state: ReplayState | _ReplayAccumulator,
     record: CanonicalEventRecord,
@@ -1047,6 +1235,10 @@ def _record_state(
             for subject in grant.subjects:
                 key = (*grant.key_inputs, subject["github_user_id"])
                 state._active_override_subject_index.pop(key, None)
+        elif record.event.type == "exemption_rule_configured":
+            state._exemption_rule_cursor_index[record.event_id] = {}
+        elif record.event.type == "exemption_rule_withdrawn":
+            state._exemption_rule_cursor_index.pop(record.event.target["rule_event_id"], None)
         state.current_head_oid = record.commit_oid
         state.last_event_id = record.event.event_id
         state.last_commit_oid = record.commit_oid
@@ -1109,13 +1301,23 @@ def _check_record(state: ReplayState | _ReplayAccumulator, record: CanonicalEven
             _corrupt("duplicate idempotency identity")
     if event.event_id in state.event_records:
         _corrupt("duplicate event identity")
-    if event.type in _M1_7_TYPES - _M1_7_A_TYPES:
+    if event.type in _M1_7_TYPES - _M1_7_A_TYPES - _M1_7_B_TYPES:
         _corrupt("M1-7 event family is not enabled by this replay slice")
     if event.type not in _IMPLEMENTED_TYPES:
         _corrupt("event type is outside the replay scope")
     if event.type in {"acceptance", "revocation"} and event.confirmed_canonical_oid != record.parent_oid:
         _corrupt("contributor event was not confirmed at its canonical parent")
     return event
+
+
+def _map_for_update(
+    state: ReplayState | _ReplayAccumulator,
+    name: str,
+) -> dict[Any, Any]:
+    """Reuse batch working maps; copy maps owned by the public immutable state."""
+
+    current = getattr(state, name)
+    return current if isinstance(state, _ReplayAccumulator) else dict(current)
 
 
 def _map_item(
@@ -1126,13 +1328,23 @@ def _map_item(
 ) -> Mapping[Any, Any]:
     """Set one internal map item, copying only on the public immutable path."""
 
-    current = getattr(state, name)
-    if isinstance(state, _ReplayAccumulator):
-        current[key] = value
-        return current
-    updated = dict(current)
+    updated = _map_for_update(state, name)
     updated[key] = value
     return updated
+
+
+def _set_items(
+    state: ReplayState | _ReplayAccumulator,
+    name: str,
+    additions: Iterable[Any],
+) -> set[Any] | frozenset[Any]:
+    """Add internal set items, copying only on the public immutable path."""
+
+    current = getattr(state, name)
+    if isinstance(state, _ReplayAccumulator):
+        current.update(additions)
+        return current
+    return current.union(additions)
 
 
 def _check_owner_transfer_binding(
@@ -1645,6 +1857,231 @@ def _apply_retry_requested(
     return _record_state(state, record, retry_events=(*state.retry_events, event.event_id))
 
 
+def _apply_exemption(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    source_kind = event.payload["source_kind"]
+    _require_records_authorization(state, event, f"exemption_{source_kind}_add")
+    subject = event.target["subject"]
+    github_user_id = _subject_id(subject)
+    sequence = state.exemption_sequence_next.get(github_user_id, 0)
+    source = _make_exemption_source(
+        source_event_id=event.event_id,
+        subject=subject,
+        source_kind=source_kind,
+        team=None,
+        basis=event.payload["basis"],
+        instrument_ref=event.payload["instrument_ref"],
+        rule_event_id=None,
+        added_event_id=event.event_id,
+        sequence=sequence,
+    )
+    sources = _map_item(state, "exemption_source_records", source.source_key, source)
+    sequences = _map_item(
+        state,
+        "exemption_sequence_next",
+        github_user_id,
+        sequence + 1,
+    )
+    return _record_state(
+        state,
+        record,
+        exemption_source_records=sources,
+        known_exemption_sources=_set_items(
+            state,
+            "known_exemption_sources",
+            (source.source_key,),
+        ),
+        exemption_sequence_next=sequences,
+    )
+
+
+def _apply_exemption_snapshot(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "exemption_snapshot_add")
+    sources = _map_for_update(state, "exemption_source_records")
+    sequences = _map_for_update(state, "exemption_sequence_next")
+    additions = []
+    for subject in event.target["subjects"]:
+        github_user_id = _subject_id(subject)
+        sequence = sequences.get(github_user_id, 0)
+        source = _make_exemption_source(
+            source_event_id=event.event_id,
+            subject=subject,
+            source_kind="snapshot",
+            team=event.payload["team"],
+            basis=event.payload["basis"],
+            instrument_ref=event.payload["instrument_ref"],
+            rule_event_id=None,
+            added_event_id=event.event_id,
+            sequence=sequence,
+        )
+        sources[source.source_key] = source
+        additions.append(source.source_key)
+        sequences[github_user_id] = sequence + 1
+    return _record_state(
+        state,
+        record,
+        exemption_source_records=sources,
+        known_exemption_sources=_set_items(
+            state,
+            "known_exemption_sources",
+            additions,
+        ),
+        exemption_sequence_next=sequences,
+    )
+
+
+def _apply_exemption_source_withdrawn(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "exemption_source_withdraw")
+    source_event_id = event.target["source_event_id"]
+    subject = event.target["subject"]
+    key = (source_event_id, _subject_id(subject))
+    if key not in state.known_exemption_sources:
+        _corrupt("exemption withdrawal names a source that never existed for the subject")
+    if not _exemption_source_subject(state, source_event_id, subject):
+        _corrupt("exemption withdrawal source identity does not match the exact subject")
+    if key not in state.exemption_source_records:
+        return _record_state(state, record)
+    sources = _map_for_update(state, "exemption_source_records")
+    del sources[key]
+    return _record_state(state, record, exemption_source_records=sources)
+
+
+def _apply_exemption_rule_configured(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "exemption_rule_configure")
+    rule = ExemptionRule(
+        event.event_id,
+        event.target["team"],
+        event.payload["basis"],
+        event.payload["instrument_ref"],
+    )
+    rules = _map_item(state, "exemption_rules", event.event_id, rule)
+    return _record_state(state, record, exemption_rules=rules)
+
+
+def _apply_exemption_rule_withdrawn(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    _require_records_authorization(state, event, "exemption_rule_withdraw")
+    rule_event_id = event.target["rule_event_id"]
+    rule = state.exemption_rules.get(rule_event_id)
+    if rule is None:
+        _corrupt("exemption rule withdrawal names a rule that never existed")
+    if not rule.active:
+        return _record_state(state, record)
+    retired = replace(
+        rule,
+        materialization_cursors={},
+        withdrawal_event_id=event.event_id,
+    )
+    rules = _map_item(state, "exemption_rules", rule_event_id, retired)
+    sources = _map_for_update(state, "exemption_source_records")
+    for user_id in _exemption_rule_cursors(state, rule_event_id, rule):
+        sources.pop((rule_event_id, user_id), None)
+    return _record_state(
+        state,
+        record,
+        exemption_rules=rules,
+        exemption_source_records=sources,
+    )
+
+
+def _apply_exemption_materialized(
+    state: ReplayState | _ReplayAccumulator,
+    record: CanonicalEventRecord,
+) -> ReplayState | _ReplayAccumulator:
+    event = record.event
+    _require_m17_lifecycle(state, event)
+    rule_event_id = event.target["rule_event_id"]
+    rule = state.exemption_rules.get(rule_event_id)
+    if rule is None or not rule.active:
+        _corrupt("exemption materialization does not name an active rule")
+    if event.payload["team"] != rule.team:
+        _corrupt("exemption materialization team does not match its rule")
+    subject = event.target["subject"]
+    github_user_id = _subject_id(subject)
+    current_cursors = _exemption_rule_cursors(state, rule_event_id, rule)
+    prior = current_cursors.get(github_user_id)
+    if event.payload["prior_materialization_event_id"] != prior:
+        _corrupt("exemption materialization predecessor is stale")
+    key = (rule_event_id, github_user_id)
+    present = key in state.exemption_source_records
+    result = event.payload["result"]
+    if result == "add" and present:
+        _corrupt("exemption materialization add observes an already-present rule source")
+    if result == "withdraw" and not present:
+        _corrupt("exemption materialization withdrawal observes a missing rule source")
+    source = None
+    sequence = state.exemption_sequence_next.get(github_user_id, 0)
+    additions = []
+    if result == "add":
+        source = _make_exemption_source(
+            source_event_id=rule_event_id,
+            subject=subject,
+            source_kind="continuous_team",
+            team=rule.team,
+            basis=rule.basis,
+            instrument_ref=rule.instrument_ref,
+            rule_event_id=rule_event_id,
+            added_event_id=event.event_id,
+            sequence=sequence,
+        )
+
+    if isinstance(state, _ReplayAccumulator):
+        state._exemption_rule_cursor_index[rule_event_id][github_user_id] = event.event_id
+        rules = state.exemption_rules
+    else:
+        cursors = dict(current_cursors)
+        cursors[github_user_id] = event.event_id
+        rules = _map_item(
+            state,
+            "exemption_rules",
+            rule_event_id,
+            replace(rule, materialization_cursors=cursors),
+        )
+    sources = _map_for_update(state, "exemption_source_records")
+    sequences = _map_for_update(state, "exemption_sequence_next")
+    if source is not None:
+        sources[key] = source
+        additions.append(key)
+        sequences[github_user_id] = sequence + 1
+    else:
+        del sources[key]
+    return _record_state(
+        state,
+        record,
+        exemption_rules=rules,
+        exemption_source_records=sources,
+        known_exemption_sources=_set_items(
+            state,
+            "known_exemption_sources",
+            additions,
+        ),
+        exemption_sequence_next=sequences,
+    )
+
+
 def _apply_record(
     state: ReplayState | _ReplayAccumulator,
     record: CanonicalEventRecord,
@@ -1683,6 +2120,18 @@ def _apply_record(
         return _apply_override_withdrawn(state, record)
     if event_type == "retry_requested":
         return _apply_retry_requested(state, record)
+    if event_type == "exemption":
+        return _apply_exemption(state, record)
+    if event_type == "exemption_snapshot":
+        return _apply_exemption_snapshot(state, record)
+    if event_type == "exemption_source_withdrawn":
+        return _apply_exemption_source_withdrawn(state, record)
+    if event_type == "exemption_rule_configured":
+        return _apply_exemption_rule_configured(state, record)
+    if event_type == "exemption_rule_withdrawn":
+        return _apply_exemption_rule_withdrawn(state, record)
+    if event_type == "exemption_materialized":
+        return _apply_exemption_materialized(state, record)
     _corrupt("event type is not implemented by replay")
 
 
@@ -1806,6 +2255,50 @@ def retry_event_ids(state: ReplayState) -> tuple[str, ...]:
     return state.retry_events
 
 
+def _coerce_subject_id(value: Any) -> int:
+    if type(value) is int and value > 0:
+        return value
+    if isinstance(value, Mapping):
+        value = value.get("github_user_id")
+    elif hasattr(value, "github_user_id"):
+        value = value.github_user_id
+    if type(value) is not int or value <= 0:
+        raise ReplayError("subject query must identify a positive GitHub user ID")
+    return value
+
+
+def exemption_sources(state: ReplayState, subject: Any) -> tuple[ExemptionSource, ...]:
+    """Return every active exemption source for one subject in source order."""
+
+    if not isinstance(state, ReplayState):
+        raise ReplayError("replay state must be a ReplayState")
+    github_user_id = _coerce_subject_id(subject)
+    return tuple(
+        sorted(
+            (
+                source
+                for source in state.exemption_source_records.values()
+                if source.github_user_id == github_user_id
+            ),
+            key=lambda source: source.sequence,
+        )
+    )
+
+
+def is_exempt(state: ReplayState, subject: Any) -> bool:
+    """Derive effective exemption from the non-empty source union."""
+
+    return bool(exemption_sources(state, subject))
+
+
+def active_exemption_rules(state: ReplayState) -> tuple[ExemptionRule, ...]:
+    """Return active continuous-team rules in canonical ancestry order."""
+
+    if not isinstance(state, ReplayState):
+        raise ReplayError("replay state must be a ReplayState")
+    return tuple(rule for rule in state.exemption_rules.values() if rule.active)
+
+
 def _coerce_tuple(
     value: Any,
     *,
@@ -1882,6 +2375,8 @@ __all__ = [
     "CanonicalEventRecord",
     "ContributorTupleDecision",
     "EffectiveEnforcementScope",
+    "ExemptionRule",
+    "ExemptionSource",
     "OverrideGrant",
     "ProjectLifecycle",
     "ReplayCorruptionError",
@@ -1890,12 +2385,15 @@ __all__ = [
     "ReplayState",
     "ScopeRequest",
     "active_agreement",
+    "active_exemption_rules",
     "active_overrides",
     "apply_event",
     "current_configuration",
     "effective_enforcement_scope",
     "effective_contributor_tuple_decision",
+    "exemption_sources",
     "initial_replay_state",
+    "is_exempt",
     "latest_contributor_tuple_decision",
     "project_lifecycle",
     "replay_events",
