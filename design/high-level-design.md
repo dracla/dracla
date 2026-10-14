@@ -2076,9 +2076,10 @@ its own checks where its threat model prefers the older behaviour.
 attacker-controlled: authoring a commit as
 `<TARGET_ID+x@users.noreply.github.com>` still makes that user a subject and
 still leaks their coverage. The attack now requires authoring a commit under
-someone else's address rather than typing a line in a message — more visible,
-auditable in the commit list, and blocked outright by repositories requiring
-signed commits. Reduced, not eliminated.
+someone else's address rather than typing a line in a message — more visible
+and auditable in the commit list, but not prevented merely by requiring signed
+commits. A valid committer signature does not necessarily establish a different
+listed author's consent. Reduced, not eliminated.
 
 **Attribution is as strong as git author metadata, and no stronger.** Commit
 author email is attacker-controlled, and a noreply address is derivable from any
@@ -2089,8 +2090,13 @@ attribute commits to a covered user, and an attacker can put a target account's
 email in the Git author field to make that account a blocking subject. The
 honest claim the evidence supports is *some account whose email appeared in an
 author field has signed* — §8.2's attestation language is scoped accordingly.
-Verified-signature enforcement is offered as documented hardening for projects
-that need more.
+Required commit signing may strengthen committer attribution, but does not by
+itself authenticate every listed author or close this oracle. GitHub permits
+partially verified commits on branches requiring signed commits; its
+[signature-status documentation](https://docs.github.com/en/authentication/managing-commit-signature-verification/displaying-verification-statuses-for-all-of-your-commits)
+distinguishes committer verification from another author's consent. Any future
+signer-to-author enforcement needs a separately specified policy and
+verification; it is not part of this design's subject-selection rule.
 
 **Concurrent evaluations are conditioned on the head SHA.** Two `synchronize`
 deliveries for the same pull request can race, and a late-completing stale
@@ -2731,8 +2737,12 @@ recipient, agreement, and enforcement scope. The CLI composes their configuratio
 [Hydra](https://hydra.cc) on the 1.4 development line, so a base configuration
 is defined once and each recipient is an override rather than a copy — which is
 where composition starts paying for itself rather than being ceremony over a
-single file. Hydra 1.4 sets the floor at Python 3.10 for the CLI; `core` has no
-such constraint, since it depends on nothing.
+single file. Client-side composition uses Hydra; `core` remains independent of
+that composition engine, not of all dependencies. The landed conformance
+kernel uses `cryptography` for AES-GCM and `rfc8785` for canonical JSON. The
+current distribution declares Python 3.10 or newer and pins both dependencies
+in `pyproject.toml`; this does not establish a separate core-only interpreter
+compatibility promise.
 
 **Composition stays on the client.** Hydra composes the CLI's *own*
 configuration locally (§6.10.3), and whatever reaches `core` is a resolved plain
@@ -4508,20 +4518,24 @@ project's independently rotatable coverage key. A public check discloses one
 bounded result for the subjects of one pull request; it does not justify
 exposing the complete projection.
 
-What privacy protects is **aggregation**. A check run discloses one subject at a
-time, only for people who opened a pull request, and only to someone willing to
-crawl and correlate. The projection discloses every user against every agreement
-in a single fetch, and it is a *superset*: someone who signed early and never
-contributed, or who signed and never opened a pull request, appears only there.
+What privacy protects is **aggregation**. A public check returns one bounded
+aggregate result for the pull request's opener and resolved commit authors,
+not a named per-subject directory. Attacker-controlled author metadata can
+nevertheless turn that result into an arbitrary-target coverage probe, even
+for an account that never opened that pull request (§6.3.1). The private
+projection exposes every stored subject's decision in a single fetch, including
+people who signed but never contributed. Keeping it private prevents direct
+directory enumeration; it does not eliminate the acknowledged check oracle.
 Its per-subject generic reason code is restricted to the fixed class needed to
 select check copy or produce authorized aggregate counts; it carries no
 free-form explanation. Exact reasons, exemption-source details, and
 reader-authority shards are records-key artifacts. Repository readers without a
 coverage capability see only envelopes and unavoidable repository metadata.
 
-That is the recognised aggregation harm: individually available facts become a
-different exposure once assembled. It is also what makes §5.3's enforcement rule
-principled rather than arbitrary — probe one subject at a time, never enumerate.
+That is the recognised aggregation harm: bounded, potentially inferable results
+become a different exposure when the complete directory is directly available.
+It justifies §5.3's private projection without claiming that check subjects are
+authenticated authors or that determined probing cannot aggregate results.
 
 **This does not weaken `D2` or `D3`.** Their rationale is both what an
 enforcement credential can reach and what it can decrypt. Names, email
@@ -4702,7 +4716,8 @@ trigger App adds no repository-content or key capability. This does not claim
 that either Worker compromise leaves merge-gate integrity intact; §8.3's
 hosted-operator trust bound remains.
 
-**Published limits** (verified 18 August 2026):
+**Published limits** (baseline verified 18 August 2026; Worker size reverified
+15 October 2026 against the [current limits](https://developers.cloudflare.com/workers/platform/limits/#worker-size)):
 
 | | Free | Paid ($5/mo) |
 |---|---|---|
@@ -4710,7 +4725,13 @@ hosted-operator trust bound remains.
 | CPU per invocation | **10 ms** | 5 min (default 30 s) |
 | Subrequests per request | 50 | 10,000 |
 | Memory | 128 MB | 128 MB |
-| Script size (gzipped) | 3 MB | 10 MB |
+| Worker bundle size (uncompressed) | 64 MiB | 64 MiB |
+
+Cloudflare removed the compressed-size limit on
+[4 September 2026](https://developers.cloudflare.com/changelog/post/2026-09-04-increased-worker-size-limit/).
+Build checks measure the uncompressed bundle; gzip size is informational, not
+the deployment ceiling. This update changes neither the selected 50-subrequest
+and 10 ms Free contracts nor the A2/A3 release measurements.
 
 **Durable Objects limits** were verified on 22 August 2026 against Cloudflare's
 [pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/)
@@ -5587,7 +5608,7 @@ affected IDs, and what it does not resolve, as section 19 requires.
 | R7 | One busy adopter's pull-request and unrelated-App check-run traffic consumes the shared hosted ceiling | The A3 model makes the event-wide input explicit: normal saturation is near 560 projects, the ten-delivery/100-check-run sensitivity near 160, and the full-dashboard sensitivity near 300 (§9.2). No persistent per-project counter is added; release telemetry must track both merge-group and check-run multipliers, while a reduced envelope, paid capacity, and monitoring are the operational guards |
 | R8 | A daily Workers or Durable Objects limit is exceeded while routing is changing or checks are running | Routes, routing gates, and coverage-repository decision fences fail closed (`REQ-CHECK-5`, §5.4, §7.2, §9); after service recovers, reconciliation rebuilds gate state, repairs any open fence, and the enforcer sweep creates the *temporarily unavailable* check the dead route could not |
 | R9 | `dracla-enforcer` is a public App, so an outsider can exhaust the shared per-account Workers or Durable Objects budget and halt checks, signing, and revocation for every adopter | Residual: signature verification limits downstream work but not counted requests; DraCLA uses no IP logic. Paid capacity, monitoring, and operator response reduce impact. The Worker split and repository-scoped objects limit state-corruption blast radius but do not isolate an account-wide quota (§9) |
-| R10 | ~~Revocation-as-griefing via co-authoring~~ **Closed** by `REQ-CHECK-2` rev 2 — an injected trailer cannot block (§6.3.1) | Residual: a griefer who authors commits under their own identity can still revoke, but only affects pull requests containing their own authored work |
+| R10 | ~~Revocation-as-griefing via co-authoring~~ **Closed for injected trailers** by `REQ-CHECK-2` rev 2 — a trailer alone cannot block (§6.3.1) | Residual: Git author metadata is unauthenticated. A griefer can revoke coverage for their own selected identity, or inject an uncovered or revoked third party as a commit author to block a pull request without that person's participation. Required commit signing alone does not remove this attribution/griefing risk. |
 | R11 | Reconciler and hosted exports consume the project owner's private-repo Actions allowance, shared with the owner's other private repos | Normal operation uses one daily control-repository run, modelled at 1.5–3% of the Free allowance. Successful mutations do not dispatch; failed synchronous materializations and explicit hosted exports add separately measured runs, while local CLI export uses none (§9.2) |
 | R12 | Loss of the adopter recovery key plus every live wrapping path makes retained ciphertext unrecoverable | Verify both actual initial data keys before the first private write and every successor before activation; recommend password-manager or equivalent safe storage; retain older key generations while referenced (§6.10.2, §9.1) |
 | R13 | Compromise of hosted wrapping roots, the control wrapping key, or key-bearing pinned code exposes plaintext beyond ordinary reader authorization | Treat every controller as trusted and disclose its reach; separate records and coverage capabilities; bind wraps to project and purpose; pin executable inputs; support self-hosting with adopter roots (§4, §8.1.2, §8.3) |
