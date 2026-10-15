@@ -5,6 +5,17 @@ spike.  Its public values are byte-level contracts shared by every DraCLA
 runtime.
 """
 
+from .action_forms import (  # noqa: F401
+    ActionForm,
+    ActionFormContext,
+    ActionFormError,
+    FormActionSpec,
+    VerifiedActionForm,
+    encode_action_form,
+    form_action_spec,
+    validate_terminal_noop,
+    verify_action_form,
+)
 from .artifacts import (  # noqa: F401
     ArtifactIdentity,
     ArtifactIdentityError,
