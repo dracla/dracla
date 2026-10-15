@@ -83,6 +83,8 @@ class TestSideArtifactPackages(unittest.TestCase):
                 value = overrides[override_name]
             elif name == "generations-absence":
                 value = None
+            elif name == "source-first-add":
+                value = {"path": requirement.path, "present": False}
             elif name == "keyring-affected-repositories":
                 value = {"repository_ids": [11, 12, 13]}
             elif name in {"published-agreement", "target-activation", "scope-request", "source-event", "rule-event"}:

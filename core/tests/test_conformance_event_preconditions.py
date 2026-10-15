@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dracla.conformance import (  # noqa: E402
     AuthorizationEvidence,
+    CanonicalEventRecord,
     CanonicalShaBinding,
     CrossProjectBinding,
     EventValidationError,
@@ -25,6 +26,7 @@ from dracla.conformance import (  # noqa: E402
     SideArtifactRequirement,
     required_preconditions,
     required_side_artifacts,
+    replay_events,
     validate_event,
 )
 from dracla.conformance import events as event_module  # noqa: E402
@@ -129,6 +131,8 @@ class TestEventPreconditions(unittest.TestCase):
                 value = overrides[override_name]
             elif requirement.name == "generations-absence":
                 value = None
+            elif requirement.name == "source-first-add":
+                value = {"path": requirement.path, "present": False}
             elif requirement.name == "keyring-affected-repositories":
                 value = {"project_id": event.project_id, "repository_ids": {"records": 11, "coverage": 12, "control": 13}}
             elif requirement.name in {"published-agreement", "target-activation", "scope-request", "source-event", "rule-event"}:
@@ -1108,6 +1112,220 @@ class TestEventPreconditions(unittest.TestCase):
             },
         )
         event_module._validate_preconditions(source, other_source, HEAD)
+
+    def _signed_source_event(self, value):
+        value = copy.deepcopy(value)
+        if value["type"] in {"exemption_materialized", "records_reader_materialized"}:
+            value["operation_nonce"] = event_module.derive_automation_nonce(
+                value["target"]["rule_event_id"], value["target"]["subject"]["github_user_id"],
+                value["payload"]["result"], value["payload"]["prior_materialization_event_id"],
+            )
+        identity = event_module.derive_event_identity(
+            value["project_id"], value["operation_nonce"], value["actor"], value["type"],
+            value["target"], value["payload"], value["confirmed_canonical_oid"],
+        )
+        value.update(event_id=identity.event_id, idempotency_key=identity.idempotency_key,
+                     operation_sha256=identity.operation_sha256)
+        return validate_event(value)
+
+    def _continuous_source_case(self, family):
+        rule_type = family + "_rule_configured"
+        withdrawal_type = "exemption_source_withdrawn" if family == "exemption" else "records_reader_withdrawn"
+        rule = validate_event(self.rows[rule_type])
+        raw = copy.deepcopy(self.rows[withdrawal_type])
+        raw["target"]["source_event_id"] = rule.event_id
+        raw["target"]["subject"]["login_snapshot"] = "renamed-after-first-add"
+        withdrawal = self._signed_source_event(raw)
+        raw = copy.deepcopy(self.rows[family + "_materialized"])
+        raw["target"]["rule_event_id"] = rule.event_id
+        first_add = self._signed_source_event(raw)
+        values = self._preconditions(withdrawal)
+        origin = next(item for item in values if item["name"] == "source-event")
+        origin["value"] = {key: rule.to_dict()[key] for key in ("event_id", "type", "project_id", "target", "payload")}
+        proof = next(item for item in values if item["name"] == "source-first-add")
+        proof["value"] = {"path": proof["path"], "present": True, "event": first_add.to_dict()}
+        return rule, withdrawal, first_add, json.loads(json.dumps(values, default=dict))
+
+    def test_continuous_source_first_add_proves_numeric_historical_membership(self):
+        for family in ("exemption", "records_reader"):
+            rule, withdrawal, first_add, values = self._continuous_source_case(family)
+            with self.subTest(family=family):
+                self.assertNotEqual(first_add.target["subject"]["login_snapshot"],
+                                    withdrawal.target["subject"]["login_snapshot"])
+                event_module._validate_preconditions(withdrawal, values, HEAD)
+                # An immutable first-add witness remains sufficient after the union
+                # is empty; neither a current source nor a retained rule cursor is needed.
+                empty = copy.deepcopy(values)
+                if family == "records_reader":
+                    observation = next(item for item in empty if item["name"] == "reader-authority-state")
+                    observation["value"]["source_event_ids"] = []
+                    self.assertEqual(required_side_artifacts(withdrawal, preconditions=empty, expected_head=HEAD), ())
+                    observation["value"].update(class_state="stale", cursor_event_id=first_add.event_id)
+                    observation["binding"]["derived_generation"] = first_add.event_id
+                    self.assertEqual(
+                        [item.affected_classes for item in required_side_artifacts(withdrawal, preconditions=empty, expected_head=HEAD)],
+                        [("reader_authority",)],
+                    )
+                else:
+                    union = next(item for item in empty if item["name"].startswith("current-exemption-union-"))
+                    union["value"].update(subjects=[], provenance={})
+                    event_module._validate_preconditions(withdrawal, empty, HEAD)
+                self.assertEqual(rule.event_id, withdrawal.target["source_event_id"])
+
+    def test_source_first_add_fixed_path_vectors(self):
+        self.assertEqual({row["family"] for row in self.corpus["source_first_add_paths"]},
+                         {"exemption", "records_reader"})
+        for row in self.corpus["source_first_add_paths"]:
+            _, withdrawal, first_add, values = self._continuous_source_case(row["family"])
+            descriptor = next(item for item in required_preconditions(withdrawal, expected_head=HEAD)
+                              if item.name == "source-first-add")
+            with self.subTest(family=row["family"]):
+                self.assertEqual(withdrawal.project_id, row["project_id"])
+                self.assertEqual(withdrawal.target["source_event_id"], row["source_event_id"])
+                self.assertEqual(withdrawal.target["subject"]["github_user_id"], row["github_user_id"])
+                self.assertEqual(first_add.operation_nonce, row["operation_nonce"])
+                self.assertEqual(first_add.event_id, row["event_id"])
+                self.assertEqual(first_add.path, row["path"])
+                self.assertEqual((descriptor.path, descriptor.branch, descriptor.repository_role,
+                                  descriptor.binding_mode, descriptor.expected_head),
+                                 (row["path"], "events", "records", "events-head", HEAD))
+                event_module._validate_preconditions(withdrawal, values, HEAD)
+
+    def test_source_first_add_survives_departure_rule_retirement_and_repeated_withdrawal(self):
+        for family in ("exemption", "records_reader"):
+            rule, withdrawal, first_add, proof_values = self._continuous_source_case(family)
+            records = []
+
+            def append(event):
+                parent = records[-1].commit_oid if records else HEAD
+                records.append(CanonicalEventRecord(event, f"{len(records) + 1:040x}", parent))
+
+            append(validate_event(self.rows["project_connected"]))
+            append(rule)
+            append(first_add)
+            raw = first_add.to_dict()
+            raw["payload"].update(result="withdraw", prior_materialization_event_id=first_add.event_id)
+            raw["payload"]["membership_evidence"]["state"] = "not_member"
+            append(self._signed_source_event(raw))
+            raw = copy.deepcopy(self.rows[family + "_rule_withdrawn"])
+            raw["target"]["rule_event_id"] = rule.event_id
+            append(self._signed_source_event(raw))
+            for nonce in ("kpKSkpKSkpKSkpKSkpKSkg", "k5OTk5OTk5OTk5OTk5OTkw"):
+                raw = withdrawal.to_dict()
+                raw["operation_nonce"] = nonce
+                current = self._signed_source_event(raw)
+                head = records[-1].commit_oid
+                values = self._preconditions(current, head, overrides={
+                    item["name"]: copy.deepcopy(item["value"])
+                    for item in proof_values if item["name"] in {"source-event", "source-first-add"}
+                })
+                prior_id = records[-1].event.event_id
+                for item in values:
+                    if item["name"] == "prior-generations":
+                        item["value"] = {key: prior_id for key in item["value"]}
+                    if item["binding_mode"] == "generation":
+                        item["binding"].update(canonical_generation=prior_id, derived_generation=prior_id)
+                    if item["name"] == "reader-authority-state":
+                        item["binding"]["derived_generation"] = first_add.event_id
+                        item["value"].update(class_state="stale", source_event_ids=[], cursor_event_id=first_add.event_id)
+                with self.subTest(family=family, nonce=nonce):
+                    required_side_artifacts(current, preconditions=values, expected_head=head)
+                    append(current)
+                    result = replay_events(current.project_id, HEAD, records)
+                    self.assertTrue(result.valid, result.error)
+                    known = (result.state.known_exemption_sources if family == "exemption"
+                             else result.state.known_reader_memberships)
+                    self.assertIn((rule.event_id, 7), known)
+
+    def test_source_first_add_observation_is_closed_and_head_bound(self):
+        for family in ("exemption", "records_reader"):
+            _, withdrawal, _, values = self._continuous_source_case(family)
+            proof = next(item for item in values if item["name"] == "source-first-add")
+            valid = proof["value"]
+            malformed = [None, [], {}, {"path": proof["path"], "present": 1},
+                         {"path": proof["path"], "present": False},
+                         {"path": proof["path"], "present": True},
+                         {**valid, "path": "events/wrong.enc.json"},
+                         {**valid, "extra": True}, {**valid, "event": None},
+                         {"path": proof["path"], "present": False, "event": valid["event"]}]
+            for value in malformed:
+                trial = copy.deepcopy(values)
+                next(item for item in trial if item["name"] == "source-first-add")["value"] = value
+                with self.subTest(family=family, value=value), self.assertRaises(PreconditionValidationError):
+                    required_side_artifacts(withdrawal, preconditions=trial, expected_head=HEAD)
+            for descriptor_key, replacement in (("path", "events/wrong.enc.json"),
+                                                ("branch", "derived"), ("artifact_kind", "reader-authority")):
+                trial = copy.deepcopy(values)
+                next(item for item in trial if item["name"] == "source-first-add")[descriptor_key] = replacement
+                with self.subTest(family=family, descriptor=descriptor_key), self.assertRaises(PreconditionValidationError):
+                    event_module._validate_preconditions(withdrawal, trial, HEAD)
+            stale = copy.deepcopy(values)
+            next(item for item in stale if item["name"] == "source-first-add")["binding"]["events_head"] = "a" * 40
+            with self.subTest(family=family, stale_head=True), self.assertRaises(PreconditionValidationError):
+                event_module._validate_preconditions(withdrawal, stale, HEAD)
+            missing = [item for item in values if item["name"] != "source-first-add"]
+            with self.subTest(family=family, missing=True), self.assertRaises(PreconditionValidationError):
+                event_module._validate_preconditions(withdrawal, missing, HEAD)
+            with self.subTest(family=family, duplicate=True), self.assertRaises(PreconditionValidationError):
+                event_module._validate_preconditions(withdrawal, [*values, proof], HEAD)
+
+    def test_source_first_add_rejects_wrong_event_and_unproven_subject(self):
+        for family in ("exemption", "records_reader"):
+            rule, withdrawal, first_add, values = self._continuous_source_case(family)
+            wrong_family = "records_reader_materialized" if family == "exemption" else "exemption_materialized"
+            mutations = [
+                (("type",), wrong_family), (("project_id",), "other-project"),
+                (("target", "rule_event_id"), self.rows["revocation"]["event_id"]),
+                (("target", "subject", "github_user_id"), 8),
+                (("payload", "team", "slug_snapshot"), "other-team"),
+                (("payload", "prior_materialization_event_id"), first_add.event_id),
+                (("payload", "result"), "withdraw"),
+            ]
+            for path, replacement in mutations:
+                raw = first_add.to_dict()
+                target = raw
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = replacement
+                if path == ("target", "subject", "github_user_id"):
+                    raw["payload"]["membership_evidence"]["github_user_id"] = replacement
+                if path == ("payload", "result"):
+                    raw["payload"]["membership_evidence"]["state"] = "not_member"
+                bad = self._signed_source_event(raw).to_dict()
+                trial = copy.deepcopy(values)
+                next(item for item in trial if item["name"] == "source-first-add")["value"]["event"] = bad
+                with self.subTest(family=family, mutation=path), self.assertRaises(PreconditionValidationError):
+                    required_side_artifacts(withdrawal, preconditions=trial, expected_head=HEAD)
+            raw = withdrawal.to_dict()
+            raw["target"]["subject"]["github_user_id"] = 8
+            never_added = self._signed_source_event(raw)
+            trial = self._preconditions(never_added, overrides={
+                "source-event": next(item["value"] for item in values if item["name"] == "source-event"),
+            })
+            with self.subTest(family=family, never_materialized=True), self.assertRaises(PreconditionValidationError):
+                event_module._validate_preconditions(never_added, trial, HEAD)
+            # A rule ID by itself is never a subject-membership assertion.
+            self.assertEqual(rule.event_id, never_added.target["source_event_id"])
+            for target in ({}, {"team": {}}, {"team": None}, {"team": rule.target["team"], "extra": True}):
+                trial = copy.deepcopy(values)
+                next(item for item in trial if item["name"] == "source-event")["value"]["target"] = target
+                with self.subTest(family=family, malformed_rule=target), self.assertRaises(PreconditionValidationError):
+                    event_module._validate_preconditions(withdrawal, trial, HEAD)
+
+    def test_direct_and_snapshot_sources_require_first_add_absence(self):
+        for event_type, snapshot_type in (("exemption_source_withdrawn", "exemption_snapshot"),
+                                          ("records_reader_withdrawn", "records_reader_snapshot_authorized")):
+            withdrawal = validate_event(self.rows[event_type])
+            for snapshot in (False, True):
+                values = self._preconditions(withdrawal)
+                if snapshot:
+                    origin = next(item for item in values if item["name"] == "source-event")["value"]
+                    origin.update(type=snapshot_type, target={"subjects": [dict(withdrawal.target["subject"])]})
+                event_module._validate_preconditions(withdrawal, values, HEAD)
+                proof = next(item for item in values if item["name"] == "source-first-add")
+                proof["value"].update(present=True, event=self.rows["records_reader_materialized"])
+                with self.subTest(event_type=event_type, snapshot=snapshot), self.assertRaises(PreconditionValidationError):
+                    event_module._validate_preconditions(withdrawal, values, HEAD)
 
     def test_active_exemption_rule_state_is_current_membership_only(self):
         event = validate_event(self.rows["exemption_materialized"])

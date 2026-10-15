@@ -751,6 +751,42 @@ projection uses `canonical-sha`. A restore cannot target another restore or
 infer a target from a version, timestamp, agreement text, or mutable
 configuration.
 
+**Generic source withdrawals prove historical subject membership.**
+`exemption_source_withdrawn` and `records_reader_withdrawn` retain the
+`source-event` read at `event_path(source_event_id)` under `events-head`.
+Individual and snapshot origins prove membership by the stable numeric subject
+in that event. A continuous source's origin is its corresponding
+`*_rule_configured` event, which names a team rather than a subject, so that
+event alone is insufficient.
+
+Both withdrawal types also require `source-first-add`, a `canonical-event`
+descriptor in the records repository's `events` branch under `events-head`,
+with relation `source-historical-subject-membership`. Its deterministic path
+uses the existing M1-4 automation nonce for
+`(source_event_id, subject.github_user_id, "add", null)` and the existing
+project-plus-nonce event ID. This adds no event member or identity input.
+The authenticated observation is exactly either
+`{"path": P, "present": false}` or
+`{"path": P, "present": true, "event": E}`.
+
+For an individual or snapshot origin, the first alternative is required;
+materialization under that non-rule origin cannot be valid. A continuous origin
+requires the second alternative. `E` is a complete validated event at `P`, read
+at `expected_head`, for this project and the matching exemption/reader
+materialization family. Its rule ID and stable numeric subject must match the
+withdrawal, its team must match the origin rule, and its result and predecessor
+must be `add` and `null`. Missing, duplicate, stale, malformed, wrong-family,
+cross-project/rule/subject/team, or non-first-add evidence fails closed.
+
+Every valid materialization history starts with that first add. Reading it
+therefore proves historical membership after departure, source withdrawal or
+rule retirement even when derivatives are stale or oversized. No history scan,
+current-membership assertion or new stored index is required. This uniform
+descriptor adds one bounded presence/content read to each generic withdrawal,
+including the individual and snapshot cases. Exemption withdrawals retain
+their existing generation-bound union input. Reader withdrawal affectedness
+and shrink-only availability remain as specified below.
+
 **Reader withdrawals use a shrink-only path.** `records_reader_withdrawn` and
 `records_reader_rule_withdrawn` require the source-creating event under
 `events-head`: it must exist at the confirmed head and be a reader source for
