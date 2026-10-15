@@ -196,3 +196,14 @@ from .replay import (  # noqa: F401
     retry_event_ids,
     scope_request,
 )
+from .release_profile import (
+    DERIVED_CLASSES, ReleaseProfile, ReleaseProfileError, load_release_profile,
+)
+from .derived import (
+    CoverageReadContext, DerivedClassOverflow, DerivedDelta, DerivedError, DerivedPlaintext,
+    DerivedProjection, DerivedReadProjection, DerivedReadRow, ResolvedStatus, assemble_derived_projection,
+    derived_delta, materialize_derived, reader_authority_shard, reader_source_for_subject, resolve_read_status,
+    resolve_selected_read_status,
+    validate_derived_projection, validate_materialization_generations,
+    validate_project_configuration,
+)
