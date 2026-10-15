@@ -1,0 +1,352 @@
+{
+  "schema_version": 1,
+  "note": "ASCII JCS and SHA-256 goldens constructed independently with stdlib json/hashlib, not the operation implementation. No age-based recovery. Canonical append/projection observations are caller facts. The frozen project_connected event requires project-wide fence/marker scope; focused tests independently exercise subject-scoped canonical event families.",
+  "profile": {
+    "max_prepared_operation_bytes": 16384
+  },
+  "project_id": "project-1",
+  "cells": {
+    "idle": {
+      "state": "idle",
+      "generation": 4
+    },
+    "prepared": {
+      "state": "prepared",
+      "generation": 4,
+      "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+      "operation_id": "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q",
+      "event_id": "RAxVXBTsSe-l94L24quz8DweBTwQnS-9W0rwaz7ooCg",
+      "prepared_events_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "event_jcs_b64": "eyJhY3RvciI6eyJnaXRodWJfdXNlcl9pZCI6Nywia2luZCI6ImdpdGh1YiIsImxvZ2luX3NuYXBzaG90IjoiYWRtaW4ifSwiYXV0aG9yaXphdGlvbnMiOlt7ImF1dGhvcml6ZWQiOnRydWUsImNoZWNrZWRfYXQiOiIyMDI2LTA4LTI5VDAwOjAwOjAwWiIsImdpdGh1Yl9yZXF1ZXN0X2lkIjpudWxsLCJvYnNlcnZlZF9hdXRob3JpdHkiOiJvYnNlcnZlZCIsIm9wZXJhdGlvbiI6InByb2plY3RfY29ubmVjdF9jb250cm9sX3JlcG9zaXRvcnkiLCJyZXF1aXJlZF9hdXRob3JpdHkiOiJwcm9qZWN0X3JlcG9zaXRvcnlfYWRtaW4iLCJyZXNvdXJjZV9pZCI6MTMsInJlc291cmNlX2tpbmQiOiJyZXBvc2l0b3J5In0seyJhdXRob3JpemVkIjp0cnVlLCJjaGVja2VkX2F0IjoiMjAyNi0wOC0yOVQwMDowMDowMFoiLCJnaXRodWJfcmVxdWVzdF9pZCI6bnVsbCwib2JzZXJ2ZWRfYXV0aG9yaXR5Ijoib2JzZXJ2ZWQiLCJvcGVyYXRpb24iOiJwcm9qZWN0X2Nvbm5lY3RfY292ZXJhZ2VfcmVwb3NpdG9yeSIsInJlcXVpcmVkX2F1dGhvcml0eSI6InByb2plY3RfcmVwb3NpdG9yeV9hZG1pbiIsInJlc291cmNlX2lkIjoxMiwicmVzb3VyY2Vfa2luZCI6InJlcG9zaXRvcnkifSx7ImF1dGhvcml6ZWQiOnRydWUsImNoZWNrZWRfYXQiOiIyMDI2LTA4LTI5VDAwOjAwOjAwWiIsImdpdGh1Yl9yZXF1ZXN0X2lkIjpudWxsLCJvYnNlcnZlZF9hdXRob3JpdHkiOiJvYnNlcnZlZCIsIm9wZXJhdGlvbiI6InByb2plY3RfY29ubmVjdF9lbmZvcmNlcl9hcHAiLCJyZXF1aXJlZF9hdXRob3JpdHkiOiJlbmZvcmNlcl9hcHBfYmluZGluZyIsInJlc291cmNlX2lkIjoyMiwicmVzb3VyY2Vfa2luZCI6Imluc3RhbGxhdGlvbiJ9LHsiYXV0aG9yaXplZCI6dHJ1ZSwiY2hlY2tlZF9hdCI6IjIwMjYtMDgtMjlUMDA6MDA6MDBaIiwiZ2l0aHViX3JlcXVlc3RfaWQiOm51bGwsIm9ic2VydmVkX2F1dGhvcml0eSI6Im9ic2VydmVkIiwib3BlcmF0aW9uIjoicHJvamVjdF9jb25uZWN0X293bmVyIiwicmVxdWlyZWRfYXV0aG9yaXR5IjoicmVwb3NpdG9yeV9vd25lcl9jb250cm9sIiwicmVzb3VyY2VfaWQiOjEwLCJyZXNvdXJjZV9raW5kIjoiYWNjb3VudCJ9LHsiYXV0aG9yaXplZCI6dHJ1ZSwiY2hlY2tlZF9hdCI6IjIwMjYtMDgtMjlUMDA6MDA6MDBaIiwiZ2l0aHViX3JlcXVlc3RfaWQiOm51bGwsIm9ic2VydmVkX2F1dGhvcml0eSI6Im9ic2VydmVkIiwib3BlcmF0aW9uIjoicHJvamVjdF9jb25uZWN0X3JlY29yZHNfYXBwIiwicmVxdWlyZWRfYXV0aG9yaXR5IjoicmVjb3Jkc19hcHBfYmluZGluZyIsInJlc291cmNlX2lkIjoyMSwicmVzb3VyY2Vfa2luZCI6Imluc3RhbGxhdGlvbiJ9LHsiYXV0aG9yaXplZCI6dHJ1ZSwiY2hlY2tlZF9hdCI6IjIwMjYtMDgtMjlUMDA6MDA6MDBaIiwiZ2l0aHViX3JlcXVlc3RfaWQiOm51bGwsIm9ic2VydmVkX2F1dGhvcml0eSI6Im9ic2VydmVkIiwib3BlcmF0aW9uIjoicHJvamVjdF9jb25uZWN0X3JlY29yZHNfcmVwb3NpdG9yeSIsInJlcXVpcmVkX2F1dGhvcml0eSI6InByb2plY3RfcmVwb3NpdG9yeV9hZG1pbiIsInJlc291cmNlX2lkIjoxMSwicmVzb3VyY2Vfa2luZCI6InJlcG9zaXRvcnkifSx7ImF1dGhvcml6ZWQiOnRydWUsImNoZWNrZWRfYXQiOiIyMDI2LTA4LTI5VDAwOjAwOjAwWiIsImdpdGh1Yl9yZXF1ZXN0X2lkIjpudWxsLCJvYnNlcnZlZF9hdXRob3JpdHkiOiJvYnNlcnZlZCIsIm9wZXJhdGlvbiI6InByb2plY3RfY29ubmVjdF90cmlnZ2VyX2FwcCIsInJlcXVpcmVkX2F1dGhvcml0eSI6InRyaWdnZXJfYXBwX2JpbmRpbmciLCJyZXNvdXJjZV9pZCI6MjMsInJlc291cmNlX2tpbmQiOiJpbnN0YWxsYXRpb24ifV0sImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjpudWxsLCJkcmFjbGFfdmVyc2lvbiI6IjAuMS4wIiwiZXZlbnRfaWQiOiJSQXhWWEJUc1NlLWw5NEwyNHF1ejhEd2VCVHdRblMtOVcwcndhejdvb0NnIiwiaWRlbXBvdGVuY3lfa2V5IjoiSTZtYlJMdXIwdzZOMmp6dW9rVU9JWHdvWWg4MHlPaWx6bzJZR2RqRnM3USIsIm9wZXJhdGlvbl9ub25jZSI6IkJRVUZCUVVGQlFVRkJRVUZCUVVGQlEiLCJvcGVyYXRpb25fc2hhMjU2Ijoic2hhMjU2OmU0NDFmMzU4NjE5MGFkOGRkYzRlMWVkMTE0ODQyMDQ5OGMzN2Y0YjJkYmZhZDYwNGRmYWEyYjI5MzE5ZTI4OTYiLCJwYXlsb2FkIjp7ImJvb3RzdHJhcCI6eyJjdXJyZW50X2tpZHMiOnsiY292ZXJhZ2UiOiJjb3ZlcmFnZS1raWQtMSIsInJlY29yZHMiOiJyZWNvcmRzLWtpZC0xIn0sImluc3RhbGxfZ2VuZXJhdGlvbiI6Imluc3RhbGwtMSIsIm1hbmlmZXN0X2NvbW1pdF9vaWQiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibWFuaWZlc3Rfc2hhMjU2Ijoic2hhMjU2OmFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyZWNvcmRzX2tleXJpbmdfY2FuZGlkYXRlX29pZCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyZXBvc2l0b3J5X2lkcyI6eyJjb250cm9sIjoxMywiY292ZXJhZ2UiOjEyLCJyZWNvcmRzIjoxMX19LCJwcm9qZWN0X2NvbmZpZ3VyYXRpb24iOnsiY29uZmlybWF0aW9uX2xhYmVscyI6WyJJIGFncmVlIl0sImNvcnJlY3Rpb25fcHJvY2VkdXJlIjoiQ29udGFjdCB0aGUgcHJvamVjdCBhZG1pbmlzdHJhdG9yLiIsInByaXZhY3lfcG9saWN5X3VybCI6Imh0dHBzOi8vZXhhbXBsZS50ZXN0L3ByaXZhY3kiLCJyZXF1aXJlZF9maWVsZHMiOlt7ImtpbmQiOiJ0ZXh0IiwibGFiZWwiOiJGdWxsIG5hbWUiLCJuYW1lIjoiZnVsbF9uYW1lIiwicmVxdWlyZWQiOnRydWV9XSwicmV0ZW50aW9uX3N0YXRlbWVudCI6IlJldGFpbmVkIGZvciBhdWRpdC4ifSwicHJvamVjdF9zbHVnIjoicHJvamVjdC1vbmUiLCJyZWNpcGllbnQiOnsibGVnYWxfbmFtZSI6IlJlY2lwaWVudCBPbmUiLCJyZWNpcGllbnRfaWQiOiJyZWNpcGllbnQtMSJ9LCJyZXBvc2l0b3J5X2lkcyI6eyJjb250cm9sIjoxMywiY292ZXJhZ2UiOjEyLCJyZWNvcmRzIjoxMX0sInJlcG9zaXRvcnlfb3duZXIiOnsiZ2l0aHViX2FjY291bnRfaWQiOjEwLCJsb2dpbl9zbmFwc2hvdCI6Im93bmVyIn0sInN1Y2Nlc3Nvcl9vZiI6bnVsbH0sInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJyZWNvcmRlZF9hdCI6IjIwMjYtMDgtMjlUMDA6MDA6MDBaIiwic2NoZW1hX3ZlcnNpb24iOjEsInRhcmdldCI6e30sInR5cGUiOiJwcm9qZWN0X2Nvbm5lY3RlZCJ9",
+      "side_artifacts": [
+        {
+          "kind": "materialization_generations",
+          "path": "config/materialization-generations.enc.json",
+          "bytes_b64": "eyJkZXJpdmVkX2luZGV4IjoiUkF4VlhCVHNTZS1sOTRMMjRxdXo4RHdlQlR3UW5TLTlXMHJ3YXo3b29DZyIsImdlbmVyYXRpb25zX3ZlcnNpb24iOjEsInJlYWRlcl9hdXRob3JpdHkiOiJSQXhWWEJUc1NlLWw5NEwyNHF1ejhEd2VCVHdRblMtOVcwcndhejdvb0NnIiwic3RhdHVzX2RldGFpbCI6IlJBeFZYQlRzU2UtbDk0TDI0cXV6OER3ZUJUd1FuUy05VzByd2F6N29vQ2cifQ",
+          "sha256": "sha256:86fd837e548208d0b9458996ad30a51942ae0ea0a9f638a294fd449c9014c939"
+        },
+        {
+          "kind": "project_config",
+          "path": "config/project.enc.json",
+          "bytes_b64": "eyJjb25maXJtYXRpb25fbGFiZWxzIjpbIkkgYWdyZWUiXSwiY29ycmVjdGlvbl9wcm9jZWR1cmUiOiJDb250YWN0IHRoZSBwcm9qZWN0IGFkbWluaXN0cmF0b3IuIiwicHJpdmFjeV9wb2xpY3lfdXJsIjoiaHR0cHM6Ly9leGFtcGxlLnRlc3QvcHJpdmFjeSIsInJlcXVpcmVkX2ZpZWxkcyI6W3sia2luZCI6InRleHQiLCJsYWJlbCI6IkZ1bGwgbmFtZSIsIm5hbWUiOiJmdWxsX25hbWUiLCJyZXF1aXJlZCI6dHJ1ZX1dLCJyZXRlbnRpb25fc3RhdGVtZW50IjoiUmV0YWluZWQgZm9yIGF1ZGl0LiJ9",
+          "sha256": "sha256:d7443a8a9d466740ae4897088e3a42d011d683c405f778ea794142798f3a7bd8"
+        }
+      ]
+    },
+    "appending": {
+      "state": "appending",
+      "generation": 4,
+      "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+      "operation_id": "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q",
+      "event_id": "RAxVXBTsSe-l94L24quz8DweBTwQnS-9W0rwaz7ooCg",
+      "prepared_events_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "event_jcs_b64": "eyJhY3RvciI6eyJnaXRodWJfdXNlcl9pZCI6Nywia2luZCI6ImdpdGh1YiIsImxvZ2luX3NuYXBzaG90IjoiYWRtaW4ifSwiYXV0aG9yaXphdGlvbnMiOlt7ImF1dGhvcml6ZWQiOnRydWUsImNoZWNrZWRfYXQiOiIyMDI2LTA4LTI5VDAwOjAwOjAwWiIsImdpdGh1Yl9yZXF1ZXN0X2lkIjpudWxsLCJvYnNlcnZlZF9hdXRob3JpdHkiOiJvYnNlcnZlZCIsIm9wZXJhdGlvbiI6InByb2plY3RfY29ubmVjdF9jb250cm9sX3JlcG9zaXRvcnkiLCJyZXF1aXJlZF9hdXRob3JpdHkiOiJwcm9qZWN0X3JlcG9zaXRvcnlfYWRtaW4iLCJyZXNvdXJjZV9pZCI6MTMsInJlc291cmNlX2tpbmQiOiJyZXBvc2l0b3J5In0seyJhdXRob3JpemVkIjp0cnVlLCJjaGVja2VkX2F0IjoiMjAyNi0wOC0yOVQwMDowMDowMFoiLCJnaXRodWJfcmVxdWVzdF9pZCI6bnVsbCwib2JzZXJ2ZWRfYXV0aG9yaXR5Ijoib2JzZXJ2ZWQiLCJvcGVyYXRpb24iOiJwcm9qZWN0X2Nvbm5lY3RfY292ZXJhZ2VfcmVwb3NpdG9yeSIsInJlcXVpcmVkX2F1dGhvcml0eSI6InByb2plY3RfcmVwb3NpdG9yeV9hZG1pbiIsInJlc291cmNlX2lkIjoxMiwicmVzb3VyY2Vfa2luZCI6InJlcG9zaXRvcnkifSx7ImF1dGhvcml6ZWQiOnRydWUsImNoZWNrZWRfYXQiOiIyMDI2LTA4LTI5VDAwOjAwOjAwWiIsImdpdGh1Yl9yZXF1ZXN0X2lkIjpudWxsLCJvYnNlcnZlZF9hdXRob3JpdHkiOiJvYnNlcnZlZCIsIm9wZXJhdGlvbiI6InByb2plY3RfY29ubmVjdF9lbmZvcmNlcl9hcHAiLCJyZXF1aXJlZF9hdXRob3JpdHkiOiJlbmZvcmNlcl9hcHBfYmluZGluZyIsInJlc291cmNlX2lkIjoyMiwicmVzb3VyY2Vfa2luZCI6Imluc3RhbGxhdGlvbiJ9LHsiYXV0aG9yaXplZCI6dHJ1ZSwiY2hlY2tlZF9hdCI6IjIwMjYtMDgtMjlUMDA6MDA6MDBaIiwiZ2l0aHViX3JlcXVlc3RfaWQiOm51bGwsIm9ic2VydmVkX2F1dGhvcml0eSI6Im9ic2VydmVkIiwib3BlcmF0aW9uIjoicHJvamVjdF9jb25uZWN0X293bmVyIiwicmVxdWlyZWRfYXV0aG9yaXR5IjoicmVwb3NpdG9yeV9vd25lcl9jb250cm9sIiwicmVzb3VyY2VfaWQiOjEwLCJyZXNvdXJjZV9raW5kIjoiYWNjb3VudCJ9LHsiYXV0aG9yaXplZCI6dHJ1ZSwiY2hlY2tlZF9hdCI6IjIwMjYtMDgtMjlUMDA6MDA6MDBaIiwiZ2l0aHViX3JlcXVlc3RfaWQiOm51bGwsIm9ic2VydmVkX2F1dGhvcml0eSI6Im9ic2VydmVkIiwib3BlcmF0aW9uIjoicHJvamVjdF9jb25uZWN0X3JlY29yZHNfYXBwIiwicmVxdWlyZWRfYXV0aG9yaXR5IjoicmVjb3Jkc19hcHBfYmluZGluZyIsInJlc291cmNlX2lkIjoyMSwicmVzb3VyY2Vfa2luZCI6Imluc3RhbGxhdGlvbiJ9LHsiYXV0aG9yaXplZCI6dHJ1ZSwiY2hlY2tlZF9hdCI6IjIwMjYtMDgtMjlUMDA6MDA6MDBaIiwiZ2l0aHViX3JlcXVlc3RfaWQiOm51bGwsIm9ic2VydmVkX2F1dGhvcml0eSI6Im9ic2VydmVkIiwib3BlcmF0aW9uIjoicHJvamVjdF9jb25uZWN0X3JlY29yZHNfcmVwb3NpdG9yeSIsInJlcXVpcmVkX2F1dGhvcml0eSI6InByb2plY3RfcmVwb3NpdG9yeV9hZG1pbiIsInJlc291cmNlX2lkIjoxMSwicmVzb3VyY2Vfa2luZCI6InJlcG9zaXRvcnkifSx7ImF1dGhvcml6ZWQiOnRydWUsImNoZWNrZWRfYXQiOiIyMDI2LTA4LTI5VDAwOjAwOjAwWiIsImdpdGh1Yl9yZXF1ZXN0X2lkIjpudWxsLCJvYnNlcnZlZF9hdXRob3JpdHkiOiJvYnNlcnZlZCIsIm9wZXJhdGlvbiI6InByb2plY3RfY29ubmVjdF90cmlnZ2VyX2FwcCIsInJlcXVpcmVkX2F1dGhvcml0eSI6InRyaWdnZXJfYXBwX2JpbmRpbmciLCJyZXNvdXJjZV9pZCI6MjMsInJlc291cmNlX2tpbmQiOiJpbnN0YWxsYXRpb24ifV0sImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjpudWxsLCJkcmFjbGFfdmVyc2lvbiI6IjAuMS4wIiwiZXZlbnRfaWQiOiJSQXhWWEJUc1NlLWw5NEwyNHF1ejhEd2VCVHdRblMtOVcwcndhejdvb0NnIiwiaWRlbXBvdGVuY3lfa2V5IjoiSTZtYlJMdXIwdzZOMmp6dW9rVU9JWHdvWWg4MHlPaWx6bzJZR2RqRnM3USIsIm9wZXJhdGlvbl9ub25jZSI6IkJRVUZCUVVGQlFVRkJRVUZCUVVGQlEiLCJvcGVyYXRpb25fc2hhMjU2Ijoic2hhMjU2OmU0NDFmMzU4NjE5MGFkOGRkYzRlMWVkMTE0ODQyMDQ5OGMzN2Y0YjJkYmZhZDYwNGRmYWEyYjI5MzE5ZTI4OTYiLCJwYXlsb2FkIjp7ImJvb3RzdHJhcCI6eyJjdXJyZW50X2tpZHMiOnsiY292ZXJhZ2UiOiJjb3ZlcmFnZS1raWQtMSIsInJlY29yZHMiOiJyZWNvcmRzLWtpZC0xIn0sImluc3RhbGxfZ2VuZXJhdGlvbiI6Imluc3RhbGwtMSIsIm1hbmlmZXN0X2NvbW1pdF9vaWQiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwibWFuaWZlc3Rfc2hhMjU2Ijoic2hhMjU2OmFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyZWNvcmRzX2tleXJpbmdfY2FuZGlkYXRlX29pZCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyZXBvc2l0b3J5X2lkcyI6eyJjb250cm9sIjoxMywiY292ZXJhZ2UiOjEyLCJyZWNvcmRzIjoxMX19LCJwcm9qZWN0X2NvbmZpZ3VyYXRpb24iOnsiY29uZmlybWF0aW9uX2xhYmVscyI6WyJJIGFncmVlIl0sImNvcnJlY3Rpb25fcHJvY2VkdXJlIjoiQ29udGFjdCB0aGUgcHJvamVjdCBhZG1pbmlzdHJhdG9yLiIsInByaXZhY3lfcG9saWN5X3VybCI6Imh0dHBzOi8vZXhhbXBsZS50ZXN0L3ByaXZhY3kiLCJyZXF1aXJlZF9maWVsZHMiOlt7ImtpbmQiOiJ0ZXh0IiwibGFiZWwiOiJGdWxsIG5hbWUiLCJuYW1lIjoiZnVsbF9uYW1lIiwicmVxdWlyZWQiOnRydWV9XSwicmV0ZW50aW9uX3N0YXRlbWVudCI6IlJldGFpbmVkIGZvciBhdWRpdC4ifSwicHJvamVjdF9zbHVnIjoicHJvamVjdC1vbmUiLCJyZWNpcGllbnQiOnsibGVnYWxfbmFtZSI6IlJlY2lwaWVudCBPbmUiLCJyZWNpcGllbnRfaWQiOiJyZWNpcGllbnQtMSJ9LCJyZXBvc2l0b3J5X2lkcyI6eyJjb250cm9sIjoxMywiY292ZXJhZ2UiOjEyLCJyZWNvcmRzIjoxMX0sInJlcG9zaXRvcnlfb3duZXIiOnsiZ2l0aHViX2FjY291bnRfaWQiOjEwLCJsb2dpbl9zbmFwc2hvdCI6Im93bmVyIn0sInN1Y2Nlc3Nvcl9vZiI6bnVsbH0sInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJyZWNvcmRlZF9hdCI6IjIwMjYtMDgtMjlUMDA6MDA6MDBaIiwic2NoZW1hX3ZlcnNpb24iOjEsInRhcmdldCI6e30sInR5cGUiOiJwcm9qZWN0X2Nvbm5lY3RlZCJ9",
+      "side_artifacts": [
+        {
+          "kind": "materialization_generations",
+          "path": "config/materialization-generations.enc.json",
+          "bytes_b64": "eyJkZXJpdmVkX2luZGV4IjoiUkF4VlhCVHNTZS1sOTRMMjRxdXo4RHdlQlR3UW5TLTlXMHJ3YXo3b29DZyIsImdlbmVyYXRpb25zX3ZlcnNpb24iOjEsInJlYWRlcl9hdXRob3JpdHkiOiJSQXhWWEJUc1NlLWw5NEwyNHF1ejhEd2VCVHdRblMtOVcwcndhejdvb0NnIiwic3RhdHVzX2RldGFpbCI6IlJBeFZYQlRzU2UtbDk0TDI0cXV6OER3ZUJUd1FuUy05VzByd2F6N29vQ2cifQ",
+          "sha256": "sha256:86fd837e548208d0b9458996ad30a51942ae0ea0a9f638a294fd449c9014c939"
+        },
+        {
+          "kind": "project_config",
+          "path": "config/project.enc.json",
+          "bytes_b64": "eyJjb25maXJtYXRpb25fbGFiZWxzIjpbIkkgYWdyZWUiXSwiY29ycmVjdGlvbl9wcm9jZWR1cmUiOiJDb250YWN0IHRoZSBwcm9qZWN0IGFkbWluaXN0cmF0b3IuIiwicHJpdmFjeV9wb2xpY3lfdXJsIjoiaHR0cHM6Ly9leGFtcGxlLnRlc3QvcHJpdmFjeSIsInJlcXVpcmVkX2ZpZWxkcyI6W3sia2luZCI6InRleHQiLCJsYWJlbCI6IkZ1bGwgbmFtZSIsIm5hbWUiOiJmdWxsX25hbWUiLCJyZXF1aXJlZCI6dHJ1ZX1dLCJyZXRlbnRpb25fc3RhdGVtZW50IjoiUmV0YWluZWQgZm9yIGF1ZGl0LiJ9",
+          "sha256": "sha256:d7443a8a9d466740ae4897088e3a42d011d683c405f778ea794142798f3a7bd8"
+        }
+      ],
+      "append_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "append_claim": "SJ9412JtkhfcA025LgthpwBg4cO7AUZvxWwcoUt3Cwc"
+    },
+    "landed": {
+      "state": "terminal",
+      "generation": 4,
+      "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+      "operation_id": "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q",
+      "event_id": "RAxVXBTsSe-l94L24quz8DweBTwQnS-9W0rwaz7ooCg",
+      "result": "landed",
+      "observed_events_head": "cccccccccccccccccccccccccccccccccccccccc",
+      "canonical_commit": "cccccccccccccccccccccccccccccccccccccccc"
+    },
+    "semantic_noop": {
+      "state": "terminal",
+      "generation": 4,
+      "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+      "operation_id": "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q",
+      "event_id": "RAxVXBTsSe-l94L24quz8DweBTwQnS-9W0rwaz7ooCg",
+      "result": "semantic_noop",
+      "observed_events_head": "cccccccccccccccccccccccccccccccccccccccc",
+      "canonical_commit": null
+    },
+    "conflict": {
+      "state": "terminal",
+      "generation": 4,
+      "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+      "operation_id": "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q",
+      "event_id": "RAxVXBTsSe-l94L24quz8DweBTwQnS-9W0rwaz7ooCg",
+      "result": "conflict",
+      "observed_events_head": "cccccccccccccccccccccccccccccccccccccccc",
+      "canonical_commit": null
+    }
+  },
+  "fences": {
+    "idle": {
+      "state": "idle",
+      "generation": 6
+    },
+    "mutation": {
+      "state": "mutation",
+      "generation": 6,
+      "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+      "operation_id": "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q",
+      "subjects": [],
+      "project_wide": true,
+      "prepared_commit_oid": "dddddddddddddddddddddddddddddddddddddddd",
+      "prepared_blob_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "prepared_generation": 4
+    },
+    "success": {
+      "state": "success_reserved",
+      "generation": 6,
+      "check_identity": "Kqny2-nuQ5Lh3_GllDgM-k8qygeVUue_-DUUSIyciGE",
+      "projection_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "released": {
+      "state": "idle",
+      "generation": 7
+    }
+  },
+  "markers": {
+    "empty": {
+      "ops": {}
+    },
+    "open": {
+      "ops": {
+        "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q": {
+          "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+          "started_at": "2026-08-29T00:00:00Z",
+          "subjects": [],
+          "project_wide": true
+        }
+      }
+    }
+  },
+  "append_claim": {
+    "input": {
+      "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+      "operation_id": "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q",
+      "append_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "jcs": "{\"append_head\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"operation_id\":\"I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q\",\"operation_sha256\":\"sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896\"}",
+    "expected": "SJ9412JtkhfcA025LgthpwBg4cO7AUZvxWwcoUt3Cwc"
+  },
+  "check_identity": {
+    "input": {
+      "repository_id": 12,
+      "merge_group_head_oid": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "pull_request_number": 9,
+      "github_delivery_id": "delivery-1"
+    },
+    "jcs": "{\"github_delivery_id\":\"delivery-1\",\"merge_group_head_oid\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"pull_request_number\":9,\"repository_id\":12}",
+    "expected": "Kqny2-nuQ5Lh3_GllDgM-k8qygeVUue_-DUUSIyciGE"
+  },
+  "crashes": [
+    {
+      "id": "before_prepare",
+      "cell": "idle",
+      "fence": "idle",
+      "marker": "empty",
+      "allowed": [
+        "prepare",
+        "reserve"
+      ]
+    },
+    {
+      "id": "prepared_before_fence",
+      "cell": "prepared",
+      "fence": "idle",
+      "marker": "empty",
+      "allowed": [
+        "acquire",
+        "prepare",
+        "reserve"
+      ]
+    },
+    {
+      "id": "fence_before_marker",
+      "cell": "prepared",
+      "fence": "mutation",
+      "marker": "empty",
+      "allowed": [
+        "acquire",
+        "open",
+        "prepare"
+      ]
+    },
+    {
+      "id": "marker_before_revalidation",
+      "cell": "prepared",
+      "fence": "mutation",
+      "marker": "open",
+      "allowed": [
+        "acquire",
+        "claim",
+        "conflict",
+        "noop",
+        "open",
+        "prepare"
+      ]
+    },
+    {
+      "id": "append_right_before_commit",
+      "cell": "appending",
+      "fence": "mutation",
+      "marker": "open",
+      "allowed": [
+        "acquire",
+        "claim",
+        "close_projected",
+        "open",
+        "prepare"
+      ]
+    },
+    {
+      "id": "canonical_appended",
+      "cell": "appending",
+      "fence": "mutation",
+      "marker": "open",
+      "allowed": [
+        "acquire",
+        "claim",
+        "close_projected",
+        "open",
+        "prepare"
+      ]
+    },
+    {
+      "id": "projection_written",
+      "cell": "appending",
+      "fence": "mutation",
+      "marker": "open",
+      "allowed": [
+        "acquire",
+        "claim",
+        "close_projected",
+        "open",
+        "prepare"
+      ]
+    },
+    {
+      "id": "marker_closed",
+      "cell": "appending",
+      "fence": "mutation",
+      "marker": "empty",
+      "allowed": [
+        "acquire",
+        "close_projected",
+        "landed",
+        "open",
+        "prepare"
+      ]
+    },
+    {
+      "id": "terminal_landed",
+      "cell": "landed",
+      "fence": "mutation",
+      "marker": "empty",
+      "allowed": [
+        "close",
+        "close_projected",
+        "landed",
+        "prepare",
+        "release"
+      ]
+    },
+    {
+      "id": "terminal_noop_before_close",
+      "cell": "semantic_noop",
+      "fence": "mutation",
+      "marker": "open",
+      "allowed": [
+        "close",
+        "close_projected",
+        "noop",
+        "prepare"
+      ]
+    },
+    {
+      "id": "terminal_conflict_before_close",
+      "cell": "conflict",
+      "fence": "mutation",
+      "marker": "open",
+      "allowed": [
+        "close",
+        "close_projected",
+        "conflict",
+        "prepare"
+      ]
+    },
+    {
+      "id": "terminal_noop_closed",
+      "cell": "semantic_noop",
+      "fence": "mutation",
+      "marker": "empty",
+      "allowed": [
+        "close",
+        "close_projected",
+        "noop",
+        "prepare",
+        "release"
+      ]
+    },
+    {
+      "id": "terminal_conflict_closed",
+      "cell": "conflict",
+      "fence": "mutation",
+      "marker": "empty",
+      "allowed": [
+        "close",
+        "close_projected",
+        "conflict",
+        "prepare",
+        "release"
+      ]
+    },
+    {
+      "id": "fence_released",
+      "cell": "landed",
+      "fence": "released",
+      "marker": "empty",
+      "allowed": [
+        "clear",
+        "prepare",
+        "release",
+        "release_success",
+        "reserve"
+      ]
+    },
+    {
+      "id": "cell_cleared",
+      "cell": "idle",
+      "fence": "released",
+      "marker": "empty",
+      "allowed": [
+        "clear",
+        "prepare",
+        "release_success",
+        "reserve"
+      ]
+    },
+    {
+      "id": "authoritative_reserved",
+      "cell": "idle",
+      "fence": "success",
+      "marker": "empty",
+      "allowed": [
+        "prepare",
+        "release_success",
+        "reserve"
+      ]
+    }
+  ]
+}
