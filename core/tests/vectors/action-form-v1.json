@@ -1,0 +1,1101 @@
+{
+  "format_version": 1,
+  "oracle": "ASCII fixed vectors use independent Python json.dumps sort_keys/minimal separators and stdlib HMAC-SHA256; no action_forms implementation is imported. Terminal fixtures reference events-v1.json.",
+  "domain_hex": "647261636c612d616374696f6e2d666f726d2d763100",
+  "keys": [
+    {
+      "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+      "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    },
+    {
+      "kid": "TExMTExMTExMTExMTExMTA",
+      "key_hex": "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100"
+    }
+  ],
+  "context": {
+    "current_time": "2026-01-02T12:00:00Z",
+    "session_expires_at": "2026-01-02T20:00:00Z"
+  },
+  "later_head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "golden": {
+    "operation": {
+      "target": {},
+      "payload": {
+        "project_configuration": {
+          "privacy_policy_url": "https://example.test/privacy",
+          "retention_statement": "Retained for audit.",
+          "correction_procedure": "Contact the project administrator.",
+          "required_fields": [
+            {
+              "name": "full_name",
+              "label": "Full name",
+              "kind": "text",
+              "required": true
+            }
+          ],
+          "confirmation_labels": [
+            "I agree"
+          ]
+        }
+      }
+    },
+    "form": {
+      "v": 1,
+      "algorithm": "HS256",
+      "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+      "session_jti": "session-17",
+      "github_user_id": 19,
+      "project_id": "project-1",
+      "type": "config_updated",
+      "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+      "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+      "operation_sha256": "sha256:b6018afff65b372256e0440b85e717b6699b67cde02a5e6c4f3069312dec09f5",
+      "terminal_noop_event_id": null,
+      "issued_at": "2026-01-02T12:00:00Z",
+      "expires_at": "2026-01-02T19:55:00Z"
+    },
+    "payload_jcs": "{\"algorithm\":\"HS256\",\"confirmed_canonical_oid\":\"dddddddddddddddddddddddddddddddddddddddd\",\"expires_at\":\"2026-01-02T19:55:00Z\",\"github_user_id\":19,\"issued_at\":\"2026-01-02T12:00:00Z\",\"kid\":\"S0tLS0tLS0tLS0tLS0tLSw\",\"operation_nonce\":\"QkJCQkJCQkJCQkJCQkJCQg\",\"operation_sha256\":\"sha256:b6018afff65b372256e0440b85e717b6699b67cde02a5e6c4f3069312dec09f5\",\"project_id\":\"project-1\",\"session_jti\":\"session-17\",\"terminal_noop_event_id\":null,\"type\":\"config_updated\",\"v\":1}",
+    "tag_hex": "f85f9ecdcd724b321291c95aa1a39b6383804fb02a40afa63cafd55a5b25b1b8",
+    "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6YjYwMThhZmZmNjViMzcyMjU2ZTA0NDBiODVlNzE3YjY2OTliNjdjZGUwMmE1ZTZjNGYzMDY5MzEyZGVjMDlmNSIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjpudWxsLCJ0eXBlIjoiY29uZmlnX3VwZGF0ZWQiLCJ2IjoxfQ.-F-ezc1ySzISkclaoaObY4OAT7AqQK-mPK_VWlslsbg"
+  },
+  "actions": [
+    {
+      "type": "acceptance",
+      "write_type": "acceptance",
+      "terminal_types": [
+        "acceptance"
+      ]
+    },
+    {
+      "type": "revocation",
+      "write_type": "revocation",
+      "terminal_types": [
+        "revocation"
+      ]
+    },
+    {
+      "type": "project_connected",
+      "write_type": "project_connected",
+      "terminal_types": [
+        "project_connected"
+      ]
+    },
+    {
+      "type": "project_repository_owner_changed",
+      "write_type": "project_repository_owner_changed",
+      "terminal_types": [
+        "project_repository_owner_changed"
+      ]
+    },
+    {
+      "type": "project_succeeded",
+      "write_type": "project_succeeded",
+      "terminal_types": [
+        "project_succeeded"
+      ]
+    },
+    {
+      "type": "keyring_activated",
+      "write_type": "keyring_activated",
+      "terminal_types": [
+        "keyring_activated"
+      ]
+    },
+    {
+      "type": "agreement_published",
+      "write_type": "agreement_published",
+      "terminal_types": [
+        "agreement_published"
+      ]
+    },
+    {
+      "type": "agreement_activated",
+      "write_type": "agreement_activated",
+      "terminal_types": [
+        "agreement_activated"
+      ]
+    },
+    {
+      "type": "agreement_activation_restored",
+      "write_type": "agreement_activation_restored",
+      "terminal_types": [
+        "agreement_activated",
+        "agreement_activation_restored"
+      ]
+    },
+    {
+      "type": "enforcement_scope_requested",
+      "write_type": "enforcement_scope_requested",
+      "terminal_types": [
+        "enforcement_scope_activated"
+      ]
+    },
+    {
+      "type": "exemption",
+      "write_type": "exemption",
+      "terminal_types": [
+        "exemption"
+      ]
+    },
+    {
+      "type": "exemption_snapshot",
+      "write_type": "exemption_snapshot",
+      "terminal_types": [
+        "exemption_snapshot"
+      ]
+    },
+    {
+      "type": "exemption_rule_configured",
+      "write_type": "exemption_rule_configured",
+      "terminal_types": [
+        "exemption_rule_configured"
+      ]
+    },
+    {
+      "type": "exemption_rule_withdrawn",
+      "write_type": "exemption_rule_withdrawn",
+      "terminal_types": [
+        "exemption_rule_withdrawn"
+      ]
+    },
+    {
+      "type": "exemption_source_withdrawn",
+      "write_type": "exemption_source_withdrawn",
+      "terminal_types": [
+        "exemption_source_withdrawn"
+      ]
+    },
+    {
+      "type": "records_reader_authorized",
+      "write_type": "records_reader_authorized",
+      "terminal_types": [
+        "records_reader_authorized"
+      ]
+    },
+    {
+      "type": "records_reader_snapshot_authorized",
+      "write_type": "records_reader_snapshot_authorized",
+      "terminal_types": [
+        "records_reader_snapshot_authorized"
+      ]
+    },
+    {
+      "type": "records_reader_withdrawn",
+      "write_type": "records_reader_withdrawn",
+      "terminal_types": [
+        "records_reader_withdrawn"
+      ]
+    },
+    {
+      "type": "records_reader_rule_configured",
+      "write_type": "records_reader_rule_configured",
+      "terminal_types": [
+        "records_reader_rule_configured"
+      ]
+    },
+    {
+      "type": "records_reader_rule_withdrawn",
+      "write_type": "records_reader_rule_withdrawn",
+      "terminal_types": [
+        "records_reader_rule_withdrawn"
+      ]
+    },
+    {
+      "type": "override",
+      "write_type": "override",
+      "terminal_types": [
+        "override"
+      ]
+    },
+    {
+      "type": "override_withdrawn",
+      "write_type": "override_withdrawn",
+      "terminal_types": [
+        "override_withdrawn"
+      ]
+    },
+    {
+      "type": "retry_requested",
+      "write_type": "retry_requested",
+      "terminal_types": []
+    },
+    {
+      "type": "config_updated",
+      "write_type": "config_updated",
+      "terminal_types": [
+        "config_updated"
+      ]
+    }
+  ],
+  "terminal_noops": [
+    {
+      "id": "acceptance-via-acceptance",
+      "action_type": "acceptance",
+      "terminal_fixture_type": "acceptance",
+      "operation": {
+        "target": {
+          "coverage_tuple": {
+            "github_user_id": 7,
+            "project_id": "project-1",
+            "agreement_id": "agreement-1",
+            "recipient_id": "recipient-1"
+          },
+          "recipient": {
+            "recipient_id": "recipient-1",
+            "legal_name": "Recipient One"
+          },
+          "version": "1",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "payload": {
+          "fields": {
+            "full_name": "Contributor"
+          },
+          "confirmations": [
+            {
+              "label": "I agree",
+              "checked": true
+            }
+          ],
+          "supersedes": null
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 7,
+        "project_id": "project-1",
+        "type": "acceptance",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:fc4b74afda36897fd7d50c1521ceccd1b5ad976c64fb18ff46bff4e9eb1eafb3",
+        "terminal_noop_event_id": "5DLLwocrIr3wS8P6p8Zff_15yckJEoHuvFWvS3SAajM",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjo3LCJpc3N1ZWRfYXQiOiIyMDI2LTAxLTAyVDEyOjAwOjAwWiIsImtpZCI6IlMwdExTMHRMUzB0TFMwdExTMHRMU3ciLCJvcGVyYXRpb25fbm9uY2UiOiJRa0pDUWtKQ1FrSkNRa0pDUWtKQ1FnIiwib3BlcmF0aW9uX3NoYTI1NiI6InNoYTI1NjpmYzRiNzRhZmRhMzY4OTdmZDdkNTBjMTUyMWNlY2NkMWI1YWQ5NzZjNjRmYjE4ZmY0NmJmZjRlOWViMWVhZmIzIiwicHJvamVjdF9pZCI6InByb2plY3QtMSIsInNlc3Npb25fanRpIjoic2Vzc2lvbi0xNyIsInRlcm1pbmFsX25vb3BfZXZlbnRfaWQiOiI1RExMd29jcklyM3dTOFA2cDhaZmZfMTV5Y2tKRW9IdXZGV3ZTM1NBYWpNIiwidHlwZSI6ImFjY2VwdGFuY2UiLCJ2IjoxfQ._lif9aeUexjHCDIar8ZsNHxZuRIqF_LerYWEKZHQvp4"
+    },
+    {
+      "id": "revocation-via-revocation",
+      "action_type": "revocation",
+      "terminal_fixture_type": "revocation",
+      "operation": {
+        "target": {
+          "coverage_tuple": {
+            "github_user_id": 7,
+            "project_id": "project-1",
+            "agreement_id": "agreement-1",
+            "recipient_id": "recipient-1"
+          }
+        },
+        "payload": {
+          "effect": "cutoff_all_prior_versions"
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 7,
+        "project_id": "project-1",
+        "type": "revocation",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:ce3e02202a98e35f2fd4c985361b844282eb8f60581ff82925242c49473e6513",
+        "terminal_noop_event_id": "7ajx0TxjvJQziw67oYAyKwxNILnf9ZYbdccTAAodJrE",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjo3LCJpc3N1ZWRfYXQiOiIyMDI2LTAxLTAyVDEyOjAwOjAwWiIsImtpZCI6IlMwdExTMHRMUzB0TFMwdExTMHRMU3ciLCJvcGVyYXRpb25fbm9uY2UiOiJRa0pDUWtKQ1FrSkNRa0pDUWtKQ1FnIiwib3BlcmF0aW9uX3NoYTI1NiI6InNoYTI1NjpjZTNlMDIyMDJhOThlMzVmMmZkNGM5ODUzNjFiODQ0MjgyZWI4ZjYwNTgxZmY4MjkyNTI0MmM0OTQ3M2U2NTEzIiwicHJvamVjdF9pZCI6InByb2plY3QtMSIsInNlc3Npb25fanRpIjoic2Vzc2lvbi0xNyIsInRlcm1pbmFsX25vb3BfZXZlbnRfaWQiOiI3YWp4MFR4anZKUXppdzY3b1lBeUt3eE5JTG5mOVpZYmRjY1RBQW9kSnJFIiwidHlwZSI6InJldm9jYXRpb24iLCJ2IjoxfQ.VytPbxtCkj0rZJcad1Z9SLgMKtvv3qNr7IystBbOn0o"
+    },
+    {
+      "id": "project_connected-via-project_connected",
+      "action_type": "project_connected",
+      "terminal_fixture_type": "project_connected",
+      "operation": {
+        "target": {},
+        "payload": {
+          "recipient": {
+            "recipient_id": "recipient-1",
+            "legal_name": "Recipient One"
+          },
+          "repository_owner": {
+            "github_account_id": 10,
+            "login_snapshot": "owner"
+          },
+          "project_slug": "project-one",
+          "repository_ids": {
+            "records": 11,
+            "coverage": 12,
+            "control": 13
+          },
+          "bootstrap": {
+            "install_generation": "install-1",
+            "manifest_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "manifest_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "records_keyring_candidate_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repository_ids": {
+              "records": 11,
+              "coverage": 12,
+              "control": 13
+            },
+            "current_kids": {
+              "records": "records-kid-1",
+              "coverage": "coverage-kid-1"
+            }
+          },
+          "project_configuration": {
+            "privacy_policy_url": "https://example.test/privacy",
+            "retention_statement": "Retained for audit.",
+            "correction_procedure": "Contact the project administrator.",
+            "required_fields": [
+              {
+                "name": "full_name",
+                "label": "Full name",
+                "kind": "text",
+                "required": true
+              }
+            ],
+            "confirmation_labels": [
+              "I agree"
+            ]
+          },
+          "successor_of": null
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "project_connected",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:3c2f9cadd911462b8033512ae0b6bac09b7c8eceb3800981733071e53b80385a",
+        "terminal_noop_event_id": "RAxVXBTsSe-l94L24quz8DweBTwQnS-9W0rwaz7ooCg",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6M2MyZjljYWRkOTExNDYyYjgwMzM1MTJhZTBiNmJhYzA5YjdjOGVjZWIzODAwOTgxNzMzMDcxZTUzYjgwMzg1YSIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiUkF4VlhCVHNTZS1sOTRMMjRxdXo4RHdlQlR3UW5TLTlXMHJ3YXo3b29DZyIsInR5cGUiOiJwcm9qZWN0X2Nvbm5lY3RlZCIsInYiOjF9.NG7E5lg0E8jFEfzZ7X5r6gjLHIfgudSCqWD_lZ2rF-U"
+    },
+    {
+      "id": "project_repository_owner_changed-via-project_repository_owner_changed",
+      "action_type": "project_repository_owner_changed",
+      "terminal_fixture_type": "project_repository_owner_changed",
+      "operation": {
+        "target": {
+          "prior_repository_owner": {
+            "github_account_id": 10,
+            "login_snapshot": "owner"
+          }
+        },
+        "payload": {
+          "new_repository_owner": {
+            "github_account_id": 20,
+            "login_snapshot": "new-owner"
+          },
+          "project_slug": "project-one",
+          "repository_ids": {
+            "records": 31,
+            "coverage": 32,
+            "control": 33
+          },
+          "registry_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "registry_generation": 1
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "project_repository_owner_changed",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:2e2d4c9bf8bdab35a8a2fb6ee122ccfba3a12364bb3170cec391768c0e76ad98",
+        "terminal_noop_event_id": "mpicUq7vtfeCgIQtQuyFt6GSDf7-T7e7qKfX4RquE_I",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6MmUyZDRjOWJmOGJkYWIzNWE4YTJmYjZlZTEyMmNjZmJhM2ExMjM2NGJiMzE3MGNlYzM5MTc2OGMwZTc2YWQ5OCIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoibXBpY1VxN3Z0ZmVDZ0lRdFF1eUZ0NkdTRGY3LVQ3ZTdxS2ZYNFJxdUVfSSIsInR5cGUiOiJwcm9qZWN0X3JlcG9zaXRvcnlfb3duZXJfY2hhbmdlZCIsInYiOjF9.lha3Oq5yhycyf484SgMFOnoIz6JH88wCVWrQKkTKPFA"
+    },
+    {
+      "id": "project_succeeded-via-project_succeeded",
+      "action_type": "project_succeeded",
+      "terminal_fixture_type": "project_succeeded",
+      "operation": {
+        "target": {
+          "successor_project_id": "successor-project"
+        },
+        "payload": {
+          "successor_connected_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE"
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "project_succeeded",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:9c2a61efbc6bc0aa1f8d468dd3a8e33c3ef39376aa05804d19a06aa78b5c3cb8",
+        "terminal_noop_event_id": "Qe9X9Glw5miozzm9Apg82sZSC5O8j3PumITR_Bpbqy4",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6OWMyYTYxZWZiYzZiYzBhYTFmOGQ0NjhkZDNhOGUzM2MzZWYzOTM3NmFhMDU4MDRkMTlhMDZhYTc4YjVjM2NiOCIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiUWU5WDlHbHc1bWlvenptOUFwZzgyc1pTQzVPOGozUHVtSVRSX0JwYnF5NCIsInR5cGUiOiJwcm9qZWN0X3N1Y2NlZWRlZCIsInYiOjF9.fHSsQc8yGShslC7Nk3OjgDXW2a7c65hL56BPeA9Yx3w"
+    },
+    {
+      "id": "keyring_activated-via-keyring_activated",
+      "action_type": "keyring_activated",
+      "terminal_fixture_type": "keyring_activated",
+      "operation": {
+        "target": {},
+        "payload": {
+          "generation": 1,
+          "keys_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "current_kids": {
+            "records": "records-kid-1",
+            "coverage": "coverage-kid-1"
+          }
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "keyring_activated",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:70afc31bb72f2a1611ebfb12ec76cd75c00a2914b555068b29003be7edee36fc",
+        "terminal_noop_event_id": "kqSr5Zuzrcdk8T_vF1slvfAH8zf-a8liG68UA5y1bYs",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6NzBhZmMzMWJiNzJmMmExNjExZWJmYjEyZWM3NmNkNzVjMDBhMjkxNGI1NTUwNjhiMjkwMDNiZTdlZGVlMzZmYyIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoia3FTcjVadXpyY2RrOFRfdkYxc2x2ZkFIOHpmLWE4bGlHNjhVQTV5MWJZcyIsInR5cGUiOiJrZXlyaW5nX2FjdGl2YXRlZCIsInYiOjF9.VzfwITa3xnrJNaxEw7gmfvjQbg4fJ6M47hQvWzBTp78"
+    },
+    {
+      "id": "agreement_published-via-agreement_published",
+      "action_type": "agreement_published",
+      "terminal_fixture_type": "agreement_published",
+      "operation": {
+        "target": {
+          "agreement_id": "agreement-1",
+          "version": "1"
+        },
+        "payload": {
+          "recipient": {
+            "recipient_id": "recipient-1",
+            "legal_name": "Recipient One"
+          },
+          "ref": "https://example.test/agreement/1",
+          "content_commit_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "snapshot_content_path": "agreements/q0HCHmN1eWn3xLHJRxg4bPzrHfQXIUr-2laWBur6SgI/a4ayc_80_OGda4BO_1o_V0etpOqiLx1JwB5S3beHW0s.md",
+          "snapshot_metadata_path": "agreements/q0HCHmN1eWn3xLHJRxg4bPzrHfQXIUr-2laWBur6SgI/a4ayc_80_OGda4BO_1o_V0etpOqiLx1JwB5S3beHW0s.meta.json",
+          "snapshot_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "agreement_published",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:489f5a50096ad5e697f8d7e584405e188544df31cbcb00bb83ef0a237b7a55c0",
+        "terminal_noop_event_id": "aD1YIBWIAdofR4fFZxOYhIV4Widokswb0FjMBoasC9U",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6NDg5ZjVhNTAwOTZhZDVlNjk3ZjhkN2U1ODQ0MDVlMTg4NTQ0ZGYzMWNiY2IwMGJiODNlZjBhMjM3YjdhNTVjMCIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiYUQxWUlCV0lBZG9mUjRmRlp4T1loSVY0V2lkb2tzd2IwRmpNQm9hc0M5VSIsInR5cGUiOiJhZ3JlZW1lbnRfcHVibGlzaGVkIiwidiI6MX0.NCzvo7dYsnCexwyasQChxLTG2PQqoBTgQzZ7OHTVZy4"
+    },
+    {
+      "id": "agreement_activated-via-agreement_activated",
+      "action_type": "agreement_activated",
+      "terminal_fixture_type": "agreement_activated",
+      "operation": {
+        "target": {
+          "agreement_id": "agreement-1",
+          "version": "1"
+        },
+        "payload": {
+          "published_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+          "supersedes_coverage": false,
+          "accepted_versions": [
+            "1"
+          ]
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "agreement_activated",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:b5c949ec790985e514e4336439732175621033ae530eb1d33e33f2de625b43ef",
+        "terminal_noop_event_id": "bO-g0TCPViTT6Gkk8ocHikf6qA_emv618tvIH2dN6MI",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6YjVjOTQ5ZWM3OTA5ODVlNTE0ZTQzMzY0Mzk3MzIxNzU2MjEwMzNhZTUzMGViMWQzM2UzM2YyZGU2MjViNDNlZiIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiYk8tZzBUQ1BWaVRUNkdrazhvY0hpa2Y2cUFfZW12NjE4dHZJSDJkTjZNSSIsInR5cGUiOiJhZ3JlZW1lbnRfYWN0aXZhdGVkIiwidiI6MX0.NbmmjAqTRig2UgCKkqf5dahRqKgPqjC_MpD8J0zYXQw"
+    },
+    {
+      "id": "agreement_activation_restored-via-agreement_activated",
+      "action_type": "agreement_activation_restored",
+      "terminal_fixture_type": "agreement_activated",
+      "operation": {
+        "target": {
+          "agreement_id": "agreement-1",
+          "activation_event_id": "bO-g0TCPViTT6Gkk8ocHikf6qA_emv618tvIH2dN6MI"
+        },
+        "payload": {
+          "accepted_versions": [
+            "1"
+          ],
+          "reason": "New submitted restore audit context."
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "agreement_activation_restored",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:33ee726ff501387537b80759412a50bf502cd89e15b3b37c94b4a623fef16812",
+        "terminal_noop_event_id": "bO-g0TCPViTT6Gkk8ocHikf6qA_emv618tvIH2dN6MI",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6MzNlZTcyNmZmNTAxMzg3NTM3YjgwNzU5NDEyYTUwYmY1MDJjZDg5ZTE1YjNiMzdjOTRiNGE2MjNmZWYxNjgxMiIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiYk8tZzBUQ1BWaVRUNkdrazhvY0hpa2Y2cUFfZW12NjE4dHZJSDJkTjZNSSIsInR5cGUiOiJhZ3JlZW1lbnRfYWN0aXZhdGlvbl9yZXN0b3JlZCIsInYiOjF9.Nkm0wsrSlzKQNoix04rgqwX4JE1AZBwZfEOtQvC95ro"
+    },
+    {
+      "id": "agreement_activation_restored-via-agreement_activation_restored",
+      "action_type": "agreement_activation_restored",
+      "terminal_fixture_type": "agreement_activation_restored",
+      "operation": {
+        "target": {
+          "agreement_id": "agreement-1",
+          "activation_event_id": "bO-g0TCPViTT6Gkk8ocHikf6qA_emv618tvIH2dN6MI"
+        },
+        "payload": {
+          "accepted_versions": [
+            "1"
+          ],
+          "reason": "New submitted restore audit context."
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "agreement_activation_restored",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:33ee726ff501387537b80759412a50bf502cd89e15b3b37c94b4a623fef16812",
+        "terminal_noop_event_id": "QAQmsLf7sHAgnKe_YQhmrcDNk0kqJkV2bBVyPAixyd0",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6MzNlZTcyNmZmNTAxMzg3NTM3YjgwNzU5NDEyYTUwYmY1MDJjZDg5ZTE1YjNiMzdjOTRiNGE2MjNmZWYxNjgxMiIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiUUFRbXNMZjdzSEFnbktlX1lRaG1yY0ROazBrcUprVjJiQlZ5UEFpeHlkMCIsInR5cGUiOiJhZ3JlZW1lbnRfYWN0aXZhdGlvbl9yZXN0b3JlZCIsInYiOjF9.viOil52oBWnstD9ZARRkjBtqvFW_hq05py_T4DwrZdU"
+    },
+    {
+      "id": "enforcement_scope_requested-via-enforcement_scope_activated",
+      "action_type": "enforcement_scope_requested",
+      "terminal_fixture_type": "enforcement_scope_activated",
+      "operation": {
+        "target": {
+          "change_id": "change-org"
+        },
+        "payload": {
+          "prior_scope": [],
+          "desired_scope": [
+            {
+              "kind": "repository",
+              "repository_id": 31,
+              "owner_snapshot": "owner",
+              "name_snapshot": "repo-31"
+            }
+          ],
+          "prior_registry_generation": 0
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "enforcement_scope_requested",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:5908657286181e8b1b6cd703be744a0abccd3f2cdb98ede543bd4f24de241654",
+        "terminal_noop_event_id": "1ygGR5kYEjiYEAFqy-V_hXJrB_RvauGDtKoMAkQwdFk",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6NTkwODY1NzI4NjE4MWU4YjFiNmNkNzAzYmU3NDRhMGFiY2NkM2YyY2RiOThlZGU1NDNiZDRmMjRkZTI0MTY1NCIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiMXlnR1I1a1lFamlZRUFGcXktVl9oWEpyQl9SdmF1R0R0S29NQWtRd2RGayIsInR5cGUiOiJlbmZvcmNlbWVudF9zY29wZV9yZXF1ZXN0ZWQiLCJ2IjoxfQ._QbVb61ngrfwnE5GvGMAp2OTiqbwpdzR9nU7qy1cJKI"
+    },
+    {
+      "id": "exemption-via-exemption",
+      "action_type": "exemption",
+      "terminal_fixture_type": "exemption",
+      "operation": {
+        "target": {
+          "subject": {
+            "github_user_id": 7,
+            "login_snapshot": "contributor"
+          }
+        },
+        "payload": {
+          "source_kind": "bot",
+          "basis": null,
+          "instrument_ref": null
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "exemption",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:cf958af35b947906341a4a84f22515bb51138c4fa96c4bdbfad5a4661414cfc6",
+        "terminal_noop_event_id": "2PDhabM0gUuwUCfgNQSZOubvzBudhIOmCB24daaDA9s",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6Y2Y5NThhZjM1Yjk0NzkwNjM0MWE0YTg0ZjIyNTE1YmI1MTEzOGM0ZmE5NmM0YmRiZmFkNWE0NjYxNDE0Y2ZjNiIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiMlBEaGFiTTBnVXV3VUNmZ05RU1pPdWJ2ekJ1ZGhJT21DQjI0ZGFhREE5cyIsInR5cGUiOiJleGVtcHRpb24iLCJ2IjoxfQ.yMlOvL8y6M1FgAHj8hAmnl8Ml6nAJKgU0joDCRdXUpQ"
+    },
+    {
+      "id": "exemption_snapshot-via-exemption_snapshot",
+      "action_type": "exemption_snapshot",
+      "terminal_fixture_type": "exemption_snapshot",
+      "operation": {
+        "target": {
+          "subjects": [
+            {
+              "github_user_id": 7,
+              "login_snapshot": "contributor"
+            }
+          ]
+        },
+        "payload": {
+          "team": {
+            "organization_id": 41,
+            "team_id": 42,
+            "slug_snapshot": "team-one"
+          },
+          "basis": "employment",
+          "instrument_ref": "ticket-1"
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "exemption_snapshot",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:ec6ec0650e09fc214710b44a79c748330e81323fdc315938235b83a1525dde1f",
+        "terminal_noop_event_id": "u62RxZMy-0TKh5Q4uRJ6aPV4OlNjpFcMIg07zcVEdL4",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6ZWM2ZWMwNjUwZTA5ZmMyMTQ3MTBiNDRhNzljNzQ4MzMwZTgxMzIzZmRjMzE1OTM4MjM1YjgzYTE1MjVkZGUxZiIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoidTYyUnhaTXktMFRLaDVRNHVSSjZhUFY0T2xOanBGY01JZzA3emNWRWRMNCIsInR5cGUiOiJleGVtcHRpb25fc25hcHNob3QiLCJ2IjoxfQ.JB1EKWbLN2htkLkqpeh9QVEJM4rXOyeEZyXQkW04_d4"
+    },
+    {
+      "id": "exemption_rule_configured-via-exemption_rule_configured",
+      "action_type": "exemption_rule_configured",
+      "terminal_fixture_type": "exemption_rule_configured",
+      "operation": {
+        "target": {
+          "team": {
+            "organization_id": 41,
+            "team_id": 42,
+            "slug_snapshot": "team-one"
+          }
+        },
+        "payload": {
+          "basis": "employment",
+          "instrument_ref": "ticket-1"
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "exemption_rule_configured",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:dd1d17bf61aad45fd0241113f55240822961a95f1e836cd432c92c3654f446cf",
+        "terminal_noop_event_id": "SL1XNEwN8eMviFZt74xLTYoZ3Is9hNQt9OZEZLo59mc",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6ZGQxZDE3YmY2MWFhZDQ1ZmQwMjQxMTEzZjU1MjQwODIyOTYxYTk1ZjFlODM2Y2Q0MzJjOTJjMzY1NGY0NDZjZiIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiU0wxWE5Fd044ZU12aUZadDc0eExUWW9aM0lzOWhOUXQ5T1pFWkxvNTltYyIsInR5cGUiOiJleGVtcHRpb25fcnVsZV9jb25maWd1cmVkIiwidiI6MX0.yElDtHrCBWd9rraoll6Uw2X0p253A3f1tNVuvh0QQYs"
+    },
+    {
+      "id": "exemption_rule_withdrawn-via-exemption_rule_withdrawn",
+      "action_type": "exemption_rule_withdrawn",
+      "terminal_fixture_type": "exemption_rule_withdrawn",
+      "operation": {
+        "target": {
+          "rule_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE"
+        },
+        "payload": {}
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "exemption_rule_withdrawn",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:84cef4bfecf3cd279aecb1395a0d2a1350b4f992c262d211f745fdca133bfffe",
+        "terminal_noop_event_id": "XwGDXA9rI-vs1AXcXv8IEuKGpfSuF0fSLqo3iboAIUE",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6ODRjZWY0YmZlY2YzY2QyNzlhZWNiMTM5NWEwZDJhMTM1MGI0Zjk5MmMyNjJkMjExZjc0NWZkY2ExMzNiZmZmZSIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiWHdHRFhBOXJJLXZzMUFYY1h2OElFdUtHcGZTdUYwZlNMcW8zaWJvQUlVRSIsInR5cGUiOiJleGVtcHRpb25fcnVsZV93aXRoZHJhd24iLCJ2IjoxfQ.cjJDaqXJmZK2uIiI3bXa6mI2GIIH7BjBnCywhzlvX7Y"
+    },
+    {
+      "id": "exemption_source_withdrawn-via-exemption_source_withdrawn",
+      "action_type": "exemption_source_withdrawn",
+      "terminal_fixture_type": "exemption_source_withdrawn",
+      "operation": {
+        "target": {
+          "source_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+          "subject": {
+            "github_user_id": 7,
+            "login_snapshot": "contributor"
+          }
+        },
+        "payload": {}
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "exemption_source_withdrawn",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:ea4a1bf53a28ae581d42d062ccd141778f54515a184b2187de52f4d1a51e56b3",
+        "terminal_noop_event_id": "8VbZcsXaYgrJnvds38VIQkTc5EHRXl4pxYZ8nfy7B2I",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6ZWE0YTFiZjUzYTI4YWU1ODFkNDJkMDYyY2NkMTQxNzc4ZjU0NTE1YTE4NGIyMTg3ZGU1MmY0ZDFhNTFlNTZiMyIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiOFZiWmNzWGFZZ3JKbnZkczM4VklRa1RjNUVIUlhsNHB4WVo4bmZ5N0IySSIsInR5cGUiOiJleGVtcHRpb25fc291cmNlX3dpdGhkcmF3biIsInYiOjF9.5BuBCUPW2o38W86YJz76-E_kd51unWnTspi-YP973Oo"
+    },
+    {
+      "id": "records_reader_authorized-via-records_reader_authorized",
+      "action_type": "records_reader_authorized",
+      "terminal_fixture_type": "records_reader_authorized",
+      "operation": {
+        "target": {
+          "subject": {
+            "github_user_id": 7,
+            "login_snapshot": "contributor"
+          }
+        },
+        "payload": {}
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "records_reader_authorized",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:e1cc8acac9138c7b482f03233b8d203e24f4bf140002f2150f19fc9fba8ceda0",
+        "terminal_noop_event_id": "9q6Iy8gNLX9IsWCToJ0BI4snUrjX8O7Fy3ak-vou-EE",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6ZTFjYzhhY2FjOTEzOGM3YjQ4MmYwMzIzM2I4ZDIwM2UyNGY0YmYxNDAwMDJmMjE1MGYxOWZjOWZiYThjZWRhMCIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiOXE2SXk4Z05MWDlJc1dDVG9KMEJJNHNuVXJqWDhPN0Z5M2FrLXZvdS1FRSIsInR5cGUiOiJyZWNvcmRzX3JlYWRlcl9hdXRob3JpemVkIiwidiI6MX0.wygeNs5NdZ7B9lKu5wsH2bmaOy2ES5QY3owPvXWlGhQ"
+    },
+    {
+      "id": "records_reader_snapshot_authorized-via-records_reader_snapshot_authorized",
+      "action_type": "records_reader_snapshot_authorized",
+      "terminal_fixture_type": "records_reader_snapshot_authorized",
+      "operation": {
+        "target": {
+          "subjects": [
+            {
+              "github_user_id": 7,
+              "login_snapshot": "contributor"
+            }
+          ]
+        },
+        "payload": {
+          "team": {
+            "organization_id": 41,
+            "team_id": 42,
+            "slug_snapshot": "team-one"
+          }
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "records_reader_snapshot_authorized",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:cddb9cb65e8492f6cf18a7088b9e529940e93ce8ffcd393eee4086f9a9f44c8a",
+        "terminal_noop_event_id": "zhEaSKntuAopI-Wo2iiwoGXWO9NGVWLZbwSYRPSpscs",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6Y2RkYjljYjY1ZTg0OTJmNmNmMThhNzA4OGI5ZTUyOTk0MGU5M2NlOGZmY2QzOTNlZWU0MDg2ZjlhOWY0NGM4YSIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiemhFYVNLbnR1QW9wSS1XbzJpaXdvR1hXTzlOR1ZXTFpid1NZUlBTcHNjcyIsInR5cGUiOiJyZWNvcmRzX3JlYWRlcl9zbmFwc2hvdF9hdXRob3JpemVkIiwidiI6MX0.MSVc90T-cXuINvYqUvPme_FShk6AphzNmfDFCXhDV98"
+    },
+    {
+      "id": "records_reader_withdrawn-via-records_reader_withdrawn",
+      "action_type": "records_reader_withdrawn",
+      "terminal_fixture_type": "records_reader_withdrawn",
+      "operation": {
+        "target": {
+          "source_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+          "subject": {
+            "github_user_id": 7,
+            "login_snapshot": "contributor"
+          }
+        },
+        "payload": {}
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "records_reader_withdrawn",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:13244d80b4eb6bf18622bc88182b8b805703296f79899a5daedf20ca6f93d5cb",
+        "terminal_noop_event_id": "HJba7DZ2-mSNZxa2mCZk4b-CCSgRvsesdTsjeqBBCc0",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6MTMyNDRkODBiNGViNmJmMTg2MjJiYzg4MTgyYjhiODA1NzAzMjk2Zjc5ODk5YTVkYWVkZjIwY2E2ZjkzZDVjYiIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiSEpiYTdEWjItbVNOWnhhMm1DWms0Yi1DQ1NnUnZzZXNkVHNqZXFCQkNjMCIsInR5cGUiOiJyZWNvcmRzX3JlYWRlcl93aXRoZHJhd24iLCJ2IjoxfQ.SqFbIgZ4F3VpeCb4zAjJcACOYKOqsaTeDVQtX6m8cGo"
+    },
+    {
+      "id": "records_reader_rule_configured-via-records_reader_rule_configured",
+      "action_type": "records_reader_rule_configured",
+      "terminal_fixture_type": "records_reader_rule_configured",
+      "operation": {
+        "target": {
+          "team": {
+            "organization_id": 41,
+            "team_id": 42,
+            "slug_snapshot": "team-one"
+          }
+        },
+        "payload": {}
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "records_reader_rule_configured",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:863c39394ab7fed1d5740cf512e6b921b9a7e2d3902f6a99180b6d8a85cfd206",
+        "terminal_noop_event_id": "lEHp9tYJY9_53uFvTW4yx73xVu1K3CT-7pDDX7iyq9Q",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6ODYzYzM5Mzk0YWI3ZmVkMWQ1NzQwY2Y1MTJlNmI5MjFiOWE3ZTJkMzkwMmY2YTk5MTgwYjZkOGE4NWNmZDIwNiIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoibEVIcDl0WUpZOV81M3VGdlRXNHl4NzN4VnUxSzNDVC03cEREWDdpeXE5USIsInR5cGUiOiJyZWNvcmRzX3JlYWRlcl9ydWxlX2NvbmZpZ3VyZWQiLCJ2IjoxfQ.ZxjpHDwxFEtngHEqWIHyIR68gqDs4g0fbHolT_xnIto"
+    },
+    {
+      "id": "records_reader_rule_withdrawn-via-records_reader_rule_withdrawn",
+      "action_type": "records_reader_rule_withdrawn",
+      "terminal_fixture_type": "records_reader_rule_withdrawn",
+      "operation": {
+        "target": {
+          "rule_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE"
+        },
+        "payload": {}
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "records_reader_rule_withdrawn",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:3743a1c491a611620c81090b6d7c83cee59650786bdf7972ad35ffb98d8b5e15",
+        "terminal_noop_event_id": "5pGynIA75bBj_uv74wUwelFfUfE-wPVcvTRsWfHFcTM",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6Mzc0M2ExYzQ5MWE2MTE2MjBjODEwOTBiNmQ3YzgzY2VlNTk2NTA3ODZiZGY3OTcyYWQzNWZmYjk4ZDhiNWUxNSIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiNXBHeW5JQTc1YkJqX3V2NzR3VXdlbEZmVWZFLXdQVmN2VFJzV2ZIRmNUTSIsInR5cGUiOiJyZWNvcmRzX3JlYWRlcl9ydWxlX3dpdGhkcmF3biIsInYiOjF9.CPuiQUrFvC7mrsWdWLzKrgYBwuhsA0L2I4enRmfNDIs"
+    },
+    {
+      "id": "override-via-override",
+      "action_type": "override",
+      "terminal_fixture_type": "override",
+      "operation": {
+        "target": {
+          "repository_id": 11,
+          "pull_request_number": 1,
+          "tree_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "payload": {
+          "subjects": [
+            {
+              "github_user_id": 7,
+              "login_snapshot": "contributor"
+            }
+          ],
+          "reason": "incident",
+          "instrument_ref": null
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "override",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:f0d06edae57efacc3abf69b51870aee723b7593a2490c96c56adbdf77f2d66d1",
+        "terminal_noop_event_id": "OUCuxIvGSNuSBD2kClU8eftdmWE3GHRtIon_uF-6HHA",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6ZjBkMDZlZGFlNTdlZmFjYzNhYmY2OWI1MTg3MGFlZTcyM2I3NTkzYTI0OTBjOTZjNTZhZGJkZjc3ZjJkNjZkMSIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiT1VDdXhJdkdTTnVTQkQya0NsVThlZnRkbVdFM0dIUnRJb25fdUYtNkhIQSIsInR5cGUiOiJvdmVycmlkZSIsInYiOjF9.kC7_7yQQ2GCv_aUn-Nm-s74mrKAfRAzHxzgznDv49DA"
+    },
+    {
+      "id": "override_withdrawn-via-override_withdrawn",
+      "action_type": "override_withdrawn",
+      "terminal_fixture_type": "override_withdrawn",
+      "operation": {
+        "target": {
+          "override_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE"
+        },
+        "payload": {
+          "reason": "resolved",
+          "instrument_ref": null
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "override_withdrawn",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:3aec9794d02cbf7aa817550a2e24b87196bc4d8d80cfb3d984ac0fae99a77614",
+        "terminal_noop_event_id": "MtaJlJq48FSE_n5B5ZJyLLzVspG4Nag44lmhLs0XDrM",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6M2FlYzk3OTRkMDJjYmY3YWE4MTc1NTBhMmUyNGI4NzE5NmJjNGQ4ZDgwY2ZiM2Q5ODRhYzBmYWU5OWE3NzYxNCIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoiTXRhSmxKcTQ4RlNFX241QjVaSnlMTHpWc3BHNE5hZzQ0bG1oTHMwWERyTSIsInR5cGUiOiJvdmVycmlkZV93aXRoZHJhd24iLCJ2IjoxfQ.05oHQxpgdk9_dQKKb-FDtEee0M2CsHASx8-b0Og4G5E"
+    },
+    {
+      "id": "config_updated-via-config_updated",
+      "action_type": "config_updated",
+      "terminal_fixture_type": "config_updated",
+      "operation": {
+        "target": {},
+        "payload": {
+          "project_configuration": {
+            "privacy_policy_url": "https://example.test/privacy",
+            "retention_statement": "Retained for audit.",
+            "correction_procedure": "Contact the project administrator.",
+            "required_fields": [
+              {
+                "name": "full_name",
+                "label": "Full name",
+                "kind": "text",
+                "required": true
+              }
+            ],
+            "confirmation_labels": [
+              "I agree"
+            ]
+          }
+        }
+      },
+      "form": {
+        "v": 1,
+        "algorithm": "HS256",
+        "kid": "S0tLS0tLS0tLS0tLS0tLSw",
+        "session_jti": "session-17",
+        "github_user_id": 19,
+        "project_id": "project-1",
+        "type": "config_updated",
+        "operation_nonce": "QkJCQkJCQkJCQkJCQkJCQg",
+        "confirmed_canonical_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "operation_sha256": "sha256:b6018afff65b372256e0440b85e717b6699b67cde02a5e6c4f3069312dec09f5",
+        "terminal_noop_event_id": "tPUXkjqGzbr7L5tcntIBIRhb1W1-roeh1DayYKXAs5k",
+        "issued_at": "2026-01-02T12:00:00Z",
+        "expires_at": "2026-01-02T19:55:00Z"
+      },
+      "token": "eyJhbGdvcml0aG0iOiJIUzI1NiIsImNvbmZpcm1lZF9jYW5vbmljYWxfb2lkIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImV4cGlyZXNfYXQiOiIyMDI2LTAxLTAyVDE5OjU1OjAwWiIsImdpdGh1Yl91c2VyX2lkIjoxOSwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMlQxMjowMDowMFoiLCJraWQiOiJTMHRMUzB0TFMwdExTMHRMUzB0TFN3Iiwib3BlcmF0aW9uX25vbmNlIjoiUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRZyIsIm9wZXJhdGlvbl9zaGEyNTYiOiJzaGEyNTY6YjYwMThhZmZmNjViMzcyMjU2ZTA0NDBiODVlNzE3YjY2OTliNjdjZGUwMmE1ZTZjNGYzMDY5MzEyZGVjMDlmNSIsInByb2plY3RfaWQiOiJwcm9qZWN0LTEiLCJzZXNzaW9uX2p0aSI6InNlc3Npb24tMTciLCJ0ZXJtaW5hbF9ub29wX2V2ZW50X2lkIjoidFBVWGtqcUd6YnI3TDV0Y250SUJJUmhiMVcxLXJvZWgxRGF5WUtYQXM1ayIsInR5cGUiOiJjb25maWdfdXBkYXRlZCIsInYiOjF9._y3RxIeTCD9EuxoXxioblCJa3406ReuD-uzHMfrxdII"
+    }
+  ]
+}
