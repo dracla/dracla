@@ -1,0 +1,1362 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-01-01T00:00:00Z",
+  "event_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "active_agreement": {
+    "agreement_id": "agreement-1",
+    "active_version": "1",
+    "accepted_versions": [
+      "1"
+    ],
+    "retired_versions": [
+      "0"
+    ],
+    "activation_event_id": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA",
+    "projection_format": 1,
+    "shard_count": 32
+  },
+  "cases": [
+    {
+      "name": "current",
+      "kind": "acceptance",
+      "version": "1",
+      "exempt": false,
+      "status": "current",
+      "reason": "accepted_current_version",
+      "generic": "signed"
+    },
+    {
+      "name": "exempt-unsigned",
+      "kind": "none",
+      "version": null,
+      "exempt": true,
+      "status": "exempt",
+      "reason": "exempt_source_active",
+      "generic": "exempt"
+    },
+    {
+      "name": "revoked",
+      "kind": "revocation",
+      "version": null,
+      "exempt": false,
+      "status": "revoked",
+      "reason": "revoked_by_contributor",
+      "generic": "revoked"
+    },
+    {
+      "name": "unsigned",
+      "kind": "none",
+      "version": null,
+      "exempt": false,
+      "status": "revoked",
+      "reason": "no_acceptance_recorded",
+      "generic": "not_signed"
+    },
+    {
+      "name": "unaccepted",
+      "kind": "acceptance",
+      "version": "2",
+      "exempt": false,
+      "status": "revoked",
+      "reason": "version_not_accepted",
+      "generic": "version_not_active"
+    },
+    {
+      "name": "retired",
+      "kind": "acceptance",
+      "version": "0",
+      "exempt": false,
+      "status": "superseded",
+      "reason": "superseded_by_activation",
+      "generic": "version_not_active"
+    },
+    {
+      "name": "unresolved",
+      "kind": "unresolved",
+      "version": null,
+      "exempt": false,
+      "status": "indeterminate",
+      "reason": "replay_unresolved",
+      "generic": "indeterminate"
+    },
+    {
+      "name": "signature-before-exemption",
+      "kind": "acceptance",
+      "version": "1",
+      "exempt": true,
+      "status": "current",
+      "reason": "accepted_current_version",
+      "generic": "signed"
+    },
+    {
+      "name": "exemption-before-revocation",
+      "kind": "revocation",
+      "version": null,
+      "exempt": true,
+      "status": "exempt",
+      "reason": "exempt_source_active",
+      "generic": "exempt"
+    },
+    {
+      "name": "exemption-before-retirement",
+      "kind": "acceptance",
+      "version": "0",
+      "exempt": true,
+      "status": "exempt",
+      "reason": "exempt_source_active",
+      "generic": "exempt"
+    },
+    {
+      "name": "unresolved-before-exemption",
+      "kind": "unresolved",
+      "version": null,
+      "exempt": true,
+      "status": "indeterminate",
+      "reason": "replay_unresolved",
+      "generic": "indeterminate"
+    }
+  ],
+  "empty_shards": {
+    "derived/index/00.enc.json": {},
+    "derived/index/01.enc.json": {},
+    "derived/index/02.enc.json": {},
+    "derived/index/03.enc.json": {},
+    "derived/index/04.enc.json": {},
+    "derived/index/05.enc.json": {},
+    "derived/index/06.enc.json": {},
+    "derived/index/07.enc.json": {},
+    "derived/index/08.enc.json": {},
+    "derived/index/09.enc.json": {},
+    "derived/index/10.enc.json": {},
+    "derived/index/11.enc.json": {},
+    "derived/index/12.enc.json": {},
+    "derived/index/13.enc.json": {},
+    "derived/index/14.enc.json": {},
+    "derived/index/15.enc.json": {},
+    "derived/index/16.enc.json": {},
+    "derived/index/17.enc.json": {},
+    "derived/index/18.enc.json": {},
+    "derived/index/19.enc.json": {},
+    "derived/index/20.enc.json": {},
+    "derived/index/21.enc.json": {},
+    "derived/index/22.enc.json": {},
+    "derived/index/23.enc.json": {},
+    "derived/index/24.enc.json": {},
+    "derived/index/25.enc.json": {},
+    "derived/index/26.enc.json": {},
+    "derived/index/27.enc.json": {},
+    "derived/index/28.enc.json": {},
+    "derived/index/29.enc.json": {},
+    "derived/index/30.enc.json": {},
+    "derived/index/31.enc.json": {},
+    "derived/status-detail/00.enc.json": {},
+    "derived/status-detail/01.enc.json": {},
+    "derived/status-detail/02.enc.json": {},
+    "derived/status-detail/03.enc.json": {},
+    "derived/status-detail/04.enc.json": {},
+    "derived/status-detail/05.enc.json": {},
+    "derived/status-detail/06.enc.json": {},
+    "derived/status-detail/07.enc.json": {},
+    "derived/status-detail/08.enc.json": {},
+    "derived/status-detail/09.enc.json": {},
+    "derived/status-detail/10.enc.json": {},
+    "derived/status-detail/11.enc.json": {},
+    "derived/status-detail/12.enc.json": {},
+    "derived/status-detail/13.enc.json": {},
+    "derived/status-detail/14.enc.json": {},
+    "derived/status-detail/15.enc.json": {},
+    "derived/status-detail/16.enc.json": {},
+    "derived/status-detail/17.enc.json": {},
+    "derived/status-detail/18.enc.json": {},
+    "derived/status-detail/19.enc.json": {},
+    "derived/status-detail/20.enc.json": {},
+    "derived/status-detail/21.enc.json": {},
+    "derived/status-detail/22.enc.json": {},
+    "derived/status-detail/23.enc.json": {},
+    "derived/status-detail/24.enc.json": {},
+    "derived/status-detail/25.enc.json": {},
+    "derived/status-detail/26.enc.json": {},
+    "derived/status-detail/27.enc.json": {},
+    "derived/status-detail/28.enc.json": {},
+    "derived/status-detail/29.enc.json": {},
+    "derived/status-detail/30.enc.json": {},
+    "derived/status-detail/31.enc.json": {},
+    "derived/reader-authority/00.enc.json": {},
+    "derived/reader-authority/01.enc.json": {},
+    "derived/reader-authority/02.enc.json": {},
+    "derived/reader-authority/03.enc.json": {},
+    "derived/reader-authority/04.enc.json": {},
+    "derived/reader-authority/05.enc.json": {},
+    "derived/reader-authority/06.enc.json": {},
+    "derived/reader-authority/07.enc.json": {},
+    "derived/reader-authority/08.enc.json": {},
+    "derived/reader-authority/09.enc.json": {},
+    "derived/reader-authority/10.enc.json": {},
+    "derived/reader-authority/11.enc.json": {},
+    "derived/reader-authority/12.enc.json": {},
+    "derived/reader-authority/13.enc.json": {},
+    "derived/reader-authority/14.enc.json": {},
+    "derived/reader-authority/15.enc.json": {},
+    "derived/reader-authority/16.enc.json": {},
+    "derived/reader-authority/17.enc.json": {},
+    "derived/reader-authority/18.enc.json": {},
+    "derived/reader-authority/19.enc.json": {},
+    "derived/reader-authority/20.enc.json": {},
+    "derived/reader-authority/21.enc.json": {},
+    "derived/reader-authority/22.enc.json": {},
+    "derived/reader-authority/23.enc.json": {},
+    "derived/reader-authority/24.enc.json": {},
+    "derived/reader-authority/25.enc.json": {},
+    "derived/reader-authority/26.enc.json": {},
+    "derived/reader-authority/27.enc.json": {},
+    "derived/reader-authority/28.enc.json": {},
+    "derived/reader-authority/29.enc.json": {},
+    "derived/reader-authority/30.enc.json": {},
+    "derived/reader-authority/31.enc.json": {}
+  },
+  "source_kinds": {
+    "bot": {
+      "team": null,
+      "basis": null,
+      "instrument_ref": null,
+      "rule_event_id": null
+    },
+    "individual": {
+      "team": null,
+      "basis": "authorization",
+      "instrument_ref": "instrument-v1",
+      "rule_event_id": null
+    },
+    "snapshot": {
+      "team": {
+        "organization_id": 1,
+        "team_id": 2,
+        "slug_snapshot": "recorded-team"
+      },
+      "basis": "authorization",
+      "instrument_ref": "instrument-v1",
+      "rule_event_id": null
+    },
+    "continuous_team": {
+      "team": {
+        "organization_id": 1,
+        "team_id": 2,
+        "slug_snapshot": "recorded-team"
+      },
+      "basis": "authorization",
+      "instrument_ref": "instrument-v1",
+      "rule_event_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+  },
+  "source_shards": [
+    {
+      "source_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "shard": 1
+    },
+    {
+      "source_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      "shard": 10
+    },
+    {
+      "source_id": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI",
+      "shard": 13
+    },
+    {
+      "source_id": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+      "shard": 16
+    },
+    {
+      "source_id": "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ",
+      "shard": 9
+    },
+    {
+      "source_id": "BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU",
+      "shard": 17
+    },
+    {
+      "source_id": "BgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgY",
+      "shard": 9
+    },
+    {
+      "source_id": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+      "shard": 27
+    },
+    {
+      "source_id": "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+      "shard": 25
+    },
+    {
+      "source_id": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk",
+      "shard": 16
+    },
+    {
+      "source_id": "CgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgo",
+      "shard": 11
+    },
+    {
+      "source_id": "CwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCws",
+      "shard": 30
+    },
+    {
+      "source_id": "DAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAw",
+      "shard": 22
+    },
+    {
+      "source_id": "DQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0",
+      "shard": 12
+    },
+    {
+      "source_id": "Dg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4",
+      "shard": 21
+    },
+    {
+      "source_id": "Dw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8",
+      "shard": 8
+    },
+    {
+      "source_id": "EBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBA",
+      "shard": 30
+    },
+    {
+      "source_id": "ERERERERERERERERERERERERERERERERERERERERERE",
+      "shard": 22
+    },
+    {
+      "source_id": "EhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhI",
+      "shard": 10
+    },
+    {
+      "source_id": "ExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExM",
+      "shard": 9
+    },
+    {
+      "source_id": "FBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQ",
+      "shard": 16
+    },
+    {
+      "source_id": "FRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRU",
+      "shard": 19
+    },
+    {
+      "source_id": "FhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhY",
+      "shard": 13
+    },
+    {
+      "source_id": "FxcXFxcXFxcXFxcXFxcXFxcXFxcXFxcXFxcXFxcXFxc",
+      "shard": 2
+    },
+    {
+      "source_id": "GBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBg",
+      "shard": 28
+    },
+    {
+      "source_id": "GRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRk",
+      "shard": 23
+    },
+    {
+      "source_id": "GhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGho",
+      "shard": 4
+    },
+    {
+      "source_id": "GxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxs",
+      "shard": 4
+    },
+    {
+      "source_id": "HBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw",
+      "shard": 25
+    },
+    {
+      "source_id": "HR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0",
+      "shard": 25
+    },
+    {
+      "source_id": "Hh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4",
+      "shard": 20
+    },
+    {
+      "source_id": "Hx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8",
+      "shard": 22
+    },
+    {
+      "source_id": "ICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA",
+      "shard": 21
+    },
+    {
+      "source_id": "ISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISE",
+      "shard": 20
+    },
+    {
+      "source_id": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+      "shard": 28
+    },
+    {
+      "source_id": "IyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyM",
+      "shard": 20
+    },
+    {
+      "source_id": "JCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQ",
+      "shard": 6
+    },
+    {
+      "source_id": "JSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSU",
+      "shard": 16
+    },
+    {
+      "source_id": "JiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiY",
+      "shard": 2
+    },
+    {
+      "source_id": "JycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJyc",
+      "shard": 22
+    },
+    {
+      "source_id": "KCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCg",
+      "shard": 21
+    },
+    {
+      "source_id": "KSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSk",
+      "shard": 15
+    },
+    {
+      "source_id": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio",
+      "shard": 5
+    },
+    {
+      "source_id": "KysrKysrKysrKysrKysrKysrKysrKysrKysrKysrKys",
+      "shard": 12
+    },
+    {
+      "source_id": "LCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCw",
+      "shard": 11
+    },
+    {
+      "source_id": "LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0",
+      "shard": 15
+    },
+    {
+      "source_id": "Li4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4",
+      "shard": 10
+    },
+    {
+      "source_id": "Ly8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8",
+      "shard": 19
+    },
+    {
+      "source_id": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA",
+      "shard": 23
+    },
+    {
+      "source_id": "MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE",
+      "shard": 7
+    },
+    {
+      "source_id": "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjI",
+      "shard": 9
+    },
+    {
+      "source_id": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+      "shard": 5
+    },
+    {
+      "source_id": "NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ",
+      "shard": 31
+    },
+    {
+      "source_id": "NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU",
+      "shard": 27
+    },
+    {
+      "source_id": "NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY",
+      "shard": 12
+    },
+    {
+      "source_id": "Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc",
+      "shard": 5
+    },
+    {
+      "source_id": "ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg",
+      "shard": 6
+    },
+    {
+      "source_id": "OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk",
+      "shard": 12
+    },
+    {
+      "source_id": "Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo",
+      "shard": 19
+    },
+    {
+      "source_id": "Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs",
+      "shard": 10
+    },
+    {
+      "source_id": "PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw",
+      "shard": 9
+    },
+    {
+      "source_id": "PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0",
+      "shard": 17
+    },
+    {
+      "source_id": "Pj4-Pj4-Pj4-Pj4-Pj4-Pj4-Pj4-Pj4-Pj4-Pj4-Pj4",
+      "shard": 18
+    },
+    {
+      "source_id": "Pz8_Pz8_Pz8_Pz8_Pz8_Pz8_Pz8_Pz8_Pz8_Pz8_Pz8",
+      "shard": 18
+    },
+    {
+      "source_id": "a2tra2tra2tra2tra2tra2tra2tra2tra2tra2tra2s",
+      "shard": 0,
+      "sha256": "04cabb6deaa31db17cd9065621a225cc8412e941ec018f2beff498704f47ad08"
+    },
+    {
+      "source_id": "bGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGw",
+      "shard": 3,
+      "sha256": "1ba5eb911b7673a4fc658d3a5189ff22af67f6d1ad5fcc72f23aedf41ba957dc"
+    },
+    {
+      "source_id": "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI",
+      "shard": 14,
+      "sha256": "76948896d1f54257aeae6ddfff136452705376ac2655569f36786e624b7ea0d1"
+    },
+    {
+      "source_id": "iIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIg",
+      "shard": 24,
+      "sha256": "c22d501ade3f59f4343c299f91347a877e4154e8a47eda8ec60654a8b517028a"
+    },
+    {
+      "source_id": "QEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEA",
+      "shard": 26,
+      "sha256": "d541981468c3b037b512a2321e3485865fbe94ebd8d9fa6043e24861ddf375b2"
+    },
+    {
+      "source_id": "l5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5c",
+      "shard": 29,
+      "sha256": "efefdd02f03920aaf17ca93e14e34eea5c3f20cf385c5371b1edb40ce34aaa6e"
+    }
+  ],
+  "wire_goldens": {
+    "status_rows": [
+      {
+        "name": "current",
+        "status": "current",
+        "reason": "accepted_current_version",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30312d30315430303a",
+          "30303a30305a222c226261736973223a7b226576656e745f6964223a224141414141414141414141414141414141414141414141414141414141414141414141",
+          "4141414141414141222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2231227d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a302c226578656d7074696f6e5f736f7572636573223a7b7d2c226c6f67696e5f61735f6f66",
+          "223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30312d30315430303a",
+          "30303a30305a222c226261736973223a7b226576656e745f6964223a224141414141414141414141414141414141414141414141414141414141414141414141",
+          "4141414141414141222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2231227d7d",
+          "2c226578656d7074223a66616c73652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "exempt-unsigned",
+        "status": "exempt",
+        "reason": "exempt_source_active",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f7572636573223a7b2241414141414141414141414141",
+          "414141414141414141414141414141414141414141414141414141414141223a7b226261736973223a22617574686f72697a6174696f6e222c22696e73747275",
+          "6d656e745f726566223a22696e737472756d656e742d7631222c2272756c655f6576656e745f6964223a6e756c6c2c2273657175656e6365223a302c22736f75",
+          "7263655f6b696e64223a22696e646976696475616c222c227465616d223a6e756c6c7d7d2c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f73",
+          "6e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074223a747275652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "revoked",
+        "status": "revoked",
+        "reason": "revoked_by_contributor",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a2241414141414141414141414141414141414141414141414141414141414141414141414141414141414141222c226b696e64223a22",
+          "7265766f636174696f6e227d2c227265766f6b65645f6174223a22323032362d30312d30315430303a30303a30305a222c2276657273696f6e223a6e756c6c7d",
+          "7d2c226578656d7074696f6e5f73657175656e63655f6e657874223a302c226578656d7074696f6e5f736f7572636573223a7b7d2c226c6f67696e5f61735f6f",
+          "66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a2241414141414141414141414141414141414141414141414141414141414141414141414141414141414141222c226b696e64223a22",
+          "7265766f636174696f6e227d2c227265766f6b65645f6174223a22323032362d30312d30315430303a30303a30305a222c2276657273696f6e223a6e756c6c7d",
+          "7d2c226578656d7074223a66616c73652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "unsigned",
+        "status": "revoked",
+        "reason": "no_acceptance_recorded",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a302c226578656d7074696f6e5f736f7572636573223a7b7d2c226c6f67696e5f61735f6f66",
+          "223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074223a66616c73652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "unaccepted",
+        "status": "revoked",
+        "reason": "version_not_accepted",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30312d30315430303a",
+          "30303a30305a222c226261736973223a7b226576656e745f6964223a224141414141414141414141414141414141414141414141414141414141414141414141",
+          "4141414141414141222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2232227d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a302c226578656d7074696f6e5f736f7572636573223a7b7d2c226c6f67696e5f61735f6f66",
+          "223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30312d30315430303a",
+          "30303a30305a222c226261736973223a7b226576656e745f6964223a224141414141414141414141414141414141414141414141414141414141414141414141",
+          "4141414141414141222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2232227d7d",
+          "2c226578656d7074223a66616c73652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "retired",
+        "status": "superseded",
+        "reason": "superseded_by_activation",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30312d30315430303a",
+          "30303a30305a222c226261736973223a7b226576656e745f6964223a224141414141414141414141414141414141414141414141414141414141414141414141",
+          "4141414141414141222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2230227d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a302c226578656d7074696f6e5f736f7572636573223a7b7d2c226c6f67696e5f61735f6f66",
+          "223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30312d30315430303a",
+          "30303a30305a222c226261736973223a7b226576656e745f6964223a224141414141414141414141414141414141414141414141414141414141414141414141",
+          "4141414141414141222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2230227d7d",
+          "2c226578656d7074223a66616c73652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "unresolved",
+        "status": "indeterminate",
+        "reason": "replay_unresolved",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a2241414141414141414141414141414141414141414141414141414141414141414141414141414141414141222c226b696e64223a22",
+          "756e7265736f6c766564227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d2c226578656d7074696f6e5f7365717565",
+          "6e63655f6e657874223a302c226578656d7074696f6e5f736f7572636573223a7b7d2c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e61",
+          "7073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a2241414141414141414141414141414141414141414141414141414141414141414141414141414141414141222c226b696e64223a22",
+          "756e7265736f6c766564227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d2c226578656d7074223a66616c73652c22",
+          "6c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "signature-before-exemption",
+        "status": "current",
+        "reason": "accepted_current_version",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30312d30315430303a",
+          "30303a30305a222c226261736973223a7b226576656e745f6964223a224141414141414141414141414141414141414141414141414141414141414141414141",
+          "4141414141414141222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2231227d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f7572636573223a7b2241414141414141414141414141",
+          "414141414141414141414141414141414141414141414141414141414141223a7b226261736973223a22617574686f72697a6174696f6e222c22696e73747275",
+          "6d656e745f726566223a22696e737472756d656e742d7631222c2272756c655f6576656e745f6964223a6e756c6c2c2273657175656e6365223a302c22736f75",
+          "7263655f6b696e64223a22696e646976696475616c222c227465616d223a6e756c6c7d7d2c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f73",
+          "6e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30312d30315430303a",
+          "30303a30305a222c226261736973223a7b226576656e745f6964223a224141414141414141414141414141414141414141414141414141414141414141414141",
+          "4141414141414141222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2231227d7d",
+          "2c226578656d7074223a747275652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "exemption-before-revocation",
+        "status": "exempt",
+        "reason": "exempt_source_active",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a2241414141414141414141414141414141414141414141414141414141414141414141414141414141414141222c226b696e64223a22",
+          "7265766f636174696f6e227d2c227265766f6b65645f6174223a22323032362d30312d30315430303a30303a30305a222c2276657273696f6e223a6e756c6c7d",
+          "7d2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f7572636573223a7b22414141414141414141414141",
+          "41414141414141414141414141414141414141414141414141414141414141223a7b226261736973223a22617574686f72697a6174696f6e222c22696e737472",
+          "756d656e745f726566223a22696e737472756d656e742d7631222c2272756c655f6576656e745f6964223a6e756c6c2c2273657175656e6365223a302c22736f",
+          "757263655f6b696e64223a22696e646976696475616c222c227465616d223a6e756c6c7d7d2c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f",
+          "736e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a2241414141414141414141414141414141414141414141414141414141414141414141414141414141414141222c226b696e64223a22",
+          "7265766f636174696f6e227d2c227265766f6b65645f6174223a22323032362d30312d30315430303a30303a30305a222c2276657273696f6e223a6e756c6c7d",
+          "7d2c226578656d7074223a747275652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "exemption-before-retirement",
+        "status": "exempt",
+        "reason": "exempt_source_active",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30312d30315430303a",
+          "30303a30305a222c226261736973223a7b226576656e745f6964223a224141414141414141414141414141414141414141414141414141414141414141414141",
+          "4141414141414141222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2230227d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f7572636573223a7b2241414141414141414141414141",
+          "414141414141414141414141414141414141414141414141414141414141223a7b226261736973223a22617574686f72697a6174696f6e222c22696e73747275",
+          "6d656e745f726566223a22696e737472756d656e742d7631222c2272756c655f6576656e745f6964223a6e756c6c2c2273657175656e6365223a302c22736f75",
+          "7263655f6b696e64223a22696e646976696475616c222c227465616d223a6e756c6c7d7d2c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f73",
+          "6e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30312d30315430303a",
+          "30303a30305a222c226261736973223a7b226576656e745f6964223a224141414141414141414141414141414141414141414141414141414141414141414141",
+          "4141414141414141222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2230227d7d",
+          "2c226578656d7074223a747275652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "unresolved-before-exemption",
+        "status": "indeterminate",
+        "reason": "replay_unresolved",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a2241414141414141414141414141414141414141414141414141414141414141414141414141414141414141222c226b696e64223a22",
+          "756e7265736f6c766564227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d2c226578656d7074696f6e5f7365717565",
+          "6e63655f6e657874223a312c226578656d7074696f6e5f736f7572636573223a7b22414141414141414141414141414141414141414141414141414141414141",
+          "41414141414141414141414141223a7b226261736973223a22617574686f72697a6174696f6e222c22696e737472756d656e745f726566223a22696e73747275",
+          "6d656e742d7631222c2272756c655f6576656e745f6964223a6e756c6c2c2273657175656e6365223a302c22736f757263655f6b696e64223a22696e64697669",
+          "6475616c222c227465616d223a6e756c6c7d7d2c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c2c226d61",
+          "74657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a2241414141414141414141414141414141414141414141414141414141414141414141414141414141414141222c226b696e64223a22",
+          "756e7265736f6c766564227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d2c226578656d7074223a747275652c226c",
+          "6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      }
+    ],
+    "reader_authority": [
+      {
+        "name": "individual",
+        "source_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "path": "derived/reader-authority/01.enc.json",
+        "row": {
+          "kind": "individual",
+          "team": null,
+          "materialization_cursor": {},
+          "subjects": {
+            "7": {
+              "added_event_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
+          }
+        },
+        "bytes_hex": [
+          "7b2241414141414141414141414141414141414141414141414141414141414141414141414141414141414141223a7b226b696e64223a22696e646976696475",
+          "616c222c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d2c227375626a65637473223a7b2237223a7b2261646465645f6576656e745f6964",
+          "223a2241414141414141414141414141414141414141414141414141414141414141414141414141414141414141227d7d2c227465616d223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "snapshot",
+        "source_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+        "path": "derived/reader-authority/10.enc.json",
+        "row": {
+          "kind": "snapshot",
+          "team": {
+            "organization_id": 1,
+            "team_id": 2,
+            "slug_snapshot": "recorded-team"
+          },
+          "materialization_cursor": {},
+          "subjects": {
+            "8": {
+              "added_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE"
+            }
+          }
+        },
+        "bytes_hex": [
+          "7b2241514542415145424151454241514542415145424151454241514542415145424151454241514542415145223a7b226b696e64223a22736e617073686f74",
+          "222c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d2c227375626a65637473223a7b2238223a7b2261646465645f6576656e745f6964223a",
+          "2241514542415145424151454241514542415145424151454241514542415145424151454241514542415145227d7d2c227465616d223a7b226f7267616e697a",
+          "6174696f6e5f6964223a312c22736c75675f736e617073686f74223a227265636f726465642d7465616d222c227465616d5f6964223a327d7d7d"
+        ]
+      },
+      {
+        "name": "continuous_team",
+        "source_id": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI",
+        "path": "derived/reader-authority/13.enc.json",
+        "row": {
+          "kind": "continuous_team",
+          "team": {
+            "organization_id": 1,
+            "team_id": 2,
+            "slug_snapshot": "recorded-team"
+          },
+          "materialization_cursor": {
+            "9": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"
+          },
+          "subjects": {
+            "9": {
+              "added_event_id": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"
+            }
+          }
+        },
+        "bytes_hex": [
+          "7b2241674943416749434167494341674943416749434167494341674943416749434167494341674943416749223a7b226b696e64223a22636f6e74696e756f",
+          "75735f7465616d222c226d6174657269616c697a6174696f6e5f637572736f72223a7b2239223a2241774d4441774d4441774d4441774d4441774d4441774d44",
+          "41774d4441774d4441774d4441774d4441774d227d2c227375626a65637473223a7b2239223a7b2261646465645f6576656e745f6964223a2241774d4441774d",
+          "4441774d4441774d4441774d4441774d4441774d4441774d4441774d4441774d4441774d227d7d2c227465616d223a7b226f7267616e697a6174696f6e5f6964",
+          "223a312c22736c75675f736e617073686f74223a227265636f726465642d7465616d222c227465616d5f6964223a327d7d7d"
+        ]
+      }
+    ],
+    "assembled_state": {
+      "fixture": {
+        "project_id": "project-1",
+        "canonical_oid": "0000000000000000000000000000000000000001",
+        "kid_hex": "6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b",
+        "key_hex": "6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b",
+        "nonce_hex": "000000000000000000000000"
+      },
+      "generations": {
+        "derived_index": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "status_detail": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "reader_authority": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "bytes_hex": [
+        "7b2267656e65726174696f6e73223a7b22646572697665645f696e646578223a2241414141414141414141414141414141414141414141414141414141414141",
+        "414141414141414141414141222c227265616465725f617574686f72697479223a22414141414141414141414141414141414141414141414141414141414141",
+        "41414141414141414141414141222c227374617475735f64657461696c223a224141414141414141414141414141414141414141414141414141414141414141",
+        "4141414141414141414141227d2c2270726f66696c65223a7b226d61785f636f6e74696e756f75735f7265616465725f72756c6573223a31302c226d61785f72",
+        "65616465725f736f757263655f6d656d62657273223a3531322c226d61785f73686172645f636970686572746578745f6279746573223a7b2264657269766564",
+        "5f696e646578223a36353533362c227265616465725f617574686f72697479223a3236323134342c227374617475735f64657461696c223a3236323134347d7d",
+        "2c2273686172645f636f756e74223a33322c2273686172645f64696765737473223a7b22646572697665645f696e646578223a7b223030223a22736861323536",
+        "3a323962343134366632643064386537303764376262623238343531666435363537363130336434363731333461363765333763643335376264313934393639",
+        "34222c223031223a227368613235363a633838613338376434623438356166353766633761336663366139613731656332616662353636313432396665303430",
+        "61323665343366336365313136373731222c223032223a227368613235363a343235623330316334373230663264633039363935653536303236633930326461",
+        "36333264666565623266653662313362343765323633393963346161323439222c223033223a227368613235363a623665663461626133646135373131323132",
+        "61316163623536656139653439306665383432376238353039303036663539666662613661336136646166353831222c223034223a227368613235363a643161",
+        "64353662346564343735613762373037643233363866343239373037386563373434613638623738656336393636316561343837643064633032613939222c22",
+        "3035223a227368613235363a63393963393166353434323635646465316238376531623165376431353334313563623530396338663765336330656566313138",
+        "613238376530383335333364222c223036223a227368613235363a62616136613835613136363838643764363433316639333032646232323736333865616162",
+        "366365653734666634393234316531313437636431666235323935222c223037223a227368613235363a64646566333862666664613564333364326566626361",
+        "616535316465646137316464663633643465383839383664393230646432626238343436313336663835222c223038223a227368613235363a36373665356135",
+        "646362333161316366366230623738613432613733373232646136313430386530326133343635376338396366643561356439323031653530222c223039223a",
+        "227368613235363a3361666637396139643532313666333262333166646231303938653735336534626536363539303632653130383635643335393035626530",
+        "6365623237316266222c223130223a227368613235363a3264316535346533373939353830666463623034666632633834323932366530376239396162623064",
+        "6662346536363462653831353362653465636234623737222c223131223a227368613235363a3661636366363938316362386331373138613934353438623761",
+        "6564653432386431326632356330616333653632383437616362313038373831313464383163222c223132223a227368613235363a3266326566373563316336",
+        "6232333631636536363065353430646334633436656539316334646639653965343830363462343466613661333335363238656263222c223133223a22736861",
+        "3235363a336637393533396165346562333437373963373565326236383763333833336265623665383963613466326466666634623062653965306565363666",
+        "39323763222c223134223a227368613235363a623238376632643436646439373965316462373163353030393266613732356539373238346363623863323337",
+        "32303138613866653432316334336235656539222c223135223a227368613235363a343832343834333036353764613462386135623366323135653335333461",
+        "62653866636138346165393839316365343131303061366661643862343437613466222c223136223a227368613235363a623938313236663233376337343466",
+        "61633738353532323064643532653837333037356561363436613632353332633037373961626364373730666365346265222c223137223a227368613235363a",
+        "32346239313664633262303334376562313732353966326633646230383534343933393163633539626532326339306464653765363735356437653433363164",
+        "222c223138223a227368613235363a39376366326233666635633736393234646138346439663633343339653737383366363930633163336463643832316361",
+        "303835313434383431656161626338222c223139223a227368613235363a61663239656461623661373864613265346435356365663538353765313031666331",
+        "326531373864613364393939306635336161653630366631633533613135222c223230223a227368613235363a31386563643566306132396637646561643966",
+        "393030613734333736393534656330656333353332333534663463376265313136303066326638303261656362222c223231223a227368613235363a35383661",
+        "663431646431653032366530353034376561303562646431626531326433636563326663643261653164383066323061633834313035303230663364222c2232",
+        "32223a227368613235363a6661653530636132653134626533306536313466393363343465316535393862613233356166336264663666353435316639633238",
+        "3566323835366131383263222c223233223a227368613235363a3965306138653665646664623663636136666137303939353733616366653230376539313562",
+        "3731356331633532363265386662323263623166303831623933222c223234223a227368613235363a3166333363303564336631663165353233323838643862",
+        "3365303538393362326133363632353436623630306232633365666135663963616634653039393038222c223235223a227368613235363a6364373163313266",
+        "6431633930366530323639343438633539313839646634313337353330343038313531333430343439633665663934323439383638323639222c223236223a22",
+        "7368613235363a373034633063373035623165333631646533393034623938353162636130343364343964353930356236373339313864333137356563636336",
+        "31663633633533222c223237223a227368613235363a346135316432336330303430646437373130636232303135663237666563633336336162616263663437",
+        "31653362666335363536376135383961383466353839222c223238223a227368613235363a313833623137306362353338303363633365633637316532636661",
+        "37393064623330313763336465623931343635613332376432363039356635636332646134222c223239223a227368613235363a383738346166646533333831",
+        "63343664663561306536663532386465303566653637363333323365346534383536633364616330656536383161656264313637222c223330223a2273686132",
+        "35363a33396461383733353531623931643534626365316430393230323861666432623665313836643864303938323833613764666665323437663539633530",
+        "626130222c223331223a227368613235363a32333964306339383966393563373435393630363531656433363661616234353036343733393462313834396132",
+        "363633666237303630306530653135303134227d2c227265616465725f617574686f72697479223a7b223030223a227368613235363a64366362343939633566",
+        "343335643931643766656231633630366138646139396134623834626663393365656438353635393763346665656635646666363530222c223031223a227368",
+        "613235363a6532616162376637656439663231333939653963316166386566666164383837343136656432313237383763633261313533303131313238353435",
+        "6636356336222c223032223a227368613235363a3439636239643361613730353732656338323034383539663031633065656339313135303661663634386130",
+        "3633346161336535303661626134666261313065222c223033223a227368613235363a6266383864313332653733343366303533636635646535393238346337",
+        "6134306263353034393866343862643561376264626463383730396664333661353231222c223034223a227368613235363a3864353862346230373532306334",
+        "6533613434313839633537333564386330643865626138646333656361396665376532396162396131646536313061643733222c223035223a22736861323536",
+        "3a653063636136656265313237346531376636393839643032376532613235306533623139353332353233653136633961653861333066653635373639613162",
+        "37222c223036223a227368613235363a313436393130323262313566343935636463393437633233363039343765663938633132613664623836353833633834",
+        "31303664396239333739623134396335222c223037223a227368613235363a653465383437313030383661663035653966653737663732393138353666616265",
+        "66646332616138653064646466393738303039336435366463303831376132222c223038223a227368613235363a313039643434363762613339306463646134",
+        "36393166316263353738386137323364386130326462333130316132326663663334363662396537363937313934222c223039223a227368613235363a383538",
+        "33373763613566383836383061333037633239643538636430373130383531643761643335626431316264396237663764343363363039396438616432222c22",
+        "3130223a227368613235363a35626132383865343736623064303165313065656435623366623363666262383866346262316365323932353738613763613937",
+        "643938666663343965643162222c223131223a227368613235363a35363134646164306231396132386366626630313566656130386635643938653465613761",
+        "313333616632313937356235303461356437636133633234386366222c223132223a227368613235363a34623432643261303234353332336562366234323133",
+        "316565313133653330353062353138643765613961633564323539653639383139383966623338656361222c223133223a227368613235363a33303133663934",
+        "633166656435623064333762326639353061306133666266393735643934393232323338343830323066333963396530376237306464656438222c223134223a",
+        "227368613235363a3038333361346239323761373336613362636331303965386138383463353062643631633532346339346338663639383062396537373233",
+        "3161666661636134222c223135223a227368613235363a6564373366613730376234653537316566393131396361396437333065323565663863373435386561",
+        "3434303066306636643136616631643938646362326330222c223136223a227368613235363a3662386364386539666438353439303736383430643963616233",
+        "3761323538323562396163613633653839616332316262613865626231396533626638373835222c223137223a227368613235363a3530363866313436393735",
+        "3764343965323366303262366537623236383432353133626436666439626663623532356462373661303763316339623436643930222c223138223a22736861",
+        "3235363a626539646339626231616266376134656263346466663361643639666530333436666465613538643938313930313937333738363030643264636562",
+        "63353439222c223139223a227368613235363a663566313565353862643564383934626334306335646237363737353065363834656633303862323763303332",
+        "65393539623331346130386132396635353430222c223230223a227368613235363a656262346534666230336435623330323961333032626438666663396539",
+        "65393363313737366636636638376666653666373032663866663537626631323638222c223231223a227368613235363a636339616365333131633062336231",
+        "63383638366534353637663666386133613737393235653632313830363632613065633365313366653632393164323536222c223232223a227368613235363a",
+        "31643762373963343662303761643562623933383136316233623435303761663563643433653965373539306135363035393737386366636364623735383465",
+        "222c223233223a227368613235363a30316433623736653665616634383264626131633766373233386465616435316430323431613037316465336339386439",
+        "373539353536356566623361393231222c223234223a227368613235363a31663530626633666133336239356437353762323131613936366430626462353766",
+        "353763626638336239343066363363346634656363363730633631376662222c223235223a227368613235363a65353366346239656437376236393862303363",
+        "643565616136386231653732653237393934663035333732613931336533636365633262323362333634666537222c223236223a227368613235363a31396632",
+        "623533383531376266626163353938363261393038326563626265353266303837626236373139373831613963366139663132333761663266613562222c2232",
+        "37223a227368613235363a3835306436663030643139656462343634623764663831663635663238353862616235373438343065303362666162386464356461",
+        "6638636130383736303463222c223238223a227368613235363a3734353363313832303134393634643361326537366139353061326366643666333034353134",
+        "3039303561346438353131613332306565636331376262323432222c223239223a227368613235363a3738316236383238303335393062376536333934353737",
+        "3330373138626431303231306435343464663163613564303838363261663738653964623630346433222c223330223a227368613235363a3034343566666233",
+        "3338316366636431353639643166306431666262653233636566383666313562366138353134666666663662393763623737623263653938222c223331223a22",
+        "7368613235363a313163663530346434336461353465616536623534623233383637313832643339666239313237336637343964663565666137303036303765",
+        "61363564316536227d2c227374617475735f64657461696c223a7b223030223a227368613235363a333363386364326339396266336364376331356633353465",
+        "30303135666231653837366234363332343166363662383832646335366531663739386361663361222c223031223a227368613235363a396234326336613339",
+        "30343765643564396230383138346164383536383461323239656264363639633335383139386663633833663036373039363938646435222c223032223a2273",
+        "68613235363a31646161663964323330393063663434323365323433316135383265323035383734363939323733336665393333303665313833326636646465",
+        "363230323938222c223033223a227368613235363a62356139373661613962303833633931353666313832383062316337626538353833633337626263343834",
+        "336431396536643136326261366363386463653062222c223034223a227368613235363a64636266313830363334363635633865633364626239356233313937",
+        "613535656430313761323138326338353366346233363664633431313465313739386134222c223035223a227368613235363a38613334393631633034633362",
+        "323130316131303032653134306338393864313834373234666366303437623034666231663462633339313265373730383662222c223036223a227368613235",
+        "363a6432366163633463303139653866383461663631343034626335643932383430323335333739656438326536383734653334333565343166363032643139",
+        "6261222c223037223a227368613235363a3836303838636138383939323865306337323333383830343439323033356432393464373134313964363738616364",
+        "3464333037613034363762353037623837222c223038223a227368613235363a6664663430326433346630666538653532653564613736626631363865303561",
+        "3732316438663737336631626136326632633636643131353439656335653334222c223039223a227368613235363a3962353039653830393331396663353332",
+        "6333376465313138663130636361613839373962646461623837613162336132336439363034326464666439373130222c223130223a227368613235363a3935",
+        "3738383666623739613932663766613037366234613261656234353262376365373233643239353362363433343266616365386133656431393663623136222c",
+        "223131223a227368613235363a323038636230636463616332323438383263633064393461356362636530643464303633623433303732363330333938613837",
+        "33356437343365306539323762222c223132223a227368613235363a666539333361336138373264393266313533666465393238343231326231376337666232",
+        "65303138373130306466386664356534613062636364396332626564222c223133223a227368613235363a646433373634303763383934323331323430363261",
+        "66643063383130383263366231323639323338333664653162353566316536643832323266393438346663222c223134223a227368613235363a393030316230",
+        "34333737636161333235363661626332646638343461663265353139323964333362656630333030616634396231386136316162653636393236222c22313522",
+        "3a227368613235363a35626430633536666436643563633034353764353131373765396636386264336638323262363563323462623534363861343938303965",
+        "383861653839353935222c223136223a227368613235363a65363638343936393630316130663436323131363562326163383135346239623137333765373465",
+        "383031653562303231366439613432376561613035613864222c223137223a227368613235363a36326131326531653461666630626130303261623862663639",
+        "616434303433663862366663343766323935613362383235353135393362326461303664333931222c223138223a227368613235363a34396264333031393639",
+        "666263316632393332646333373939643739323235336233306564396335626230323637396130343736613662353864653634303466222c223139223a227368",
+        "613235363a3937313037373434393837316138663231346630636261653239373533653139616237363261653837653862386336613565373463323362613034",
+        "3331633361222c223230223a227368613235363a3762653564656663653735366463306564353263356538343863613238326265383231396136663733336637",
+        "3165343862656365626439336364336561646564222c223231223a227368613235363a3133663831653332356664626466653630373063663732316166383263",
+        "3235316366393562366632303234623837396133353333366235346261393862373963222c223232223a227368613235363a6663646634373566356665643364",
+        "3133616263336330636438623137343966396535346363356337356236323437633232313936306232663735393664626232222c223233223a22736861323536",
+        "3a363335383338343437343438393333336261613162363966653135653666303962306534653837366331643737323163626232313830343232623161633036",
+        "36222c223234223a227368613235363a393036396431323861656566333766623537393033356632633230663433333433613132353161366333643035613166",
+        "32343830316661633637653361663430222c223235223a227368613235363a656161373564666436393561616532363934363939313932636466643537613831",
+        "32363537373364313736653064643239356537633064376132373532383837222c223236223a227368613235363a303136383830656163346161653166376532",
+        "36393165383138303139666465346162326563643033333134656462333265616265643030626330643061383830222c223237223a227368613235363a633032",
+        "33366635303132633631316263393732383737636635363564666431333364363430363035316233393966613566636531663762393131663463666262222c22",
+        "3238223a227368613235363a62653130653138323763346361306461626162336462373533643633343239653939376263376333313461633333313837653666",
+        "306463613461613130326565222c223239223a227368613235363a65386135633230363064336264326162663864326530373163383338633964313232396261",
+        "353165633339626664356661626663666337303062343334646365222c223330223a227368613235363a38643961366165313331313134646334336433323466",
+        "343737343137383566613034393432643937346435366633653937323962643139346339373066373931222c223331223a227368613235363a34323431353433",
+        "366231663238366130303263343133386634373361626238313935653038376666366163646232396137313161383437323966663937366433227d7d2c227374",
+        "616e64696e675f72756c6573223a7b7d2c2273746174655f76657273696f6e223a317d"
+      ]
+    },
+    "exemption_source_rows": [
+      {
+        "name": "bot",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f7572636573223a7b2241414141414141414141414141",
+          "414141414141414141414141414141414141414141414141414141414141223a7b226261736973223a6e756c6c2c22696e737472756d656e745f726566223a6e",
+          "756c6c2c2272756c655f6576656e745f6964223a6e756c6c2c2273657175656e6365223a302c22736f757263655f6b696e64223a22626f74222c227465616d22",
+          "3a6e756c6c7d7d2c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f",
+          "6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074223a747275652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "individual",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f7572636573223a7b2241414141414141414141414141",
+          "414141414141414141414141414141414141414141414141414141414141223a7b226261736973223a22617574686f72697a6174696f6e222c22696e73747275",
+          "6d656e745f726566223a22696e737472756d656e742d7631222c2272756c655f6576656e745f6964223a6e756c6c2c2273657175656e6365223a302c22736f75",
+          "7263655f6b696e64223a22696e646976696475616c222c227465616d223a6e756c6c7d7d2c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f73",
+          "6e617073686f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074223a747275652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "snapshot",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f7572636573223a7b2241414141414141414141414141",
+          "414141414141414141414141414141414141414141414141414141414141223a7b226261736973223a22617574686f72697a6174696f6e222c22696e73747275",
+          "6d656e745f726566223a22696e737472756d656e742d7631222c2272756c655f6576656e745f6964223a6e756c6c2c2273657175656e6365223a302c22736f75",
+          "7263655f6b696e64223a22736e617073686f74222c227465616d223a7b226f7267616e697a6174696f6e5f6964223a312c22736c75675f736e617073686f7422",
+          "3a227265636f726465642d7465616d222c227465616d5f6964223a327d7d7d2c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e61707368",
+          "6f74223a6e756c6c2c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074223a747275652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      },
+      {
+        "name": "continuous_team",
+        "status_detail_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f7572636573223a7b2241414141414141414141414141",
+          "414141414141414141414141414141414141414141414141414141414141223a7b226261736973223a22617574686f72697a6174696f6e222c22696e73747275",
+          "6d656e745f726566223a22696e737472756d656e742d7631222c2272756c655f6576656e745f6964223a22414141414141414141414141414141414141414141",
+          "41414141414141414141414141414141414141414141222c2273657175656e6365223a302c22736f757263655f6b696e64223a22636f6e74696e756f75735f74",
+          "65616d222c227465616d223a7b226f7267616e697a6174696f6e5f6964223a312c22736c75675f736e617073686f74223a227265636f726465642d7465616d22",
+          "2c227465616d5f6964223a327d7d7d2c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c2c226d6174657269",
+          "616c697a6174696f6e5f637572736f72223a7b224141414141414141414141414141414141414141414141414141414141414141414141414141414141414122",
+          "3a2242424242424242424242424242424242424242424242424242424242424242424242424242424242424241227d7d7d"
+        ],
+        "index_bytes_hex": [
+          "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+          "6576656e745f6964223a6e756c6c2c226b696e64223a226e6f6e65227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a6e756c6c7d7d",
+          "2c226578656d7074223a747275652c226c6f67696e5f61735f6f66223a6e756c6c2c226c6f67696e5f736e617073686f74223a6e756c6c7d7d"
+        ]
+      }
+    ],
+    "pre_agreement_exemption": {
+      "inputs": {
+        "connected_nonce": 2000,
+        "exemption_nonce": 2001,
+        "withdrawal_nonce": 2002,
+        "source_kind": "individual"
+      },
+      "source_event_id": "G1cVgNitBKgptzyi21G8qr39NR2G74rvIlp5wvjs748",
+      "stages": {
+        "exempted": {
+          "derived/index/07.enc.json": [
+            "7b2237223a7b2261677265656d656e7473223a7b7d2c226578656d7074223a747275652c226c6f67696e5f61735f6f66223a22323032362d30382d3239543030",
+            "3a30303a30305a222c226c6f67696e5f736e617073686f74223a22636f6e7472696275746f72227d7d"
+          ],
+          "derived/status-detail/07.enc.json": [
+            "7b2237223a7b2261677265656d656e7473223a7b7d2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f75",
+            "72636573223a7b2247316356674e6974424b6770747a796932314738717233394e52324737347276496c703577766a73373438223a7b226261736973223a2263",
+            "6f6e7472616374222c22696e737472756d656e745f726566223a227469636b65742d696e646976696475616c222c2272756c655f6576656e745f6964223a6e75",
+            "6c6c2c2273657175656e6365223a302c22736f757263655f6b696e64223a22696e646976696475616c222c227465616d223a6e756c6c7d7d2c226c6f67696e5f",
+            "61735f6f66223a22323032362d30382d32395430303a30303a30305a222c226c6f67696e5f736e617073686f74223a22636f6e7472696275746f72222c226d61",
+            "74657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+          ]
+        },
+        "withdrawn": {
+          "derived/index/07.enc.json": [
+            "7b2237223a7b2261677265656d656e7473223a7b7d2c226578656d7074223a66616c73652c226c6f67696e5f61735f6f66223a22323032362d30382d32395430",
+            "303a30303a30305a222c226c6f67696e5f736e617073686f74223a22636f6e7472696275746f72227d7d"
+          ],
+          "derived/status-detail/07.enc.json": [
+            "7b2237223a7b2261677265656d656e7473223a7b7d2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f75",
+            "72636573223a7b7d2c226c6f67696e5f61735f6f66223a22323032362d30382d32395430303a30303a30305a222c226c6f67696e5f736e617073686f74223a22",
+            "636f6e7472696275746f72222c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+          ]
+        }
+      },
+      "expected": {
+        "exempted_reason": "exempt_source_active",
+        "withdrawn_reason": "no_acceptance_recorded",
+        "withdrawn_event_id": null
+      }
+    },
+    "canonical_signature": {
+      "inputs": {
+        "active_nonce": 2100,
+        "acceptance_nonce": 2110,
+        "revocation_nonce": 2111
+      },
+      "acceptance_event_id": "W_BVBkCeQ9Yrp7BS9aBAhuC_Qe8MRYrLitsqXjht2Qg",
+      "revocation_event_id": "82PCLF03umkI71dI1Y_VIidzVmwok7aoo375ArRiFL0",
+      "stages": {
+        "accepted": {
+          "derived/index/07.enc.json": [
+            "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30382d32395430303a",
+            "30303a30305a222c226261736973223a7b226576656e745f6964223a22575f4256426b43655139597270374253396142416875435f5165384d5259724c697473",
+            "71586a6874325167222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2231227d7d",
+            "2c226578656d7074223a66616c73652c226c6f67696e5f61735f6f66223a22323032362d30382d32395430303a30303a30305a222c226c6f67696e5f736e6170",
+            "73686f74223a2261646d696e227d7d"
+          ],
+          "derived/status-detail/07.enc.json": [
+            "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a22323032362d30382d32395430303a",
+            "30303a30305a222c226261736973223a7b226576656e745f6964223a22575f4256426b43655139597270374253396142416875435f5165384d5259724c697473",
+            "71586a6874325167222c226b696e64223a22616363657074616e6365227d2c227265766f6b65645f6174223a6e756c6c2c2276657273696f6e223a2231227d7d",
+            "2c226578656d7074696f6e5f73657175656e63655f6e657874223a302c226578656d7074696f6e5f736f7572636573223a7b7d2c226c6f67696e5f61735f6f66",
+            "223a22323032362d30382d32395430303a30303a30305a222c226c6f67696e5f736e617073686f74223a2261646d696e222c226d6174657269616c697a617469",
+            "6f6e5f637572736f72223a7b7d7d7d"
+          ]
+        },
+        "revoked": {
+          "derived/index/07.enc.json": [
+            "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+            "6576656e745f6964223a22383250434c463033756d6b493731644931595f564969647a566d776f6b37616f6f33373541725269464c30222c226b696e64223a22",
+            "7265766f636174696f6e227d2c227265766f6b65645f6174223a22323032362d30382d32395430303a30303a30305a222c2276657273696f6e223a6e756c6c7d",
+            "7d2c226578656d7074223a66616c73652c226c6f67696e5f61735f6f66223a22323032362d30382d32395430303a30303a30305a222c226c6f67696e5f736e61",
+            "7073686f74223a2261646d696e227d7d"
+          ],
+          "derived/status-detail/07.enc.json": [
+            "7b2237223a7b2261677265656d656e7473223a7b2261677265656d656e742d31223a7b2261636365707465645f6174223a6e756c6c2c226261736973223a7b22",
+            "6576656e745f6964223a22383250434c463033756d6b493731644931595f564969647a566d776f6b37616f6f33373541725269464c30222c226b696e64223a22",
+            "7265766f636174696f6e227d2c227265766f6b65645f6174223a22323032362d30382d32395430303a30303a30305a222c2276657273696f6e223a6e756c6c7d",
+            "7d2c226578656d7074696f6e5f73657175656e63655f6e657874223a302c226578656d7074696f6e5f736f7572636573223a7b7d2c226c6f67696e5f61735f6f",
+            "66223a22323032362d30382d32395430303a30303a30305a222c226c6f67696e5f736e617073686f74223a2261646d696e222c226d6174657269616c697a6174",
+            "696f6e5f637572736f72223a7b7d7d7d"
+          ]
+        }
+      },
+      "expected": {
+        "accepted_reason": "accepted_current_version",
+        "revoked_reason": "revoked_by_contributor"
+      }
+    },
+    "canonical_recorded_exemption": {
+      "inputs": {
+        "active_nonce": 2200,
+        "exemption_nonce": 2203,
+        "source_kind": "individual"
+      },
+      "source_event_id": "46luPmobMyfNk_igeomzVseKkpz6sQoJyAQ5g6AOTq4",
+      "stage": {
+        "derived/index/07.enc.json": [
+          "7b2237223a7b2261677265656d656e7473223a7b7d2c226578656d7074223a747275652c226c6f67696e5f61735f6f66223a22323032362d30382d3239543030",
+          "3a30303a30305a222c226c6f67696e5f736e617073686f74223a22636f6e7472696275746f72227d7d"
+        ],
+        "derived/status-detail/07.enc.json": [
+          "7b2237223a7b2261677265656d656e7473223a7b7d2c226578656d7074696f6e5f73657175656e63655f6e657874223a312c226578656d7074696f6e5f736f75",
+          "72636573223a7b2234366c75506d6f624d79664e6b5f6967656f6d7a5673654b6b707a3673516f4a794151356736414f547134223a7b226261736973223a2263",
+          "6f6e7472616374222c22696e737472756d656e745f726566223a227469636b65742d696e646976696475616c222c2272756c655f6576656e745f6964223a6e75",
+          "6c6c2c2273657175656e6365223a302c22736f757263655f6b696e64223a22696e646976696475616c222c227465616d223a6e756c6c7d7d2c226c6f67696e5f",
+          "61735f6f66223a22323032362d30382d32395430303a30303a30305a222c226c6f67696e5f736e617073686f74223a22636f6e7472696275746f72222c226d61",
+          "74657269616c697a6174696f6e5f637572736f72223a7b7d7d7d"
+        ]
+      },
+      "expected_reason": "exempt_source_active"
+    },
+    "canonical_readers": {
+      "inputs": {
+        "connected_nonce": 1000,
+        "individual_nonce": 2301,
+        "snapshot_nonce": 2302,
+        "continuous_rule_nonce": 2303,
+        "continuous_add_subject": 7
+      },
+      "source_event_ids": {
+        "individual": "arlzO-uiTCAwDGIYqAWc9_h02KdCJYImcPNUk-270Cc",
+        "snapshot": "zecS-ll46WbAGYIIARPXLQzFBqidiMkQLLu_ZtXtmuQ",
+        "continuous_team": "sth3vZ6av5udzkM7Qf88Pkiy1fp6ZooTk-ESYt0EvZY",
+        "continuous_add": "7WS9mDlH9dy0Df57D_jpzFqGBS6729u5Y5vc6O-Ofr8"
+      },
+      "files": {
+        "derived/reader-authority/01.enc.json": [
+          "7b2261726c7a4f2d7569544341774447495971415763395f6830324b64434a59496d63504e556b2d3237304363223a7b226b696e64223a22696e646976696475",
+          "616c222c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d2c227375626a65637473223a7b2237223a7b2261646465645f6576656e745f6964",
+          "223a2261726c7a4f2d7569544341774447495971415763395f6830324b64434a59496d63504e556b2d3237304363227d7d2c227465616d223a6e756c6c7d7d"
+        ],
+        "derived/reader-authority/21.enc.json": [
+          "7b227a6563532d6c6c343657624147594949415250584c517a4642716964694d6b514c4c755f5a7458746d7551223a7b226b696e64223a22736e617073686f74",
+          "222c226d6174657269616c697a6174696f6e5f637572736f72223a7b7d2c227375626a65637473223a7b2237223a7b2261646465645f6576656e745f6964223a",
+          "227a6563532d6c6c343657624147594949415250584c517a4642716964694d6b514c4c755f5a7458746d7551227d7d2c227465616d223a7b226f7267616e697a",
+          "6174696f6e5f6964223a34312c22736c75675f736e617073686f74223a227465616d2d6f6e65222c227465616d5f6964223a34327d7d7d"
+        ],
+        "derived/reader-authority/03.enc.json": [
+          "7b2273746833765a3661763575647a6b4d3751663838506b6979316670365a6f6f546b2d455359743045765a59223a7b226b696e64223a22636f6e74696e756f",
+          "75735f7465616d222c226d6174657269616c697a6174696f6e5f637572736f72223a7b2237223a22375753396d446c483964793044663537445f6a707a467147",
+          "425336373239753559357663364f2d4f667238227d2c227375626a65637473223a7b2237223a7b2261646465645f6576656e745f6964223a22375753396d446c",
+          "483964793044663537445f6a707a467147425336373239753559357663364f2d4f667238227d7d2c227465616d223a7b226f7267616e697a6174696f6e5f6964",
+          "223a34312c22736c75675f736e617073686f74223a227465616d2d6f6e65222c227465616d5f6964223a34327d7d7d"
+        ]
+      }
+    },
+    "canonical_assembled_state": {
+      "inputs": {
+        "connected_nonce": 2400,
+        "standing_rule_nonce": 2401
+      },
+      "rule_event_id": "lYdkRB520kK4zK4gQwK7O8-GDlZOOt9ud4LB7O4X2FA",
+      "fixture": {
+        "project_id": "project-1",
+        "canonical_oid": "0000000000000000000000000000000000000002",
+        "kid_hex": "6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b",
+        "key_hex": "6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b",
+        "nonce_hex": "000000000000000000000000"
+      },
+      "generations": {
+        "derived_index": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "status_detail": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "reader_authority": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "bytes_hex": [
+        "7b2267656e65726174696f6e73223a7b22646572697665645f696e646578223a2241414141414141414141414141414141414141414141414141414141414141",
+        "414141414141414141414141222c227265616465725f617574686f72697479223a22414141414141414141414141414141414141414141414141414141414141",
+        "41414141414141414141414141222c227374617475735f64657461696c223a224141414141414141414141414141414141414141414141414141414141414141",
+        "4141414141414141414141227d2c2270726f66696c65223a7b226d61785f636f6e74696e756f75735f7265616465725f72756c6573223a31302c226d61785f72",
+        "65616465725f736f757263655f6d656d62657273223a3531322c226d61785f73686172645f636970686572746578745f6279746573223a7b2264657269766564",
+        "5f696e646578223a36353533362c227265616465725f617574686f72697479223a3236323134342c227374617475735f64657461696c223a3236323134347d7d",
+        "2c2273686172645f636f756e74223a33322c2273686172645f64696765737473223a7b22646572697665645f696e646578223a7b223030223a22736861323536",
+        "3a323962343134366632643064386537303764376262623238343531666435363537363130336434363731333461363765333763643335376264313934393639",
+        "34222c223031223a227368613235363a633838613338376434623438356166353766633761336663366139613731656332616662353636313432396665303430",
+        "61323665343366336365313136373731222c223032223a227368613235363a343235623330316334373230663264633039363935653536303236633930326461",
+        "36333264666565623266653662313362343765323633393963346161323439222c223033223a227368613235363a623665663461626133646135373131323132",
+        "61316163623536656139653439306665383432376238353039303036663539666662613661336136646166353831222c223034223a227368613235363a643161",
+        "64353662346564343735613762373037643233363866343239373037386563373434613638623738656336393636316561343837643064633032613939222c22",
+        "3035223a227368613235363a63393963393166353434323635646465316238376531623165376431353334313563623530396338663765336330656566313138",
+        "613238376530383335333364222c223036223a227368613235363a62616136613835613136363838643764363433316639333032646232323736333865616162",
+        "366365653734666634393234316531313437636431666235323935222c223037223a227368613235363a64646566333862666664613564333364326566626361",
+        "616535316465646137316464663633643465383839383664393230646432626238343436313336663835222c223038223a227368613235363a36373665356135",
+        "646362333161316366366230623738613432613733373232646136313430386530326133343635376338396366643561356439323031653530222c223039223a",
+        "227368613235363a3361666637396139643532313666333262333166646231303938653735336534626536363539303632653130383635643335393035626530",
+        "6365623237316266222c223130223a227368613235363a3264316535346533373939353830666463623034666632633834323932366530376239396162623064",
+        "6662346536363462653831353362653465636234623737222c223131223a227368613235363a3661636366363938316362386331373138613934353438623761",
+        "6564653432386431326632356330616333653632383437616362313038373831313464383163222c223132223a227368613235363a3266326566373563316336",
+        "6232333631636536363065353430646334633436656539316334646639653965343830363462343466613661333335363238656263222c223133223a22736861",
+        "3235363a336637393533396165346562333437373963373565326236383763333833336265623665383963613466326466666634623062653965306565363666",
+        "39323763222c223134223a227368613235363a623238376632643436646439373965316462373163353030393266613732356539373238346363623863323337",
+        "32303138613866653432316334336235656539222c223135223a227368613235363a343832343834333036353764613462386135623366323135653335333461",
+        "62653866636138346165393839316365343131303061366661643862343437613466222c223136223a227368613235363a623938313236663233376337343466",
+        "61633738353532323064643532653837333037356561363436613632353332633037373961626364373730666365346265222c223137223a227368613235363a",
+        "32346239313664633262303334376562313732353966326633646230383534343933393163633539626532326339306464653765363735356437653433363164",
+        "222c223138223a227368613235363a39376366326233666635633736393234646138346439663633343339653737383366363930633163336463643832316361",
+        "303835313434383431656161626338222c223139223a227368613235363a61663239656461623661373864613265346435356365663538353765313031666331",
+        "326531373864613364393939306635336161653630366631633533613135222c223230223a227368613235363a31386563643566306132396637646561643966",
+        "393030613734333736393534656330656333353332333534663463376265313136303066326638303261656362222c223231223a227368613235363a35383661",
+        "663431646431653032366530353034376561303562646431626531326433636563326663643261653164383066323061633834313035303230663364222c2232",
+        "32223a227368613235363a6661653530636132653134626533306536313466393363343465316535393862613233356166336264663666353435316639633238",
+        "3566323835366131383263222c223233223a227368613235363a3965306138653665646664623663636136666137303939353733616366653230376539313562",
+        "3731356331633532363265386662323263623166303831623933222c223234223a227368613235363a3166333363303564336631663165353233323838643862",
+        "3365303538393362326133363632353436623630306232633365666135663963616634653039393038222c223235223a227368613235363a6364373163313266",
+        "6431633930366530323639343438633539313839646634313337353330343038313531333430343439633665663934323439383638323639222c223236223a22",
+        "7368613235363a373034633063373035623165333631646533393034623938353162636130343364343964353930356236373339313864333137356563636336",
+        "31663633633533222c223237223a227368613235363a346135316432336330303430646437373130636232303135663237666563633336336162616263663437",
+        "31653362666335363536376135383961383466353839222c223238223a227368613235363a313833623137306362353338303363633365633637316532636661",
+        "37393064623330313763336465623931343635613332376432363039356635636332646134222c223239223a227368613235363a383738346166646533333831",
+        "63343664663561306536663532386465303566653637363333323365346534383536633364616330656536383161656264313637222c223330223a2273686132",
+        "35363a33396461383733353531623931643534626365316430393230323861666432623665313836643864303938323833613764666665323437663539633530",
+        "626130222c223331223a227368613235363a32333964306339383966393563373435393630363531656433363661616234353036343733393462313834396132",
+        "363633666237303630306530653135303134227d2c227265616465725f617574686f72697479223a7b223030223a227368613235363a64366362343939633566",
+        "343335643931643766656231633630366138646139396134623834626663393365656438353635393763346665656635646666363530222c223031223a227368",
+        "613235363a6532616162376637656439663231333939653963316166386566666164383837343136656432313237383763633261313533303131313238353435",
+        "6636356336222c223032223a227368613235363a3439636239643361613730353732656338323034383539663031633065656339313135303661663634386130",
+        "3633346161336535303661626134666261313065222c223033223a227368613235363a6266383864313332653733343366303533636635646535393238346337",
+        "6134306263353034393866343862643561376264626463383730396664333661353231222c223034223a227368613235363a3864353862346230373532306334",
+        "6533613434313839633537333564386330643865626138646333656361396665376532396162396131646536313061643733222c223035223a22736861323536",
+        "3a653063636136656265313237346531376636393839643032376532613235306533623139353332353233653136633961653861333066653635373639613162",
+        "37222c223036223a227368613235363a313436393130323262313566343935636463393437633233363039343765663938633132613664623836353833633834",
+        "31303664396239333739623134396335222c223037223a227368613235363a653465383437313030383661663035653966653737663732393138353666616265",
+        "66646332616138653064646466393738303039336435366463303831376132222c223038223a227368613235363a313039643434363762613339306463646134",
+        "36393166316263353738386137323364386130326462333130316132326663663334363662396537363937313934222c223039223a227368613235363a383538",
+        "33373763613566383836383061333037633239643538636430373130383531643761643335626431316264396237663764343363363039396438616432222c22",
+        "3130223a227368613235363a35626132383865343736623064303165313065656435623366623363666262383866346262316365323932353738613763613937",
+        "643938666663343965643162222c223131223a227368613235363a35363134646164306231396132386366626630313566656130386635643938653465613761",
+        "313333616632313937356235303461356437636133633234386366222c223132223a227368613235363a34623432643261303234353332336562366234323133",
+        "316565313133653330353062353138643765613961633564323539653639383139383966623338656361222c223133223a227368613235363a33303133663934",
+        "633166656435623064333762326639353061306133666266393735643934393232323338343830323066333963396530376237306464656438222c223134223a",
+        "227368613235363a3038333361346239323761373336613362636331303965386138383463353062643631633532346339346338663639383062396537373233",
+        "3161666661636134222c223135223a227368613235363a6564373366613730376234653537316566393131396361396437333065323565663863373435386561",
+        "3434303066306636643136616631643938646362326330222c223136223a227368613235363a3662386364386539666438353439303736383430643963616233",
+        "3761323538323562396163613633653839616332316262613865626231396533626638373835222c223137223a227368613235363a3530363866313436393735",
+        "3764343965323366303262366537623236383432353133626436666439626663623532356462373661303763316339623436643930222c223138223a22736861",
+        "3235363a626539646339626231616266376134656263346466663361643639666530333436666465613538643938313930313937333738363030643264636562",
+        "63353439222c223139223a227368613235363a663566313565353862643564383934626334306335646237363737353065363834656633303862323763303332",
+        "65393539623331346130386132396635353430222c223230223a227368613235363a656262346534666230336435623330323961333032626438666663396539",
+        "65393363313737366636636638376666653666373032663866663537626631323638222c223231223a227368613235363a636339616365333131633062336231",
+        "63383638366534353637663666386133613737393235653632313830363632613065633365313366653632393164323536222c223232223a227368613235363a",
+        "31643762373963343662303761643562623933383136316233623435303761663563643433653965373539306135363035393737386366636364623735383465",
+        "222c223233223a227368613235363a30316433623736653665616634383264626131633766373233386465616435316430323431613037316465336339386439",
+        "373539353536356566623361393231222c223234223a227368613235363a31663530626633666133336239356437353762323131613936366430626462353766",
+        "353763626638336239343066363363346634656363363730633631376662222c223235223a227368613235363a65353366346239656437376236393862303363",
+        "643565616136386231653732653237393934663035333732613931336533636365633262323362333634666537222c223236223a227368613235363a31396632",
+        "623533383531376266626163353938363261393038326563626265353266303837626236373139373831613963366139663132333761663266613562222c2232",
+        "37223a227368613235363a3835306436663030643139656462343634623764663831663635663238353862616235373438343065303362666162386464356461",
+        "6638636130383736303463222c223238223a227368613235363a3734353363313832303134393634643361326537366139353061326366643666333034353134",
+        "3039303561346438353131613332306565636331376262323432222c223239223a227368613235363a3738316236383238303335393062376536333934353737",
+        "3330373138626431303231306435343464663163613564303838363261663738653964623630346433222c223330223a227368613235363a3034343566666233",
+        "3338316366636431353639643166306431666262653233636566383666313562366138353134666666663662393763623737623263653938222c223331223a22",
+        "7368613235363a313163663530346434336461353465616536623534623233383637313832643339666239313237336637343964663565666137303036303765",
+        "61363564316536227d2c227374617475735f64657461696c223a7b223030223a227368613235363a333363386364326339396266336364376331356633353465",
+        "30303135666231653837366234363332343166363662383832646335366531663739386361663361222c223031223a227368613235363a396234326336613339",
+        "30343765643564396230383138346164383536383461323239656264363639633335383139386663633833663036373039363938646435222c223032223a2273",
+        "68613235363a31646161663964323330393063663434323365323433316135383265323035383734363939323733336665393333303665313833326636646465",
+        "363230323938222c223033223a227368613235363a62356139373661613962303833633931353666313832383062316337626538353833633337626263343834",
+        "336431396536643136326261366363386463653062222c223034223a227368613235363a64636266313830363334363635633865633364626239356233313937",
+        "613535656430313761323138326338353366346233363664633431313465313739386134222c223035223a227368613235363a38613334393631633034633362",
+        "323130316131303032653134306338393864313834373234666366303437623034666231663462633339313265373730383662222c223036223a227368613235",
+        "363a6432366163633463303139653866383461663631343034626335643932383430323335333739656438326536383734653334333565343166363032643139",
+        "6261222c223037223a227368613235363a3836303838636138383939323865306337323333383830343439323033356432393464373134313964363738616364",
+        "3464333037613034363762353037623837222c223038223a227368613235363a6664663430326433346630666538653532653564613736626631363865303561",
+        "3732316438663737336631626136326632633636643131353439656335653334222c223039223a227368613235363a3962353039653830393331396663353332",
+        "6333376465313138663130636361613839373962646461623837613162336132336439363034326464666439373130222c223130223a227368613235363a3935",
+        "3738383666623739613932663766613037366234613261656234353262376365373233643239353362363433343266616365386133656431393663623136222c",
+        "223131223a227368613235363a323038636230636463616332323438383263633064393461356362636530643464303633623433303732363330333938613837",
+        "33356437343365306539323762222c223132223a227368613235363a666539333361336138373264393266313533666465393238343231326231376337666232",
+        "65303138373130306466386664356534613062636364396332626564222c223133223a227368613235363a646433373634303763383934323331323430363261",
+        "66643063383130383263366231323639323338333664653162353566316536643832323266393438346663222c223134223a227368613235363a393030316230",
+        "34333737636161333235363661626332646638343461663265353139323964333362656630333030616634396231386136316162653636393236222c22313522",
+        "3a227368613235363a35626430633536666436643563633034353764353131373765396636386264336638323262363563323462623534363861343938303965",
+        "383861653839353935222c223136223a227368613235363a65363638343936393630316130663436323131363562326163383135346239623137333765373465",
+        "383031653562303231366439613432376561613035613864222c223137223a227368613235363a36326131326531653461666630626130303261623862663639",
+        "616434303433663862366663343766323935613362383235353135393362326461303664333931222c223138223a227368613235363a34396264333031393639",
+        "666263316632393332646333373939643739323235336233306564396335626230323637396130343736613662353864653634303466222c223139223a227368",
+        "613235363a3937313037373434393837316138663231346630636261653239373533653139616237363261653837653862386336613565373463323362613034",
+        "3331633361222c223230223a227368613235363a3762653564656663653735366463306564353263356538343863613238326265383231396136663733336637",
+        "3165343862656365626439336364336561646564222c223231223a227368613235363a3133663831653332356664626466653630373063663732316166383263",
+        "3235316366393562366632303234623837396133353333366235346261393862373963222c223232223a227368613235363a6663646634373566356665643364",
+        "3133616263336330636438623137343966396535346363356337356236323437633232313936306232663735393664626232222c223233223a22736861323536",
+        "3a363335383338343437343438393333336261613162363966653135653666303962306534653837366331643737323163626232313830343232623161633036",
+        "36222c223234223a227368613235363a393036396431323861656566333766623537393033356632633230663433333433613132353161366333643035613166",
+        "32343830316661633637653361663430222c223235223a227368613235363a656161373564666436393561616532363934363939313932636466643537613831",
+        "32363537373364313736653064643239356537633064376132373532383837222c223236223a227368613235363a303136383830656163346161653166376532",
+        "36393165383138303139666465346162326563643033333134656462333265616265643030626330643061383830222c223237223a227368613235363a633032",
+        "33366635303132633631316263393732383737636635363564666431333364363430363035316233393966613566636531663762393131663463666262222c22",
+        "3238223a227368613235363a62653130653138323763346361306461626162336462373533643633343239653939376263376333313461633333313837653666",
+        "306463613461613130326565222c223239223a227368613235363a65386135633230363064336264326162663864326530373163383338633964313232396261",
+        "353165633339626664356661626663666337303062343334646365222c223330223a227368613235363a38643961366165313331313134646334336433323466",
+        "343737343137383566613034393432643937346435366633653937323962643139346339373066373931222c223331223a227368613235363a34323431353433",
+        "366231663238366130303263343133386634373361626238313935653038376666366163646232396137313161383437323966663937366433227d7d2c227374",
+        "616e64696e675f72756c6573223a7b226c59646b52423532306b4b347a4b346751774b374f382d47446c5a4f4f74397564344c42374f3458324641223a7b2262",
+        "61736973223a22656d706c6f796d656e74222c22696e737472756d656e745f726566223a227469636b65742d31222c227465616d223a7b226f7267616e697a61",
+        "74696f6e5f6964223a34312c22736c75675f736e617073686f74223a227465616d2d6f6e65222c227465616d5f6964223a34327d7d7d2c2273746174655f7665",
+        "7273696f6e223a317d"
+      ],
+      "standing_rule": {
+        "basis": "employment",
+        "instrument_ref": "ticket-1",
+        "team": {
+          "organization_id": 41,
+          "slug_snapshot": "team-one",
+          "team_id": 42
+        }
+      },
+      "digest_token_counts": {
+        "derived_index": 32,
+        "reader_authority": 32,
+        "status_detail": 32
+      }
+    }
+  },
+  "bounded_read": {
+    "index_path": "derived/index/07.enc.json",
+    "status_path": "derived/status-detail/07.enc.json",
+    "reader_path": "derived/reader-authority/16.enc.json"
+  }
+}
