@@ -29,6 +29,17 @@ from .canonical import (  # noqa: F401
     canonical_json,
     parse_canonical_json,
 )
+from .coverage import (  # noqa: F401
+    CoverageDecision,
+    CoverageDelta,
+    CoverageError,
+    CoverageProjection,
+    coverage_delta,
+    coverage_shard,
+    evaluate_subject,
+    materialize_coverage,
+    validate_coverage_projection,
+)
 from .encoding import (  # noqa: F401
     Base64UrlError,
     base64url_decode,

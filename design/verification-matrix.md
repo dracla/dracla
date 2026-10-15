@@ -4,8 +4,18 @@ This matrix records the automated evidence for the M1
 conformance-kernel slices. A row is passing only when the referenced test
 command passes against the checked-in implementation.
 
+M1-10 coverage plaintext retains the latest signature basis in user shards;
+agreement currency and exemption booleans remain separate read inputs. Its
+effective decision exposes only the fixed generic reason vocabulary. An exact
+override is reported separately from a signature, and lifecycle succession
+returns the validated successor without inventing a signature reason code.
+
 | Slice | Requirement / HLD contract | Automated evidence | Result |
 |---|---|---|---|
+| M1-10 | HLD §§5.3, 5.4, 6.3, 6.5: closed coverage files, explicit pre-activation object, format 1 with 32 deterministic packed shards, immutable canonical bytes and project/source binding | `core/tests/test_conformance_coverage.py::TestCoverage::test_independent_empty_projection_and_all_shard_boundaries`; `...::test_projection_context_is_deeply_immutable_and_source_bound`; `...::test_closed_schema_mutations_never_pass_a_covered_row`; `core/tests/vectors/coverage-v1.json` | PASS |
+| M1-10 | Reference materialization and logical deltas preserve tuple cutoff, revocation/re-signing, activation/restore without shard rewrites, source advancement for reader-only events, source-union exemptions, exact override identity, and unresolved replay | `core/tests/test_conformance_coverage.py::TestCoverage::test_replay_activation_acceptance_revocation_resigning_and_source_advancement`; `...::test_actual_canonical_currency_restore_keeps_signature_rows_and_revocation_cutoff`; `...::test_exemption_union_materialization_and_source_only_reader_changes`; `...::test_all_shards_pack_every_subject_and_compare_logical_deltas`; `...::test_override_exact_tuple_materializes_without_private_reason`; `...::test_unresolved_replay_is_not_overridden_by_exemption_or_a_signature` | PASS |
+| M1-10 | Fail-closed evaluation checks complete closed state, project succession, subject/project-wide mutation windows, marker/fence consistency, and exact PR/tree override context before granting coverage | `core/tests/test_conformance_coverage.py::TestCoverage::test_marker_fence_windows_scope_and_lifecycle_precede_coverage`; `...::test_operation_mismatch_and_override_corruption_are_fatal`; `...::test_fixed_effective_decisions_and_currency_restore_without_shard_changes`; `...::test_invalid_public_inputs_and_inconsistent_bases_fail_closed` | PASS |
+| M1-10 | Every added coverage statement and branch is reached; complete core regressions pass | `PYTHONPATH=core .venv/bin/python -m coverage run --data-file=/tmp/dracla-m1-10.coverage --branch --source=dracla.conformance.coverage -m unittest core/tests/test_conformance_coverage.py -q`; `PYTHONPATH=core .venv/bin/python -m unittest discover -s core/tests -t . -q` | PASS |
 | M1-1 | RFC 8785 canonical JSON, duplicate rejection, safe-number boundary | `core/tests/test_conformance_artifacts.py::TestCanonicalJson` | PASS |
 | M1-1 | Closed artifact identity namespace, path relations, segment and override-key derivation | `core/tests/test_conformance_artifacts.py::TestArtifactIdentities` | PASS |
 | M1-2 | A256GCM artifact AAD, fixed metadata binding, nonce and ciphertext/tag encoding | `core/tests/test_conformance_envelope.py::TestArtifactEnvelope::test_independent_golden_vector_is_exact` | PASS |

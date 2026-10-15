@@ -1,0 +1,405 @@
+{
+  "schema_version": 1,
+  "project_id": "project-1",
+  "note": "Independent plaintext and evaluation expectations; no keys, clocks, private provenance, network or envelope writes. Operational fixtures reuse M1-9 closed bytes.",
+  "empty_files": {
+    "source.enc.json": {
+      "canonical_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "built_at": "2026-01-01T00:00:00Z",
+      "dracla_version": "test-1",
+      "project_state": "active",
+      "successor_project_id": null
+    },
+    "agreements/active.enc.json": {
+      "agreement_id": null,
+      "active_version": null,
+      "accepted_versions": [],
+      "retired_versions": [],
+      "activation_event_id": null,
+      "projection_format": 1,
+      "shard_count": 32
+    },
+    "exemptions.enc.json": {},
+    "inflight.enc.json": {
+      "ops": {}
+    },
+    "decision-fence.enc.json": {
+      "state": "idle",
+      "generation": 0
+    },
+    "users/00.enc.json": {},
+    "users/01.enc.json": {},
+    "users/02.enc.json": {},
+    "users/03.enc.json": {},
+    "users/04.enc.json": {},
+    "users/05.enc.json": {},
+    "users/06.enc.json": {},
+    "users/07.enc.json": {},
+    "users/08.enc.json": {},
+    "users/09.enc.json": {},
+    "users/10.enc.json": {},
+    "users/11.enc.json": {},
+    "users/12.enc.json": {},
+    "users/13.enc.json": {},
+    "users/14.enc.json": {},
+    "users/15.enc.json": {},
+    "users/16.enc.json": {},
+    "users/17.enc.json": {},
+    "users/18.enc.json": {},
+    "users/19.enc.json": {},
+    "users/20.enc.json": {},
+    "users/21.enc.json": {},
+    "users/22.enc.json": {},
+    "users/23.enc.json": {},
+    "users/24.enc.json": {},
+    "users/25.enc.json": {},
+    "users/26.enc.json": {},
+    "users/27.enc.json": {},
+    "users/28.enc.json": {},
+    "users/29.enc.json": {},
+    "users/30.enc.json": {},
+    "users/31.enc.json": {}
+  },
+  "active": {
+    "agreement_id": "agreement-1",
+    "active_version": "1",
+    "accepted_versions": [
+      "1"
+    ],
+    "retired_versions": [],
+    "activation_event_id": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+    "projection_format": 1,
+    "shard_count": 32
+  },
+  "signed": {
+    "decision": "covered",
+    "reason_code": "signed",
+    "version": "1",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "revoked": {
+    "decision": "uncovered",
+    "reason_code": "revoked",
+    "version": null,
+    "digest": null
+  },
+  "unresolved": {
+    "decision": "uncovered",
+    "reason_code": "indeterminate",
+    "version": null,
+    "digest": null
+  },
+  "operation_states": {
+    "fences": {
+      "idle": {
+        "state": "idle",
+        "generation": 6
+      },
+      "mutation": {
+        "state": "mutation",
+        "generation": 6,
+        "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+        "operation_id": "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q",
+        "subjects": [],
+        "project_wide": true,
+        "prepared_commit_oid": "dddddddddddddddddddddddddddddddddddddddd",
+        "prepared_blob_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "prepared_generation": 4
+      },
+      "success": {
+        "state": "success_reserved",
+        "generation": 6,
+        "check_identity": "Kqny2-nuQ5Lh3_GllDgM-k8qygeVUue_-DUUSIyciGE",
+        "projection_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "released": {
+        "state": "idle",
+        "generation": 7
+      }
+    },
+    "markers": {
+      "empty": {
+        "ops": {}
+      },
+      "open": {
+        "ops": {
+          "I6mbRLur0w6N2jzuokUOIXwoYh80yOilzo2YGdjFs7Q": {
+            "operation_sha256": "sha256:e441f3586190ad8ddc4e1ed1148420498c37f4b2dbfad604dfaa2b29319e2896",
+            "started_at": "2026-08-29T00:00:00Z",
+            "subjects": [],
+            "project_wide": true
+          }
+        }
+      }
+    }
+  },
+  "shard_cases": [
+    {
+      "user": 32,
+      "expected": 0
+    },
+    {
+      "user": 1,
+      "expected": 1
+    },
+    {
+      "user": 2,
+      "expected": 2
+    },
+    {
+      "user": 3,
+      "expected": 3
+    },
+    {
+      "user": 4,
+      "expected": 4
+    },
+    {
+      "user": 5,
+      "expected": 5
+    },
+    {
+      "user": 6,
+      "expected": 6
+    },
+    {
+      "user": 7,
+      "expected": 7
+    },
+    {
+      "user": 8,
+      "expected": 8
+    },
+    {
+      "user": 9,
+      "expected": 9
+    },
+    {
+      "user": 10,
+      "expected": 10
+    },
+    {
+      "user": 11,
+      "expected": 11
+    },
+    {
+      "user": 12,
+      "expected": 12
+    },
+    {
+      "user": 13,
+      "expected": 13
+    },
+    {
+      "user": 14,
+      "expected": 14
+    },
+    {
+      "user": 15,
+      "expected": 15
+    },
+    {
+      "user": 16,
+      "expected": 16
+    },
+    {
+      "user": 17,
+      "expected": 17
+    },
+    {
+      "user": 18,
+      "expected": 18
+    },
+    {
+      "user": 19,
+      "expected": 19
+    },
+    {
+      "user": 20,
+      "expected": 20
+    },
+    {
+      "user": 21,
+      "expected": 21
+    },
+    {
+      "user": 22,
+      "expected": 22
+    },
+    {
+      "user": 23,
+      "expected": 23
+    },
+    {
+      "user": 24,
+      "expected": 24
+    },
+    {
+      "user": 25,
+      "expected": 25
+    },
+    {
+      "user": 26,
+      "expected": 26
+    },
+    {
+      "user": 27,
+      "expected": 27
+    },
+    {
+      "user": 28,
+      "expected": 28
+    },
+    {
+      "user": 29,
+      "expected": 29
+    },
+    {
+      "user": 30,
+      "expected": 30
+    },
+    {
+      "user": 31,
+      "expected": 31
+    }
+  ],
+  "evaluation_cases": [
+    {
+      "name": "unsigned",
+      "basis": null,
+      "exempt": false,
+      "expected": [
+        "uncovered",
+        "not_signed"
+      ]
+    },
+    {
+      "name": "signed",
+      "basis": "signed",
+      "exempt": false,
+      "expected": [
+        "covered",
+        "signed"
+      ]
+    },
+    {
+      "name": "revoked",
+      "basis": "revoked",
+      "exempt": false,
+      "expected": [
+        "uncovered",
+        "revoked"
+      ]
+    },
+    {
+      "name": "revoked-exempt",
+      "basis": "revoked",
+      "exempt": true,
+      "expected": [
+        "covered",
+        "exempt"
+      ]
+    },
+    {
+      "name": "unresolved-exempt",
+      "basis": "unresolved",
+      "exempt": true,
+      "expected": [
+        "uncovered",
+        "indeterminate"
+      ]
+    }
+  ],
+  "currency_cases": [
+    {
+      "active_version": "2",
+      "accepted_versions": [
+        "1",
+        "2"
+      ],
+      "retired_versions": [],
+      "expected": [
+        "covered",
+        "signed"
+      ]
+    },
+    {
+      "active_version": "2",
+      "accepted_versions": [
+        "2"
+      ],
+      "retired_versions": [
+        "1"
+      ],
+      "expected": [
+        "uncovered",
+        "version_not_active"
+      ]
+    },
+    {
+      "active_version": "1",
+      "accepted_versions": [
+        "1"
+      ],
+      "retired_versions": [
+        "2"
+      ],
+      "expected": [
+        "covered",
+        "signed"
+      ]
+    }
+  ],
+  "version_ordering_cases": [
+    {
+      "name": "accepted-escaped-newline",
+      "set": "accepted_versions",
+      "canonical_values": ["A", "\n"],
+      "canonical_json": ["\"A\"", "\"\\n\""],
+      "reversed_values": ["\n", "A"],
+      "active_version": "A"
+    },
+    {
+      "name": "retired-escaped-newline",
+      "set": "retired_versions",
+      "canonical_values": ["A", "\n"],
+      "canonical_json": ["\"A\"", "\"\\n\""],
+      "reversed_values": ["\n", "A"],
+      "active_version": "1"
+    }
+  ],
+  "combined_basis_cases": [
+    {
+      "name": "signed-exempt-current",
+      "basis": "signed",
+      "exempt": true,
+      "active": {},
+      "expected": ["covered", "signed"]
+    },
+    {
+      "name": "unsigned-exempt",
+      "basis": null,
+      "exempt": true,
+      "active": {},
+      "expected": ["covered", "exempt"]
+    },
+    {
+      "name": "revoked-exempt",
+      "basis": "revoked",
+      "exempt": true,
+      "active": {},
+      "expected": ["covered", "exempt"]
+    },
+    {
+      "name": "signed-non-current-exempt",
+      "basis": "signed",
+      "exempt": true,
+      "active": {
+        "active_version": "2",
+        "accepted_versions": ["2"],
+        "retired_versions": ["1"]
+      },
+      "expected": ["covered", "exempt"]
+    }
+  ]
+}
