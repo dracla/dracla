@@ -1,5 +1,25 @@
 {
   "schema_version": 1,
+  "source_first_add_paths": [
+    {
+      "family": "exemption",
+      "project_id": "project-1",
+      "source_event_id": "SL1XNEwN8eMviFZt74xLTYoZ3Is9hNQt9OZEZLo59mc",
+      "github_user_id": 7,
+      "operation_nonce": "5CSUN0VZiOjXZvx5iUDNhA",
+      "event_id": "Muh1pal_49WYbW40urDtjfa35Ph6CWEWhcyu638ZfqE",
+      "path": "events/Mu/h1/Muh1pal_49WYbW40urDtjfa35Ph6CWEWhcyu638ZfqE.enc.json"
+    },
+    {
+      "family": "records_reader",
+      "project_id": "project-1",
+      "source_event_id": "lEHp9tYJY9_53uFvTW4yx73xVu1K3CT-7pDDX7iyq9Q",
+      "github_user_id": 7,
+      "operation_nonce": "O5L8xED0AnuA6KqTo6dGAQ",
+      "event_id": "pANAXVfAvUbzqfWLs8NUfc3rRTKG4HHXivYXLTUhqf0",
+      "path": "events/pA/NA/pANAXVfAvUbzqfWLs8NUfc3rRTKG4HHXivYXLTUhqf0.enc.json"
+    }
+  ],
   "authorization_cases": [
     {"id": "scope_repository_bind","category": "scope","operation": "enforcement_scope_repository_bind","resource_kind": "repository","actor_kind": "github","expect": "accept"},
     {"id": "scope_repository_widen","category": "scope","operation": "enforcement_scope_repository_widen","resource_kind": "repository","actor_kind": "github","expect": "accept"},
@@ -808,6 +828,7 @@
     "exemption_source_withdrawn": [
       "project-lifecycle",
       "source-event",
+      "source-first-add",
       "current-exemption-union-07",
       "prior-generations"
     ],
@@ -874,6 +895,7 @@
     "records_reader_withdrawn": [
       "project-lifecycle",
       "source-event",
+      "source-first-add",
       "reader-authority-state",
       "prior-generations"
     ],
