@@ -944,13 +944,13 @@ _PRECONDITION_MATRIX: dict[str, tuple[str, ...]] = {
     "retry_requested": ("project-lifecycle",),
     "exemption": ("project-lifecycle", "current-exemption-union", "prior-generations"),
     "exemption_snapshot": ("project-lifecycle", "current-exemption-union", "prior-generations"),
-    "exemption_source_withdrawn": ("project-lifecycle", "source-event", "current-exemption-union", "prior-generations"),
+    "exemption_source_withdrawn": ("project-lifecycle", "source-event", "source-first-add", "current-exemption-union", "prior-generations"),
     "exemption_rule_configured": ("project-lifecycle", "current-derived-state", "prior-generations"),
     "exemption_rule_withdrawn": ("project-lifecycle", "rule-event", "current-exemption-union", "prior-generations"),
     "exemption_materialized": ("project-lifecycle", "rule-event", "active-exemption-rule-state", "current-exemption-union", "materialization-cursor", "prior-generations"),
     "records_reader_authorized": ("project-lifecycle", "current-reader-authority", "prior-generations"),
     "records_reader_snapshot_authorized": ("project-lifecycle", "current-reader-authority", "prior-generations"),
-    "records_reader_withdrawn": ("project-lifecycle", "source-event", "reader-authority-state", "prior-generations"),
+    "records_reader_withdrawn": ("project-lifecycle", "source-event", "source-first-add", "reader-authority-state", "prior-generations"),
     "records_reader_rule_configured": ("project-lifecycle", "current-derived-state", "active-reader-rules", "prior-generations"),
     "records_reader_rule_withdrawn": ("project-lifecycle", "rule-event", "reader-authority-state", "prior-generations"),
     "records_reader_materialized": ("project-lifecycle", "rule-event", "current-reader-authority", "materialization-cursor", "prior-generations"),
@@ -991,16 +991,8 @@ def _reader_shard_path(source_event_id: str) -> str:
     return f"derived/reader-authority/{shard:02d}.enc.json"
 
 
-def _scope_terminal_child_event_id(project_id: str, request_event_id: str, terminal_type: str) -> str:
-    """Derive a terminal child ID without inventing its payload or actor.
-
-    M1-4 defines the event ID as a function of the project and operation
-    nonce.  The terminal nonce is itself request/type bound, so the sibling
-    path is derivable even though its eventual event payload is not known at
-    this validation boundary.
-    """
-
-    nonce = derive_scope_terminal_nonce(request_event_id, terminal_type)
+def _nonce_event_id(project_id: str, nonce: str) -> str:
+    """Derive M1-4's event identity without inventing its actor or payload."""
     idempotency_digest = hashlib.sha256(
         b"dracla-idempotency-v1\0"
         + canonical_json({"project_id": project_id, "operation_nonce": nonce})
@@ -1008,8 +1000,20 @@ def _scope_terminal_child_event_id(project_id: str, request_event_id: str, termi
     event_digest = hashlib.sha256(b"dracla-event-v1\0" + idempotency_digest).digest()
     return base64url_encode(event_digest)
 
+
+def _scope_terminal_child_event_id(project_id: str, request_event_id: str, terminal_type: str) -> str:
+    return _nonce_event_id(project_id, derive_scope_terminal_nonce(request_event_id, terminal_type))
+
+
 def _scope_terminal_child_path(project_id: str, request_event_id: str, terminal_type: str) -> str:
     return event_path(_scope_terminal_child_event_id(project_id, request_event_id, terminal_type))
+
+
+def _source_first_add_path(event: ValidatedEvent) -> str:
+    nonce = derive_automation_nonce(
+        event.target["source_event_id"], event.target["subject"]["github_user_id"], "add", None,
+    )
+    return event_path(_nonce_event_id(event.project_id, nonce))
 
 
 def _subject_shards(event: ValidatedEvent, *, relation: str) -> tuple[int, ...]:
@@ -1075,6 +1079,7 @@ def required_preconditions(event: ValidatedEvent, *, expected_head: str) -> tupl
         "current-derived-state": ("derived-state", "records", "derived", "derived/state.enc.json", "generation", "standing-rules-and-installed-profile-are-current"),
         "active-exemption-rule-state": ("derived-state", "records", "derived", "derived/state.enc.json", "generation", "referenced-standing-rule-is-current"),
         "source-event": ("canonical-event", "records", "events", "", "events-head", "source-event-exists-and-matches-target"),
+        "source-first-add": ("canonical-event", "records", "events", "", "events-head", "source-historical-subject-membership"),
         "rule-event": ("canonical-event", "records", "events", "", "events-head", "rule-event-exists-and-matches-target"),
         "materialization-cursor": ("reader-authority", "records", "derived", _reader_shard_path(source_id), "generation", "prior-materialization-cursor-is-current"),
         "current-reader-authority": ("reader-authority", "records", "derived", _reader_shard_path(source_id), "generation", "reader-source-and-rule-state-is-current"),
@@ -1094,6 +1099,7 @@ def required_preconditions(event: ValidatedEvent, *, expected_head: str) -> tupl
         specs["scope-request"] = (*specs["scope-request"][:3], event_path(event.payload["request_event_id"]), *specs["scope-request"][4:])
     if "source-event" in _PRECONDITION_MATRIX[event_type]:
         specs["source-event"] = (*specs["source-event"][:3], event_path(event.target["source_event_id"]), *specs["source-event"][4:])
+        specs["source-first-add"] = (*specs["source-first-add"][:3], _source_first_add_path(event), *specs["source-first-add"][4:])
     if "rule-event" in _PRECONDITION_MATRIX[event_type]:
         specs["rule-event"] = (*specs["rule-event"][:3], event_path(event.target["rule_event_id"]), *specs["rule-event"][4:])
     if "successor-project" in _PRECONDITION_MATRIX[event_type]:
@@ -1620,9 +1626,9 @@ def _validate_link_fact(event: ValidatedEvent, name: str, value: Any) -> None:
             _error("scope request desired scope does not match terminal", PreconditionValidationError)
     elif name == "source-event":
         allowed = (
-            {"exemption", "exemption_snapshot"}
+            {"exemption", "exemption_snapshot", "exemption_rule_configured"}
             if event.type == "exemption_source_withdrawn"
-            else {"records_reader_authorized", "records_reader_snapshot_authorized"}
+            else {"records_reader_authorized", "records_reader_snapshot_authorized", "records_reader_rule_configured"}
         )
         if fact["type"] not in allowed:
             _error("source event fact has an unsupported type", PreconditionValidationError)
@@ -1635,12 +1641,19 @@ def _validate_link_fact(event: ValidatedEvent, name: str, value: Any) -> None:
             source_subject = _parse_subject(fact["target"]["subject"], "source event subject")
             if source_subject.github_user_id != subject_id:
                 _error("source event subject does not match withdrawal", PreconditionValidationError)
-        else:
+        elif fact["type"] in {"exemption_snapshot", "records_reader_snapshot_authorized"}:
             if not isinstance(fact["target"], Mapping) or set(fact["target"]) != {"subjects"}:
                 _error("source event subjects are malformed", PreconditionValidationError)
             source_subjects = _parse_subjects(fact["target"]["subjects"], "source event subjects")
             if all(item.github_user_id != subject_id for item in source_subjects):
                 _error("source event subject is not in snapshot", PreconditionValidationError)
+        else:
+            if not isinstance(fact["target"], Mapping) or set(fact["target"]) != {"team"}:
+                _error("source rule team is malformed", PreconditionValidationError)
+            try:
+                _parse_team(fact["target"]["team"])
+            except EventValidationError:
+                _error("source rule team is malformed", PreconditionValidationError)
     elif name == "rule-event":
         allowed = (
             {"exemption_rule_configured"}
@@ -1661,6 +1674,44 @@ def _validate_link_fact(event: ValidatedEvent, name: str, value: Any) -> None:
                 _error("rule event team is malformed", PreconditionValidationError)
             if actual_team != expected_team:
                 _error("rule event team does not match materialization", PreconditionValidationError)
+
+
+def _validate_source_first_add(event: ValidatedEvent, values: Mapping[str, PreconditionEvidence]) -> None:
+    """Prove historical rule membership from its immutable first add, not derivatives."""
+
+    evidence = values["source-first-add"]
+    value = evidence.value
+    if not isinstance(value, Mapping) or type(value.get("present")) is not bool:
+        _error("source first-add observation is malformed", PreconditionValidationError)
+    keys = {"path", "present", "event"} if value["present"] else {"path", "present"}
+    if set(value) != keys or value["path"] != evidence.path:
+        _error("source first-add observation is not bound to its exact path", PreconditionValidationError)
+    origin = values["source-event"].value
+    if origin["type"] not in {"exemption_rule_configured", "records_reader_rule_configured"}:
+        if value["present"]:
+            _error("direct or snapshot source has an unexpected first add", PreconditionValidationError)
+        return
+    if not value["present"]:
+        _error("continuous source has no historical first add for the subject", PreconditionValidationError)
+    try:
+        first_add = validate_event(
+            _thaw(value["event"]), expected_project_id=event.project_id, expected_path=evidence.path,
+        )
+        materialization_type = (
+            "exemption_materialized" if event.type == "exemption_source_withdrawn"
+            else "records_reader_materialized"
+        )
+        if (
+            first_add.type != materialization_type
+            or first_add.target["rule_event_id"] != event.target["source_event_id"]
+            or first_add.target["subject"]["github_user_id"] != event.target["subject"]["github_user_id"]
+            or first_add.payload["result"] != "add"
+            or first_add.payload["prior_materialization_event_id"] is not None
+            or _parse_team(first_add.payload["team"]) != _parse_team(origin["target"]["team"])
+        ):
+            _error("source first add does not establish this rule membership", PreconditionValidationError)
+    except EventValidationError:
+        _error("source first add is not valid historical membership evidence", PreconditionValidationError)
 
 
 def _validate_terminal_observation(value: Any, expected_path: str) -> bool:
@@ -1783,6 +1834,9 @@ def _validate_preconditions_impl(event: ValidatedEvent, preconditions: Any, expe
         if (evidence.artifact_kind, evidence.repository_role, evidence.branch, evidence.path, evidence.binding_mode) != (requirement.artifact_kind, requirement.repository_role, requirement.branch, requirement.path, requirement.binding_mode):
             _error("precondition evidence is stale or bound to the wrong artifact", PreconditionValidationError)
         _validate_binding(evidence.binding, requirement, expected_head)
+        if name == "source-first-add":
+            # Join the observation to its validated origin after all descriptors bind.
+            continue
         if name == "materialization-cursor":
             fact = _relation_object(evidence.value, ("cursor_event_id", "prior_materialization_event_id", "rule_event_id", "subject"), "materialization cursor")
             try:
@@ -2299,6 +2353,8 @@ def _validate_preconditions_impl(event: ValidatedEvent, preconditions: Any, expe
             _error("derived state already has the maximum continuous reader rules", PreconditionValidationError)
     if event.type in {"agreement_activated", "agreement_activation_restored"}:
         _expected_active_agreement(event, values)
+    if event.type in {"exemption_source_withdrawn", "records_reader_withdrawn"}:
+        _validate_source_first_add(event, values)
     return values
 
 
