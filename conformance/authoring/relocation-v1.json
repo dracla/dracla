@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "source_base": "a590e3b6c4fbbab5ecf519edee6c3fac4663badb",
+  "source_directory": "core/tests/vectors",
+  "sha256": {
+    "action-form-v1.json": "sha256:3c38ebf5300fc9fab0295d7fa16cd23e95a809c5fd30bdb9eaadc6d92e6a9d5b",
+    "artifact-envelope-v1.json": "sha256:c6a9d351bf586ae963ca5189cbccdc5a228659f7ccc51efd86b48c64a5d5b392",
+    "artifact-identities-v1.json": "sha256:cd16834935ff6226f442d30ef316d668c88c75fb686fa98b1bf4845da52eeea4",
+    "authorization-vocabulary-v1.json": "sha256:e7c99c43e63eaf4fa4ed4dc895712b2263b6a34847391915a15390a786208bfd",
+    "coverage-v1.json": "sha256:ee72a6359ad4ceced179cb9632149035297c17561296464a4e26078c86ef9eef",
+    "derived-v1.json": "sha256:6e9a6544ee28bc16fbc6181e19f776d7f00e75f518b1ba3609ee09649714ef95",
+    "event-identities-v1.json": "sha256:7bfcce02f5ea748a53af1b7bb8eb47723794692ee66a8c84872729f01392ab4a",
+    "events-v1.json": "sha256:c0cf4ec8ba1258fc33cdbc35c8c915506fdda904a851d9c75f613da048b40bae",
+    "operation-state-v1.json": "sha256:7b9e4d8f20faa391675d49e9129497379d354bd54a0f130f93af14a038e28d1c",
+    "replay-v1.json": "sha256:c6b14ef42c8945d9f9a8a03da12f31facbf898be95a6906d904c97aa2a3431c6",
+    "wrapped-key-v1.json": "sha256:b99633f718f8c55928156eadcc5bb2be361be50072ebce8195031721f2a0e68f"
+  }
+}

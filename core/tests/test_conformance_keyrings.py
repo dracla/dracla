@@ -31,7 +31,7 @@ from dracla.conformance import (  # noqa: E402
     wrapped_key_aad,
 )
 
-VECTORS = Path(__file__).parent / "vectors" / "wrapped-key-v1.json"
+VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "wrapped-key-v1.json"
 
 
 class TestWrappedKeys(unittest.TestCase):
