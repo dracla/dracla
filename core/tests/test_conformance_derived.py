@@ -26,7 +26,7 @@ BASE = replay_fixtures.BASE
 class TestDerived(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.v = json.loads((Path(__file__).parent / "vectors/derived-v1.json").read_text())
+        cls.v = json.loads((Path(__file__).resolve().parents[2] / "conformance/vectors/derived-v1.json").read_text())
         replay_fixtures.TestCanonicalReplay.setUpClass()
         coverage_fixtures.TestCoverage.setUpClass()
 

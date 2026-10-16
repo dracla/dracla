@@ -23,7 +23,7 @@ from dracla.conformance.canonical import (  # noqa: E402
     parse_canonical_json,
 )
 
-VECTORS = Path(__file__).parent / "vectors" / "artifact-identities-v1.json"
+VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "artifact-identities-v1.json"
 EVENT_ID = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
 
 

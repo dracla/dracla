@@ -21,7 +21,7 @@ from dracla.conformance import (
 )
 
 
-VECTORS = Path(__file__).parent / "vectors" / "operation-state-v1.json"
+VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "operation-state-v1.json"
 ERRORS = (OperationConflict, OperationCorruption)
 
 

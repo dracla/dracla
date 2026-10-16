@@ -15,7 +15,7 @@ from dracla.conformance import (
 from core.tests import test_conformance_replay as replay_fixtures
 
 
-VECTORS = Path(__file__).parent / "vectors" / "coverage-v1.json"
+VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "coverage-v1.json"
 
 
 class TestCoverage(unittest.TestCase):
