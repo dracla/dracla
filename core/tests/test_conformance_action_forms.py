@@ -22,7 +22,7 @@ from dracla.conformance import (  # noqa: E402
 from dracla.conformance import action_forms as module  # noqa: E402
 
 
-VECTORS = Path(__file__).parent / "vectors"
+VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors"
 
 
 class TestActionForms(unittest.TestCase):
