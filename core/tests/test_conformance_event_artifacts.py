@@ -34,7 +34,7 @@ from dracla.conformance import (  # noqa: E402
 from dracla.conformance import events as event_module  # noqa: E402
 
 
-VECTORS = Path(__file__).parent / "vectors" / "events-v1.json"
+VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "events-v1.json"
 HEAD = "b" * 40
 
 

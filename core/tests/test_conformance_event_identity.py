@@ -30,8 +30,8 @@ from dracla.conformance import (  # noqa: E402
     validate_authorizations,
 )
 
-IDENTITY_VECTORS = Path(__file__).parent / "vectors" / "event-identities-v1.json"
-AUTHORIZATION_VECTORS = Path(__file__).parent / "vectors" / "authorization-vocabulary-v1.json"
+IDENTITY_VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "event-identities-v1.json"
+AUTHORIZATION_VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "authorization-vocabulary-v1.json"
 
 
 class TestEventIdentity(unittest.TestCase):
