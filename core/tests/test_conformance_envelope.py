@@ -31,8 +31,8 @@ from dracla.conformance import (  # noqa: E402
     resolve_artifact_identity,
 )
 
-VECTORS = Path(__file__).parent / "vectors" / "artifact-envelope-v1.json"
-IDENTITIES = Path(__file__).parent / "vectors" / "artifact-identities-v1.json"
+VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "artifact-envelope-v1.json"
+IDENTITIES = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "artifact-identities-v1.json"
 ENVELOPE_FIELDS = {
     "algorithm",
     "artifact_kind",

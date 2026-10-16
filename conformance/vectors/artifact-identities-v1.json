@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "segments": [
+    {
+      "value": "icla",
+      "token": "Mi4noCs4FEwnNQBcsL72VRNe-Va3g17VVhKWszZHl08"
+    },
+    {
+      "value": "v1",
+      "token": "O_wmlZTvZJIo6adLqwDwQu_JHVrMb77jGjgugNQjiP4"
+    }
+  ],
+  "override_key": {
+    "repository_id": 123,
+    "pull_request_number": 7,
+    "subject_user_id": 456,
+    "tree_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "key": "MV2iP8ai8l37USo9wttSr1AIBuaCekWBmRtxF_WYHsU"
+  },
+  "identities": [
+    ["records", "events", "config/project.enc.json", "project-config", "records"],
+    ["records", "events", "config/materialization-generations.enc.json", "materialization-generations", "records"],
+    ["records", "events", "events/AA/EC/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8.enc.json", "canonical-event", "records"],
+    ["records", "operations", "prepared-operation.enc.json", "prepared-operation", "records"],
+    ["records", "derived", "derived/state.enc.json", "derived-state", "records"],
+    ["records", "derived", "derived/index/00.enc.json", "derived-index", "records"],
+    ["records", "derived", "derived/status-detail/31.enc.json", "status-detail", "records"],
+    ["records", "derived", "derived/reader-authority/07.enc.json", "reader-authority", "records"],
+    ["records", "derived", "derived/exports/AAECAwQFBgcICQoLDA0ODw.enc.json", "export-json", "records"],
+    ["records", "derived", "derived/exports/AAECAwQFBgcICQoLDA0ODw.enc.csv", "export-csv", "records"],
+    ["coverage", "coverage", "source.enc.json", "coverage-source", "coverage"],
+    ["coverage", "coverage", "inflight.enc.json", "inflight", "coverage"],
+    ["coverage", "coverage", "decision-fence.enc.json", "decision-fence", "coverage"],
+    ["coverage", "coverage", "users/12.enc.json", "coverage-shard", "coverage"],
+    ["coverage", "coverage", "agreements/active.enc.json", "active-agreement", "coverage"],
+    ["coverage", "coverage", "exemptions.enc.json", "exemption-fold", "coverage"]
+  ]
+}
