@@ -9,6 +9,7 @@ import * as artifacts from '../.conformance-build/conformance/artifacts.js';
 import * as envelope from '../.conformance-build/conformance/envelope.js';
 import * as limits from '../.conformance-build/conformance/releaseProfile.js';
 import * as projections from '../.conformance-build/conformance/projections.js';
+import * as keyrings from '../.conformance-build/conformance/keyrings.js';
 
 const vectorDirectory = new URL('../../conformance/vectors/', import.meta.url);
 const vector = async name => JSON.parse(await readFile(new URL(name, vectorDirectory), 'utf8'));
@@ -442,4 +443,175 @@ test('private byte limits, full derived state and immutable byte ownership fail 
   await assert.rejects(projections.decodeProjection(identity('derived/index/00.enc.json'), bytes('{}')), projections.DerivedError);
   await assert.rejects(projections.decodeProjection(identity('source.enc.json'), bytes('{} ')), projections.CoverageError);
   await assert.rejects(projections.decodeProjection({ ...identity('source.enc.json'), schema_version: 2 }, bytes('{}')), projections.ProjectionError);
+});
+
+const wrapped = await vector('wrapped-key-v1.json');
+const wrappedGolden = parse(bytes(wrapped.copy_utf8));
+const wrappedDataKey = unhex(wrapped.data_key_hex), wrappingKey = unhex(wrapped.wrapping_key_hex);
+const wrapContext = { projectId: wrapped.project_id, capability: wrapped.capability,
+  dataKid: unhex(wrapped.data_kid_hex), wrapperId: wrapped.wrapper_id,
+  wrapperGeneration: wrapped.wrapper_generation, wrappingKey };
+const keyringContext = {
+  expectedProjectId: wrapped.project_id, allowedCapabilities: new Set(['records', 'coverage']),
+  allowedWrappers: new Set(Object.keys(keyrings.WRAPPER_CAPABILITIES)),
+  knownGenerations: new Map(Object.keys(keyrings.WRAPPER_CAPABILITIES)
+    .map(id => [id, new Set(['generation-1', 'generation-2'])])),
+};
+const unwrapContext = copy => ({ expectedProjectId: copy.project_id, expectedCapability: copy.capability,
+  wrappingKeys: new Map([[copy.wrapper_id, new Map([[copy.wrapper_generation, wrappingKey]])]]) });
+const decodeKeys = (data, changes = {}) => keyrings.decodeKeyring(data, { ...keyringContext, ...changes });
+
+test('M1-14 fixed-nonce wrapped key, AAD and canonical keyring match the shared Python golden', async t => {
+  t.mock.method(crypto, 'getRandomValues', array => { array.set(unhex(wrapped.nonce_hex)); return array; });
+  const copy = await keyrings.wrapKeyCopy(wrappedDataKey, wrapContext);
+  assert.equal(hex(keyrings.wrappedKeyAad(copy)), hex(bytes(wrapped.aad_utf8)));
+  assert.equal(hex(wire(copy)), hex(bytes(wrapped.copy_utf8)));
+  assert.equal(copy.wrapped_key, wrapped.wrapped_key_base64url);
+  assert.equal(hex(keyrings.encodeKeyring([copy])), hex(bytes(wrapped.keyring_utf8)));
+  assert.equal(hex(await keyrings.unwrapKeyCopy(copy, unwrapContext(copy))), wrapped.data_key_hex);
+  const decoded = decodeKeys(bytes(wrapped.keyring_utf8));
+  assert.deepEqual(decoded.keys, [copy]);
+  assert.equal(hex(keyrings.encodeKeyring(decoded)), hex(bytes(wrapped.keyring_utf8)));
+  for (const object of [copy, decoded, decoded.keys, decoded.keys[0]]) assert.ok(Object.isFrozen(object));
+  assert.throws(() => { decoded.keys[0].project_id = 'other'; }, TypeError);
+});
+
+test('M1-14 every capability/wrapper pair, fresh nonce, rotation and UTF8 keyring ordering', async () => {
+  for (const [wrapperId, capabilities] of Object.entries(keyrings.WRAPPER_CAPABILITIES)) {
+    for (const capability of capabilities) {
+      const first = await keyrings.wrapKeyCopy(wrappedDataKey, { ...wrapContext, capability, wrapperId });
+      const second = await keyrings.wrapKeyCopy(wrappedDataKey, { ...wrapContext, capability, wrapperId,
+        dataKid: new Uint8Array(16).fill(106), wrapperGeneration: 'generation-2' });
+      assert.notEqual(first.nonce, second.nonce);
+      for (const copy of [first, second])
+        assert.equal(hex(await keyrings.unwrapKeyCopy(copy, unwrapContext(copy))), wrapped.data_key_hex);
+      const encoded = keyrings.encodeKeyring([second, first]);
+      assert.equal(hex(encoded), hex(keyrings.encodeKeyring([first, second])));
+      assert.deepEqual(decodeKeys(encoded).keys,
+        [first, second].sort((a, b) => Buffer.compare(Buffer.from(wire(a)), Buffer.from(wire(b)))));
+      const reversed = parse(encoded); reversed.keys.reverse();
+      assert.throws(() => decodeKeys(wire(reversed)), keyrings.KeyringFormatError);
+    }
+  }
+  // Unicode generation ordering uses complete UTF8 object bytes, not locale order.
+  const copies = ['\ue000', '😀'].map((generation, i) => ({ ...wrappedGolden,
+    wrapper_id: ['control', 'recovery'][i], wrapper_generation: generation }));
+  const expected = copies.sort((a, b) => Buffer.compare(Buffer.from(wire(a)), Buffer.from(wire(b))));
+  assert.deepEqual(parse(keyrings.encodeKeyring(copies)).keys, expected);
+  assert.equal(hex(keyrings.encodeKeyring([])), hex(bytes('{"keyring_version":1,"keys":[]}')));
+  assert.deepEqual(decodeKeys(keyrings.encodeKeyring([])).keys, []);
+  assert.throws(() => { keyrings.WRAPPER_CAPABILITIES.control.push('unknown'); }, TypeError);
+});
+
+test('M1-14 rejects closed-schema, canonical, scalar, context, pairing, generation and duplicate defects', async () => {
+  const F = keyrings.KeyringFormatError, C = keyrings.KeyringContextError;
+  const root = parse(bytes(wrapped.keyring_utf8));
+  const entryCases = [
+    ['wrap_version', 2, F], ['wrap_version', true, F], ['algorithm', 'AES-GCM', F],
+    ['project_id', '', C], ['project_id', 'other', C], ['project_id', 7, F],
+    ['capability', 'unknown', C], ['capability', 'coverage', C],
+    ['wrapper_id', 'unknown', C], ['wrapper_id', 'portal-coverage', C],
+    ['wrapper_generation', '', C], ['wrapper_generation', 'unknown', C],
+    ['data_kid', wrappedGolden.data_kid + '=', F], ['data_kid', 7, F],
+    ['nonce', 'AA', F], ['nonce', '_x', F], ['wrapped_key', 'AA', F],
+  ];
+  for (const [name, value, error] of entryCases)
+    assert.throws(() => decodeKeys(wire({ ...root, keys: [{ ...wrappedGolden, [name]: value }] })), error, name);
+  for (const name of Object.keys(wrappedGolden)) {
+    const entry = { ...wrappedGolden }; delete entry[name];
+    assert.throws(() => decodeKeys(wire({ ...root, keys: [entry] })), F, name);
+  }
+  for (const value of [null, [], 7, { ...wrappedGolden, extra: true }])
+    assert.throws(() => decodeKeys(wire({ ...root, keys: [value] })), F);
+  for (const value of [null, [], 'scalar', { keys: [] }, { keyring_version: 1 },
+    { ...root, keyring_version: true }, { ...root, keyring_version: '1' },
+    { ...root, keyring_version: 2 }, { ...root, keys: {} }, { ...root, extra: true }])
+    assert.throws(() => decodeKeys(wire(value)), F);
+  for (const text of [wrapped.keyring_utf8 + '\n', '{"keyring_version":1,"keys": [ ]}',
+    '{"keyring_version":1,"keyring_version":1,"keys":[]}'])
+    assert.throws(() => decodeKeys(bytes(text)), F);
+  assert.throws(() => decodeKeys(new Uint8Array([255])), F);
+  assert.throws(() => decodeKeys('text'), TypeError);
+  assert.throws(() => keyrings.wrappedKeyAad(Object.defineProperty({}, 'x', { get() { throw Error('getter'); }, enumerable: true })), F);
+  assert.throws(() => keyrings.wrappedKeyAad(null), F);
+  for (const input of [null, 7, 'not copies']) assert.throws(() => keyrings.encodeKeyring(input), TypeError);
+  assert.throws(() => keyrings.encodeKeyring([{}]), F);
+  const duplicate = { ...wrappedGolden, wrapper_generation: 'generation-2' };
+  assert.throws(() => keyrings.encodeKeyring([wrappedGolden, duplicate]), F);
+  assert.throws(() => decodeKeys(wire({ ...root, keys: [wrappedGolden, duplicate] })), F);
+  for (const changes of [
+    { expectedProjectId: 'other' }, { expectedProjectId: '' },
+    { allowedCapabilities: new Set(['coverage']) }, { allowedCapabilities: new Set(['unknown']) },
+    { allowedWrappers: new Set(['control']) }, { allowedWrappers: new Set(['unknown']) },
+    { knownGenerations: new Map() }, { knownGenerations: new Map([['unknown', new Set(['g'])]]) },
+    { knownGenerations: new Map([[wrapped.wrapper_id, new Set([''])]]) },
+  ]) assert.throws(() => decodeKeys(bytes(wrapped.keyring_utf8), changes), C);
+  for (const changes of [{ allowedCapabilities: 'records' }, { allowedWrappers: [] },
+    { knownGenerations: [] }, { knownGenerations: new Map([[wrapped.wrapper_id, 'generation-1']]) }])
+    assert.throws(() => decodeKeys(bytes(wrapped.keyring_utf8), changes), TypeError);
+  for (const changes of [{ projectId: '' }, { projectId: null }, { capability: 'unknown' },
+    { wrapperId: 'unknown' }, { wrapperId: 'portal-coverage' }, { wrapperGeneration: '' },
+    { wrapperGeneration: null }])
+    await assert.rejects(keyrings.wrapKeyCopy(wrappedDataKey, { ...wrapContext, ...changes }), C);
+  for (const [name, length] of [['wrappingKey', 32], ['dataKid', 16]])
+    for (const value of [null, 'raw', new Uint8Array(length - 1), new Uint8Array(length + 1)])
+      await assert.rejects(keyrings.wrapKeyCopy(wrappedDataKey, { ...wrapContext, [name]: value }), F);
+  for (const value of [null, 'raw', new Uint8Array(31), new Uint8Array(33)])
+    await assert.rejects(keyrings.wrapKeyCopy(value, wrapContext), F);
+});
+
+test('M1-14 exact wrapping-key selection, authenticated metadata, tampering and secret-safe errors', async () => {
+  const baseContext = unwrapContext(wrappedGolden);
+  for (const changes of [{ expectedProjectId: 'other' }, { expectedCapability: 'coverage' },
+    { expectedCapability: 'unknown' }])
+    await assert.rejects(keyrings.unwrapKeyCopy(wrappedGolden, { ...baseContext, ...changes }), keyrings.KeyringContextError);
+  for (const keys of [new Map(), new Map([[wrapped.wrapper_id, new Map()]]),
+    new Map([[wrapped.wrapper_id, new Map([['other', wrappingKey]])]])])
+    await assert.rejects(keyrings.unwrapKeyCopy(wrappedGolden, { ...baseContext, wrappingKeys: keys }), keyrings.UnknownWrappingKeyError);
+  const fallback = new class extends Map { get() { throw Error('unknown entry must not be read'); } }();
+  await assert.rejects(keyrings.unwrapKeyCopy(wrappedGolden, { ...baseContext, wrappingKeys: fallback }), keyrings.UnknownWrappingKeyError);
+  for (const wrappingKeys of [[], new Map([[wrapped.wrapper_id, []]])])
+    await assert.rejects(keyrings.unwrapKeyCopy(wrappedGolden, { ...baseContext, wrappingKeys }), TypeError);
+  await assert.rejects(keyrings.unwrapKeyCopy(wrappedGolden, { ...baseContext,
+    wrappingKeys: new Map([[wrapped.wrapper_id, new Map([[wrapped.wrapper_generation, new Uint8Array(31)]])]]) }), keyrings.KeyringFormatError);
+  const changes = [
+    { nonce: encoding.base64urlEncode(new Uint8Array(12)) },
+    { wrapped_key: encoding.base64urlEncode(new Uint8Array(48)) },
+    { project_id: 'other' }, { data_kid: encoding.base64urlEncode(new Uint8Array(16)) },
+    { wrapper_id: 'control' }, { wrapper_generation: 'generation-2' },
+    { capability: 'coverage', wrapper_id: 'control' },
+  ];
+  const errors = [];
+  for (const change of changes) {
+    const copy = { ...wrappedGolden, ...change };
+    await assert.rejects(keyrings.unwrapKeyCopy(copy, unwrapContext(copy)), error => {
+      errors.push(String(error)); return error instanceof keyrings.KeyringAuthenticationError;
+    });
+  }
+  await assert.rejects(keyrings.unwrapKeyCopy(wrappedGolden, { ...baseContext,
+    wrappingKeys: new Map([[wrapped.wrapper_id, new Map([[wrapped.wrapper_generation, new Uint8Array(32)]])]]) }),
+    error => { errors.push(String(error)); return error instanceof keyrings.KeyringAuthenticationError; });
+  const output = Buffer.from(keyrings.encodeKeyring([wrappedGolden]));
+  for (const secret of [wrappedDataKey, wrappingKey]) {
+    for (const representation of [Buffer.from(secret), Buffer.from(hex(secret)), Buffer.from(encoding.base64urlEncode(secret))])
+      assert.equal(output.includes(representation), false);
+    for (const error of errors) {
+      assert.equal(error.includes(hex(secret)), false);
+      assert.equal(error.includes(encoding.base64urlEncode(secret)), false);
+    }
+  }
+});
+
+test('M1-14 snapshots caller keys and metadata before asynchronous crypto', async () => {
+  const raw = wrappedDataKey.slice(), wrap = wrappingKey.slice(), context = { ...wrapContext, wrappingKey: wrap };
+  const pending = keyrings.wrapKeyCopy(raw, context);
+  raw.fill(255); wrap.fill(255); context.projectId = 'changed';
+  const copy = await pending;
+  assert.equal(copy.project_id, wrapped.project_id);
+  assert.equal(hex(await keyrings.unwrapKeyCopy(copy, unwrapContext(copy))), wrapped.data_key_hex);
+  const mutable = { ...copy }, callerKey = wrappingKey.slice(), unwrapping = unwrapContext(copy);
+  unwrapping.wrappingKeys.get(copy.wrapper_id).set(copy.wrapper_generation, callerKey);
+  const plaintext = keyrings.unwrapKeyCopy(mutable, unwrapping);
+  mutable.nonce = 'changed'; callerKey.fill(255); unwrapping.expectedProjectId = 'changed';
+  assert.equal(hex(await plaintext), wrapped.data_key_hex);
 });
