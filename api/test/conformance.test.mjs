@@ -1,7 +1,7 @@
 /** Shared checked-in corpus is the cross-runtime oracle. No Python process. */
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import test from 'node:test';
 import * as canonical from '../.conformance-build/conformance/canonical.js';
 import * as encoding from '../.conformance-build/conformance/encoding.js';
@@ -11,6 +11,8 @@ import * as limits from '../.conformance-build/conformance/releaseProfile.js';
 import * as projections from '../.conformance-build/conformance/projections.js';
 import * as keyrings from '../.conformance-build/conformance/keyrings.js';
 import * as events from '../.conformance-build/conformance/events.js';
+import * as actionForms from '../.conformance-build/conformance/actionForms.js';
+import * as operationState from '../.conformance-build/conformance/operations.js';
 
 const vectorDirectory = new URL('../../conformance/vectors/', import.meta.url);
 const vector = async name => JSON.parse(await readFile(new URL(name, vectorDirectory), 'utf8'));
@@ -1134,4 +1136,360 @@ test('M1-15 async validation owns caller event, authenticated facts and artifact
   }
   const invalidB64 = evtClone(validPackage).map(({ bytes, ...row }) => ({ ...row, bytes_b64: '!' }));
   await assert.rejects(events.validateSideArtifactPackage(valid, invalidB64, validFacts, evtHead(valid)), events.SideArtifactValidationError);
+});
+
+const formCorpus = await vector('action-form-v1.json');
+const formKeys = () => new Map(formCorpus.keys.map(row => [row.kid, unhex(row.key_hex)]));
+const formContext = (form, changes = {}) => ({ ...Object.fromEntries([
+  'session_jti', 'github_user_id', 'project_id', 'type', 'operation_nonce', 'confirmed_canonical_oid', 'operation_sha256',
+].map(k => [k, form[k]])), ...formCorpus.context, ...changes });
+const formSignBytes = (data, key = unhex(formCorpus.keys[0].key_hex)) => encoding.base64urlEncode(data) + '.'
+  + createHmac('sha256', key).update(unhex(formCorpus.domain_hex)).update(data).digest('base64url');
+const uncheckedWire = value => {
+  const sorted = value => Array.isArray(value) ? value.map(sorted) : value !== null && typeof value === 'object'
+    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, sorted(value[key])])) : value;
+  return bytes(JSON.stringify(sorted(value)));
+};
+const formSign = form => formSignBytes(uncheckedWire(form));
+const formVerify = (form, changes = {}) => actionForms.verifyActionForm(formSign(form), { keys: formKeys(), context: formContext(form, changes) });
+async function formBind(form, operation) {
+  const identity = await events.deriveEventIdentity({ project_id: form.project_id, operation_nonce: form.operation_nonce,
+    actor: { kind: 'github', github_user_id: form.github_user_id, login_snapshot: 'current-login' }, type: form.type,
+    target: operation.target, payload: operation.payload,
+    confirmed_canonical_oid: ['acceptance', 'revocation'].includes(form.type) ? form.confirmed_canonical_oid : null });
+  return { ...form, operation_sha256: identity.operation_sha256 };
+}
+
+test('M1-16 fixed form bytes, all 24 action rows and every terminal alternative', async () => {
+  const golden = formCorpus.golden;
+  assert.equal(hex(wire(golden.form)), hex(bytes(golden.payload_jcs)));
+  assert.equal(await actionForms.encodeActionForm(golden.form, { key: unhex(formCorpus.keys[0].key_hex) }), golden.token);
+  assert.equal(hex(encoding.base64urlDecode(golden.token.split('.')[1])), golden.tag_hex);
+  assert.deepEqual([...actionForms.FORM_ACTION_TYPES].sort(), formCorpus.actions.map(row => row.type).sort());
+  assert.equal(formCorpus.actions.length, 24); assert.equal(formCorpus.terminal_noops.length, 24);
+  for (const row of formCorpus.actions) {
+    assert.deepEqual(actionForms.formActionSpec(row.type), { action_type: row.type, write_type: row.write_type, terminal_types: row.terminal_types });
+    const form = { ...golden.form, type: row.type }, result = await formVerify(form);
+    assert.equal(result.isNoop, false); assert.equal(result.preparable, true);
+    await assert.rejects(formVerify(form, { confirmed_canonical_oid: formCorpus.later_head }), actionForms.ActionFormError);
+  }
+  for (const type of [...events.EVENT_TYPES.filter(type => !actionForms.FORM_ACTION_TYPES.includes(type)), '', 'Acceptance', null, 7, {}])
+    assert.throws(() => actionForms.formActionSpec(type), actionForms.ActionFormError);
+  for (const row of formCorpus.terminal_noops) {
+    const result = await actionForms.verifyActionForm(row.token, { keys: formKeys(), context: formContext(row.form, { confirmed_canonical_oid: formCorpus.later_head }) });
+    assert.equal(result.isNoop, true, row.id); assert.equal(result.preparable, false, row.id);
+    const terminal = eventRows[row.terminal_fixture_type], options = { expectedProjectId: row.form.project_id, expectedConfirmedOid: row.form.confirmed_canonical_oid };
+    await actionForms.validateTerminalNoop(result, terminal, row.operation, options);
+    await actionForms.validateTerminalNoop(result, wire(terminal), row.operation, options);
+  }
+});
+
+test('M1-16 strict form encodings and authenticated closed payload rejection', async () => {
+  const golden = formCorpus.golden, form = golden.form, [part, tag] = golden.token.split('.');
+  for (const bad of [null, 1, '', part, part + '..' + tag, part + '.' + tag + '.', part + '=.' + tag,
+    part + '.' + tag + '=', 'A.' + tag, part + '.AA', golden.token + '\n', part + '.' + encoding.base64urlEncode(new Uint8Array(32))])
+    await assert.rejects(actionForms.verifyActionForm(bad, { keys: formKeys(), context: formContext(form) }), actionForms.ActionFormError);
+  const malformed = [bytes(' ' + golden.payload_jcs), bytes(golden.payload_jcs.replace('"v":1', '"v":1,"v":1')),
+    bytes(golden.payload_jcs.replace('"v":1', '"v":1.0')), new Uint8Array([255])];
+  for (const data of malformed) await assert.rejects(actionForms.verifyActionForm(formSignBytes(data), { keys: formKeys(), context: formContext(form) }), actionForms.ActionFormError);
+  const changes = [{ v: 2 }, { v: true }, { algorithm: 'HS512' }, { kid: 'bad' }, { session_jti: '' }, { github_user_id: 0 },
+    { github_user_id: true }, { github_user_id: 2 ** 53 }, { project_id: '' }, { type: 'enforcement_scope_activated' },
+    { operation_nonce: 'bad' }, { confirmed_canonical_oid: 'A'.repeat(40) },
+    { confirmed_canonical_oid: form.confirmed_canonical_oid + '\n' }, { operation_sha256: form.operation_sha256 + '\n' }, { operation_sha256: 'sha256:BAD' },
+    { terminal_noop_event_id: '' }, { terminal_noop_event_id: eventRows.config_updated.event_id, type: 'retry_requested' },
+    { issued_at: '0000-01-02T12:00:00Z' }, { expires_at: '2026-02-30T12:00:00Z' }, { expires_at: '2026-01-02T19:55:01Z' },
+    { expires_at: '2026-01-02T11:59:59Z' }, { unexpected: true }];
+  for (const change of changes) {
+    const value = { ...form, ...change };
+    await assert.rejects(actionForms.encodeActionForm(value, { key: unhex(formCorpus.keys[0].key_hex) }), actionForms.ActionFormError, JSON.stringify(change));
+    await assert.rejects(actionForms.verifyActionForm(formSign(value), { keys: formKeys(), context: formContext(form) }), actionForms.ActionFormError);
+  }
+  for (const field of Object.keys(form)) {
+    const value = { ...form }; delete value[field];
+    await assert.rejects(actionForms.encodeActionForm(value, { key: unhex(formCorpus.keys[0].key_hex) }), actionForms.ActionFormError, field);
+  }
+});
+
+test('M1-16 eligible keys, exact context and lifetime boundaries use native HMAC verification', async () => {
+  const form = formCorpus.golden.form;
+  const predecessor = { ...form, kid: formCorpus.keys[1].kid }, token = formSignBytes(wire(predecessor), unhex(formCorpus.keys[1].key_hex));
+  await actionForms.verifyActionForm(token, { keys: formKeys(), context: formContext(predecessor) });
+  await assert.rejects(actionForms.verifyActionForm(token, { keys: new Map([[form.kid, unhex(formCorpus.keys[0].key_hex)]]), context: formContext(predecessor) }), actionForms.ActionFormError);
+  for (const key of [new Uint8Array(), 'secret', null]) await assert.rejects(actionForms.encodeActionForm(form, { key }), actionForms.ActionFormError);
+  for (const keys of [new Map(), {}, null]) await assert.rejects(actionForms.verifyActionForm(formCorpus.golden.token, { keys, context: formContext(form) }), actionForms.ActionFormError);
+  const changes = { session_jti: 'another-session', github_user_id: form.github_user_id + 1, project_id: 'other-project', type: 'acceptance',
+    operation_nonce: encoding.base64urlEncode(new Uint8Array(16)), operation_sha256: 'sha256:' + 'f'.repeat(64), confirmed_canonical_oid: formCorpus.later_head };
+  for (const [field, value] of Object.entries(changes)) await assert.rejects(formVerify(form, { [field]: value }), actionForms.ActionFormError, field);
+  for (const changes of [{ current_time: '2026-01-02T11:59:59Z' }, { current_time: form.expires_at },
+    { session_expires_at: '2026-01-02T19:54:59Z' }, { current_time: '2026-01-02T12:00:00.000Z' }])
+    await assert.rejects(formVerify(form, changes), actionForms.ActionFormError);
+  await formVerify(form, { current_time: form.issued_at }); await formVerify(form, { current_time: '2026-01-02T19:54:59Z' });
+  const original = crypto.subtle.verify, calls = [];
+  crypto.subtle.verify = function (...args) { calls.push(args[0]); return original.apply(this, args); };
+  try {
+    await formVerify(form);
+    await assert.rejects(actionForms.verifyActionForm(formSignBytes(wire(form), new Uint8Array(32).fill(71)), { keys: formKeys(), context: formContext(form) }), actionForms.ActionFormError);
+    assert.deepEqual(calls, ['HMAC', 'HMAC']);
+  } finally { crypto.subtle.verify = original; }
+});
+
+test('M1-16 terminal proofs require authenticated factory, exact immutable read and complete desired effect', async () => {
+  const row = formCorpus.terminal_noops.find(row => row.action_type === 'config_updated');
+  const verified = await formVerify(row.form, { confirmed_canonical_oid: formCorpus.later_head });
+  const terminal = eventRows.config_updated, options = { expectedProjectId: row.form.project_id, expectedConfirmedOid: row.form.confirmed_canonical_oid };
+  for (const forged of [{ ...verified }, { form: row.form, isNoop: true, preparable: false }, await formVerify(formCorpus.golden.form)])
+    await assert.rejects(actionForms.validateTerminalNoop(forged, terminal, row.operation, options), actionForms.ActionFormError);
+  for (const change of [{ expectedProjectId: 'another' }, { expectedConfirmedOid: formCorpus.later_head }])
+    await assert.rejects(actionForms.validateTerminalNoop(verified, terminal, row.operation, { ...options, ...change }), actionForms.ActionFormError);
+  for (const event of [{ event_id: terminal.event_id }, { ...terminal, extra: true }, eventRows.acceptance, bytes(' ' + new TextDecoder().decode(wire(terminal)))])
+    await assert.rejects(actionForms.validateTerminalNoop(verified, event, row.operation, options), actionForms.ActionFormError);
+  for (const operation of [{ ...row.operation, extra: true }, { ...row.operation, target: { extra: true } },
+    { ...row.operation, payload: { ...row.operation.payload, extra: true } }])
+    await assert.rejects(actionForms.validateTerminalNoop(verified, terminal, operation, options), actionForms.ActionFormError);
+  const changed = evtClone(row.operation); changed.payload.project_configuration.retention_statement = 'Different valid retained effect.';
+  const changedForm = await formBind(row.form, changed), changedResult = await formVerify(changedForm);
+  await assert.rejects(actionForms.validateTerminalNoop(changedResult, terminal, changed, options), actionForms.ActionFormError);
+  const acceptance = formCorpus.terminal_noops.find(row => row.action_type === 'acceptance');
+  for (const mutate of [op => op.target.coverage_tuple.github_user_id++, op => op.target.coverage_tuple.project_id = 'other',
+    op => op.target.recipient.recipient_id = 'other']) {
+    const op = evtClone(acceptance.operation); mutate(op); const form = await formBind(acceptance.form, op);
+    await assert.rejects(actionForms.validateTerminalNoop(await formVerify(form), eventRows.acceptance, op,
+      { expectedProjectId: form.project_id, expectedConfirmedOid: form.confirmed_canonical_oid }), actionForms.ActionFormError);
+  }
+});
+
+test('M1-16 forms own caller payloads, keys, contexts and terminal inputs before await', async () => {
+  const input = evtClone(formCorpus.golden.form), key = unhex(formCorpus.keys[0].key_hex);
+  const encoded = actionForms.encodeActionForm(input, { key }); input.project_id = 'changed'; key.fill(255);
+  assert.equal(await encoded, formCorpus.golden.token);
+  const context = formContext(formCorpus.golden.form), keys = formKeys(), pending = actionForms.verifyActionForm(formCorpus.golden.token, { keys, context });
+  keys.get(formCorpus.golden.form.kid).fill(255); keys.clear(); context.project_id = 'changed';
+  const result = await pending; assert.ok(Object.isFrozen(result) && Object.isFrozen(result.form));
+  assert.throws(() => result.form.project_id = 'changed', TypeError);
+  const row = formCorpus.terminal_noops.find(row => row.action_type === 'config_updated'), verified = await formVerify(row.form);
+  const event = evtClone(eventRows.config_updated), op = evtClone(row.operation), options = { expectedProjectId: row.form.project_id, expectedConfirmedOid: row.form.confirmed_canonical_oid };
+  const proof = actionForms.validateTerminalNoop(verified, event, op, options);
+  event.payload.project_configuration = {}; op.payload.project_configuration = {}; options.expectedProjectId = 'changed'; await proof;
+});
+
+const opLimit = operations.profile.max_prepared_operation_bytes, opHead = operations.cells.prepared.prepared_events_head;
+const opEvent = parse(encoding.base64urlDecode(operations.cells.prepared.event_jcs_b64)), opFacts = await evtFacts(opEvent);
+const opDecodeOptions = { expectedProjectId: operations.project_id, maxPreparedOperationBytes: opLimit, preconditions: opFacts };
+const opCells = Object.fromEntries(await Promise.all(Object.entries(operations.cells).map(async ([name, row]) => [name, await operationState.decodePreparedOperation(wire(row), opDecodeOptions)])));
+const opFences = Object.fromEntries(await Promise.all(Object.entries(operations.fences).map(async ([name, row]) => [name, await operationState.decodeDecisionFence(wire(row))])));
+const opMarkers = Object.fromEntries(await Promise.all(Object.entries(operations.markers).map(async ([name, row]) => [name, await operationState.decodeInflightMarker(wire(row))])));
+const opRef = operationState.preparedOperationReference('d'.repeat(40), 'e'.repeat(40), opCells.prepared);
+const opOwner = { operationId: opEvent.idempotency_key, operationSha256: opEvent.operation_sha256 };
+const opBindings = { fence: opFences.mutation, marker: opMarkers.open, preparedReference: opRef };
+const opPrepare = (cell, changes = {}) => operationState.prepareOperation(cell, opEvent, operations.cells.prepared.side_artifacts,
+  { expectedProjectId: operations.project_id, expectedEventsHead: opHead, preconditions: opFacts, maxPreparedOperationBytes: opLimit, ...changes });
+const opClaim = (cell, changes = {}) => operationState.claimAppend(cell, { ...opOwner, ...opBindings, appendHead: opHead, maxPreparedOperationBytes: opLimit, ...changes });
+const opTerminal = (cell, result = 'semantic_noop', changes = {}) => operationState.terminalOperation(cell, { ...opOwner, ...opBindings,
+  marker: result === 'landed' ? opMarkers.empty : opMarkers.open, result, observedEventsHead: 'c'.repeat(40), canonicalCommit: result === 'landed' ? 'c'.repeat(40) : null,
+  projectionVerified: result === 'landed', readbackVerified: result === 'landed', ...changes });
+const opRelease = (cell, changes = {}) => operationState.releaseMutationFence(changes.fence ?? opFences.mutation, opFences.mutation, cell, changes.marker ?? opMarkers.empty,
+  { preparedReference: opRef, projectionVerified: true, readbackVerified: true, ...changes });
+const opClear = (cell, changes = {}) => operationState.clearPreparedOperation(cell, opCells.landed,
+  { mutationFence: opFences.mutation, releasedFence: opFences.released, marker: opMarkers.empty, preparedReference: opRef, ...changes });
+
+test('M1-16 independent operation hash and complete state wire goldens', async () => {
+  const claim = operations.append_claim, identity = operations.check_identity;
+  assert.equal(await operationState.appendClaim(claim.input.operation_id, claim.input.operation_sha256, claim.input.append_head), claim.expected);
+  assert.equal(await operationState.authoritativeCheckIdentity(identity.input), identity.expected);
+  for (const [name, cell] of Object.entries(opCells)) assert.equal(hex(operationState.encodePreparedOperation(cell, { maxPreparedOperationBytes: opLimit })), hex(wire(operations.cells[name])), name);
+  for (const [name, fence] of Object.entries(opFences)) assert.equal(hex(operationState.encodeDecisionFence(fence)), hex(wire(operations.fences[name])), name);
+  for (const [name, marker] of Object.entries(opMarkers)) assert.equal(hex(operationState.encodeInflightMarker(marker)), hex(wire(operations.markers[name])), name);
+  assert.deepEqual((await opPrepare(opCells.idle)).toDict(), operations.cells.prepared);
+  for (const name of ['prepared', 'appending', 'landed', 'semantic_noop', 'conflict']) assert.equal(await opPrepare(opCells[name]), opCells[name], name);
+  assert.deepEqual((await opClaim(opCells.prepared)).toDict(), operations.cells.appending);
+  assert.equal(await opClaim(opCells.appending), opCells.appending);
+  await assert.rejects(opClaim(opCells.appending, { appendHead: 'a'.repeat(40) }), operationState.OperationConflict);
+  const renewed = await opClaim(opCells.appending, { appendHead: 'a'.repeat(40), expectedAppendClaim: operations.cells.appending.append_claim });
+  assert.equal(renewed.toDict().append_claim, await operationState.appendClaim(opOwner.operationId, opOwner.operationSha256, 'a'.repeat(40)));
+  assert.equal(renewed.toDict().event_jcs_b64, operations.cells.prepared.event_jcs_b64);
+});
+
+test('M1-16 every persisted crash tuple accepts exactly its legal transitions, without age recovery', async () => {
+  for (const row of operations.crashes) {
+    const cell = opCells[row.cell], fence = opFences[row.fence], marker = opMarkers[row.marker], binding = { fence, marker };
+    operationState.validateOperationCrossBindings(cell, fence, marker, { preparedReference: opRef });
+    const actions = {
+      prepare: () => opPrepare(cell),
+      acquire: () => operationState.acquireMutationFence(fence, cell, opRef, { subjects: [], projectWide: true }),
+      reserve: () => operationState.reserveSuccess(fence, marker, { checkIdentity: operations.check_identity.expected, projectionCommit: opHead }),
+      open: () => operationState.openInflightMarker(marker, fence, { cell, preparedReference: opRef, startedAt: '2099-01-01T00:00:00Z' }),
+      claim: () => opClaim(cell, binding), noop: () => opTerminal(cell, 'semantic_noop', binding), conflict: () => opTerminal(cell, 'conflict', binding),
+      landed: () => opTerminal(cell, 'landed', binding),
+      close: () => operationState.closeInflightMarker(marker, fence, { cell, preparedReference: opRef }),
+      close_projected: () => operationState.closeInflightMarker(marker, fence, { cell, preparedReference: opRef, projectionVerified: true }),
+      release: () => opRelease(cell, binding), clear: () => opClear(cell, { releasedFence: fence, marker }),
+      release_success: () => operationState.releaseSuccess(fence, opFences.success, { completionVerified: true }),
+    };
+    const allowed = [];
+    for (const [name, action] of Object.entries(actions)) {
+      try { await action(); allowed.push(name); }
+      catch (error) { assert.ok(error instanceof operationState.OperationConflict || error instanceof operationState.OperationCorruption, `${row.id}/${name}: ${error}`); }
+    }
+    assert.deepEqual(allowed.sort(), [...row.allowed].sort(), row.id);
+  }
+});
+
+test('M1-16 marker first-start time, terminal release, success reservation and exact clear retry', async () => {
+  const acquired = await operationState.acquireMutationFence(opFences.idle, opCells.prepared, opRef, { subjects: [], projectWide: true });
+  assert.deepEqual(acquired.toDict(), operations.fences.mutation);
+  const open = await operationState.openInflightMarker(opMarkers.empty, acquired, { cell: opCells.prepared, preparedReference: opRef, startedAt: operations.markers.open.ops[opOwner.operationId].started_at });
+  assert.deepEqual(open.toDict(), operations.markers.open);
+  assert.equal(await operationState.openInflightMarker(open, acquired, { cell: opCells.prepared, preparedReference: opRef, startedAt: '2099-01-01T00:00:00Z' }), open);
+  const noop = opTerminal(opCells.prepared), closed = operationState.closeInflightMarker(open, acquired, { cell: noop, preparedReference: opRef });
+  const released = operationState.releaseMutationFence(acquired, acquired, noop, closed, { preparedReference: opRef, projectionVerified: false, readbackVerified: true });
+  assert.deepEqual(released.toDict(), operations.fences.released);
+  assert.equal(operationState.releaseMutationFence(released, acquired, noop, closed, { preparedReference: opRef, projectionVerified: false, readbackVerified: true }), released);
+  const cleared = operationState.clearPreparedOperation(noop, noop, { mutationFence: acquired, releasedFence: released, marker: closed, preparedReference: opRef });
+  assert.deepEqual(cleared.toDict(), operations.cells.idle);
+  assert.equal(operationState.clearPreparedOperation(cleared, noop, { mutationFence: acquired, releasedFence: released, marker: closed, preparedReference: opRef }), cleared);
+  const reserved = await operationState.reserveSuccess(opFences.idle, opMarkers.empty, { checkIdentity: operations.check_identity.expected, projectionCommit: opHead });
+  assert.equal(await operationState.reserveSuccess(reserved, opMarkers.empty, { checkIdentity: operations.check_identity.expected, projectionCommit: opHead }), reserved);
+  assert.throws(() => operationState.releaseSuccess(reserved, reserved, { completionVerified: false }), operationState.OperationConflict);
+  assert.equal(operationState.releaseSuccess(reserved, reserved, { completionVerified: true }).generation, reserved.generation + 1);
+  assert.throws(() => opTerminal(opCells.prepared, 'semantic_noop', { marker: opMarkers.empty }), operationState.OperationConflict);
+  assert.throws(() => opTerminal(opCells.appending, 'semantic_noop'), operationState.OperationConflict);
+  assert.throws(() => opTerminal(opCells.appending, 'landed', { projectionVerified: false }), operationState.OperationConflict);
+  assert.throws(() => opRelease(opCells.landed, { readbackVerified: false }), operationState.OperationConflict);
+  assert.throws(() => opClear(opCells.landed, { releasedFence: opFences.idle }), operationState.OperationConflict);
+});
+
+test('M1-16 closed operation schemas reject every missing/extra field and malformed scalar', async () => {
+  const groups = [[operations.cells, row => operationState.decodePreparedOperation(wire(row), opDecodeOptions)],
+    [operations.fences, row => operationState.decodeDecisionFence(wire(row))], [operations.markers, row => operationState.decodeInflightMarker(wire(row))]];
+  for (const [group, decode] of groups) for (const [name, row] of Object.entries(group)) {
+    for (const field of Object.keys(row)) { const value = evtClone(row); delete value[field]; await assert.rejects(decode(value), operationState.OperationCorruption, `${name}/${field}`); }
+    await assert.rejects(decode({ ...row, extra: true }), operationState.OperationCorruption, name);
+  }
+  for (const changes of [{ state: 'old' }, { generation: true }, { generation: -1 }, { generation: 2 ** 53 },
+    { operation_id: 'bad' }, { operation_sha256: 'sha256:BAD' }, { event_id: '' }, { prepared_events_head: 'G'.repeat(40) },
+    { event_jcs_b64: 'A' }, { side_artifacts: {} }])
+    await assert.rejects(operationState.decodePreparedOperation(uncheckedWire({ ...operations.cells.prepared, ...changes }), opDecodeOptions), operationState.OperationCorruption);
+  for (const result of ['', 'LANDED', true, 7, null]) await assert.rejects(operationState.decodePreparedOperation(wire({ ...operations.cells.landed, result }), opDecodeOptions), operationState.OperationCorruption);
+  for (const data of [null, {}, '{}']) {
+    await assert.rejects(operationState.decodePreparedOperation(data, opDecodeOptions), operationState.OperationCorruption);
+    await assert.rejects(operationState.decodeDecisionFence(data), operationState.OperationCorruption);
+    await assert.rejects(operationState.decodeInflightMarker(data), operationState.OperationCorruption);
+  }
+  for (const data of [bytes(' {"state":"idle","generation":1}'), bytes('{"generation":1,"state":"idle","state":"idle"}')])
+    await assert.rejects(operationState.decodePreparedOperation(data, opDecodeOptions), operationState.OperationCorruption);
+});
+
+test('M1-16 frozen packages, exact references, owners and derived event scopes cannot be substituted', async () => {
+  for (const mutate of [row => row.event_id = encoding.base64urlEncode(new Uint8Array(32)), row => row.operation_sha256 = 'sha256:' + 'f'.repeat(64),
+    row => row.side_artifacts[0].bytes_b64 = encoding.base64urlEncode(bytes('{}')), row => row.side_artifacts.pop(),
+    row => row.side_artifacts[0].extra = true, row => row.prepared_events_head = 'a'.repeat(40)]) {
+    const row = evtClone(operations.cells.prepared); mutate(row);
+    await assert.rejects(operationState.decodePreparedOperation(wire(row), opDecodeOptions), operationState.OperationCorruption);
+  }
+  const wrongRef = operationState.preparedOperationReference('a'.repeat(40), 'e'.repeat(40), opCells.prepared);
+  for (const preparedReference of [wrongRef, { ...opRef }, undefined])
+    assert.throws(() => operationState.validateOperationCrossBindings(opCells.prepared, opFences.mutation, opMarkers.open, { preparedReference }), operationState.OperationCorruption);
+  for (const change of [{ operation_id: encoding.base64urlEncode(new Uint8Array(32)) }, { prepared_blob_sha: 'a'.repeat(40) },
+    { prepared_generation: opCells.prepared.generation + 1 }, { subjects: [7], project_wide: false }]) {
+    const fence = await operationState.decodeDecisionFence(wire({ ...operations.fences.mutation, ...change }));
+    assert.throws(() => operationState.validateOperationCrossBindings(opCells.prepared, fence, opMarkers.empty, { preparedReference: opRef }), operationState.OperationCorruption);
+  }
+  await assert.rejects(operationState.acquireMutationFence(opFences.idle, opCells.prepared, opRef, { subjects: [7], projectWide: false }), operationState.OperationCorruption);
+  for (const type of ['acceptance', 'override', 'exemption_snapshot', 'records_reader_authorized']) {
+    let event = evtClone(eventRows[type]);
+    if (type === 'override') event.payload.subjects.push({ github_user_id: 9, login_snapshot: 'second' });
+    if (type === 'exemption_snapshot') event.target.subjects.push({ github_user_id: 9, login_snapshot: 'second' });
+    event = await evtSign(event);
+    const facts = await evtFacts(event), artifacts = await evtPackage(event, facts), head = evtHead(event);
+    const prepared = await operationState.prepareOperation(opCells.idle, event, artifacts, { expectedProjectId: event.project_id, expectedEventsHead: head, preconditions: facts, maxPreparedOperationBytes: opLimit });
+    const reference = operationState.preparedOperationReference('d'.repeat(40), 'e'.repeat(40), prepared);
+    const subjects = type === 'override' || type === 'exemption_snapshot' ? [7, 9] : [7];
+    await operationState.acquireMutationFence(opFences.idle, prepared, reference, { subjects, projectWide: false });
+    await assert.rejects(operationState.acquireMutationFence(opFences.idle, prepared, reference, { subjects: [], projectWide: true }), operationState.OperationCorruption);
+  }
+});
+
+test('M1-16 complete byte limits include worst append head; generation and scalar overflow fail closed', async () => {
+  const raw = wire(operations.cells.prepared), limit = raw.length;
+  await operationState.decodePreparedOperation(raw, { ...opDecodeOptions, maxPreparedOperationBytes: limit });
+  await assert.rejects(operationState.decodePreparedOperation(raw, { ...opDecodeOptions, maxPreparedOperationBytes: limit - 1 }), operationState.OperationCorruption);
+  await assert.rejects(opPrepare(opCells.idle, { maxPreparedOperationBytes: limit }), operationState.OperationCorruption);
+  await assert.rejects(opClaim(opCells.prepared, { maxPreparedOperationBytes: limit }), operationState.OperationCorruption);
+  assert.throws(() => operationState.encodePreparedOperation(opCells.prepared, { maxPreparedOperationBytes: limit - 1 }), operationState.OperationCorruption);
+  for (const maxPreparedOperationBytes of [true, 0, -1, '16384', null, 2 ** 53])
+    await assert.rejects(operationState.decodePreparedOperation(raw, { ...opDecodeOptions, maxPreparedOperationBytes }), operationState.OperationCorruption);
+  const largest = { ...operations.cells.appending, append_head: 'f'.repeat(64), append_claim: await operationState.appendClaim(opOwner.operationId, opOwner.operationSha256, 'f'.repeat(64)) };
+  const exact = wire(largest).length;
+  await opPrepare(opCells.idle, { maxPreparedOperationBytes: exact });
+  await assert.rejects(opPrepare(opCells.idle, { maxPreparedOperationBytes: exact - 1 }), operationState.OperationCorruption);
+  const fence = await operationState.decodeDecisionFence(wire({ ...operations.fences.success, generation: Number.MAX_SAFE_INTEGER }));
+  assert.throws(() => operationState.releaseSuccess(fence, fence, { completionVerified: true }), operationState.OperationCorruption);
+  await assert.rejects(operationState.authoritativeCheckIdentity({ ...operations.check_identity.input, repository_id: true }), operationState.OperationCorruption);
+  await assert.rejects(operationState.appendClaim('bad', opOwner.operationSha256, opHead), operationState.OperationCorruption);
+});
+
+test('M1-16 operation values are factory-only, deeply immutable and own every pre-await input', async () => {
+  const raw = wire(operations.cells.prepared), facts = evtClone(opFacts), options = { ...opDecodeOptions, preconditions: facts };
+  const pending = operationState.decodePreparedOperation(raw, options); raw.fill(0); facts[0].value = {}; options.expectedProjectId = 'changed';
+  const cell = await pending; assert.deepEqual(cell.toDict(), operations.cells.prepared); assert.ok(Object.isFrozen(cell));
+  const copy = cell.toDict(); copy.side_artifacts[0].bytes_b64 = 'changed'; assert.deepEqual(cell.toDict(), operations.cells.prepared);
+  for (const forged of [{ ...cell }, { state: 'prepared', generation: cell.generation, toDict: () => cell.toDict() }])
+    assert.throws(() => operationState.encodePreparedOperation(forged, { maxPreparedOperationBytes: opLimit }), operationState.OperationCorruption);
+  assert.throws(() => cell.state = 'idle', TypeError); assert.throws(() => opRef.commitOid = 'changed', TypeError);
+  const event = evtClone(opEvent), artifacts = evtClone(operations.cells.prepared.side_artifacts), inputFacts = evtClone(opFacts);
+  const prepared = operationState.prepareOperation(opCells.idle, event, artifacts, { expectedProjectId: operations.project_id,
+    expectedEventsHead: opHead, preconditions: inputFacts, maxPreparedOperationBytes: opLimit });
+  event.project_id = 'changed'; artifacts[0].bytes_b64 = ''; inputFacts[0].value = {}; assert.deepEqual((await prepared).toDict(), operations.cells.prepared);
+  await assert.rejects(operationState.prepareOperation(opCells.idle, { bad: true }, [], { expectedProjectId: operations.project_id,
+    expectedEventsHead: opHead, preconditions: opFacts, maxPreparedOperationBytes: opLimit }), operationState.OperationCorruption);
+});
+
+test('M1-16 scalar and accessor proposals reject with typed corruption and never execute caller getters', async () => {
+  const invalidIdentities = [{ repository_id: true }, { merge_group_head_oid: opHead + '\n' }, { pull_request_number: 0 },
+    { github_delivery_id: '' }, { github_delivery_id: null }, { extra: true }];
+  for (const change of invalidIdentities) await assert.rejects(operationState.authoritativeCheckIdentity({ ...operations.check_identity.input, ...change }), operationState.OperationCorruption);
+  for (const [id, digest, head] of [[opOwner.operationId, opOwner.operationSha256 + '\n', opHead],
+    [opOwner.operationId, opOwner.operationSha256, opHead + '\n'], ['bad', opOwner.operationSha256, opHead]])
+    await assert.rejects(operationState.appendClaim(id, digest, head), operationState.OperationCorruption);
+  const factories = [artifacts => operationState.prepareOperation(opCells.idle, opEvent, artifacts, { expectedProjectId: operations.project_id,
+    expectedEventsHead: opHead, preconditions: opFacts, maxPreparedOperationBytes: opLimit })];
+  let calls = 0;
+  const accessorArray = Object.defineProperty([], '0', { get() { calls++; return operations.cells.prepared.side_artifacts[0]; }, enumerable: true });
+  const accessorEntry = Object.defineProperty({ ...operations.cells.prepared.side_artifacts[0] }, 'bytes_b64', { get() { calls++; return ''; }, enumerable: true });
+  for (const start of factories) for (const input of [accessorArray, [accessorEntry], [undefined], Object.assign([], { extra: true })])
+    await assert.rejects(start(input), operationState.OperationCorruption);
+  assert.equal(calls, 0);
+  const payload = Object.defineProperty({ ...formCorpus.golden.form }, 'project_id', { get() { calls++; return 'project-1'; }, enumerable: true });
+  await assert.rejects(actionForms.encodeActionForm(payload, { key: unhex(formCorpus.keys[0].key_hex) }), actionForms.ActionFormError);
+  assert.equal(calls, 0);
+  const rawArtifacts = operations.cells.prepared.side_artifacts.map(row => ({ kind: row.kind, path: row.path, sha256: row.sha256, bytes: encoding.base64urlDecode(row.bytes_b64) }));
+  const pending = operationState.prepareOperation(opCells.idle, opEvent, rawArtifacts, { expectedProjectId: operations.project_id,
+    expectedEventsHead: opHead, preconditions: opFacts, maxPreparedOperationBytes: opLimit });
+  for (const row of rawArtifacts) row.bytes.fill(255);
+  assert.deepEqual((await pending).toDict(), operations.cells.prepared);
+  for (const context of [null, [], { ...formContext(formCorpus.golden.form), extra: true }, { ...formContext(formCorpus.golden.form), github_user_id: true }])
+    await assert.rejects(actionForms.verifyActionForm(formCorpus.golden.token, { keys: formKeys(), context }), actionForms.ActionFormError);
+  for (const [type, target, body] of [['acceptance', { ...eventRows.acceptance.target, digest: eventRows.acceptance.target.digest + '\n' }, eventRows.acceptance.payload],
+    ['unknown', {}, {}], ['acceptance', {}, {}]])
+    await assert.rejects(events.validateEventOperation(type, target, body), events.EventValidationError);
+});
+
+test('M1-16 fence and marker decoding own byte views; invalid transition facts never authorize recovery', async () => {
+  for (const [row, decode, encode] of [[operations.fences.mutation, operationState.decodeDecisionFence, operationState.encodeDecisionFence],
+    [operations.markers.open, operationState.decodeInflightMarker, operationState.encodeInflightMarker]]) {
+    const input = wire(row), pending = decode(input); input.fill(0); assert.equal(hex(encode(await pending)), hex(wire(row)));
+  }
+  await assert.rejects(operationState.openInflightMarker(opMarkers.open, opFences.mutation,
+    { cell: opCells.prepared, preparedReference: opRef, startedAt: '2026-02-30T00:00:00Z' }), operationState.OperationCorruption);
+  for (const result of ['', new String('landed'), null, true])
+    assert.throws(() => opTerminal(opCells.prepared, result), operationState.OperationCorruption);
+  await assert.rejects(opClaim(opCells.appending, { appendHead: 'a'.repeat(40), expectedAppendClaim: 'wrong' }), operationState.OperationConflict);
+  const terminal = opTerminal(opCells.prepared);
+  assert.equal(opTerminal(terminal), terminal);
+  assert.throws(() => opTerminal(terminal, 'conflict'), operationState.OperationConflict);
+  for (const flag of [1, null, 'true']) assert.throws(() => operationState.releaseMutationFence(opFences.mutation, opFences.mutation, terminal,
+    opMarkers.empty, { preparedReference: opRef, projectionVerified: flag, readbackVerified: true }), operationState.OperationConflict);
+  await assert.rejects(operationState.reserveSuccess(opFences.idle, opMarkers.open,
+    { checkIdentity: operations.check_identity.expected, projectionCommit: opHead }), operationState.OperationConflict);
+  assert.throws(() => operationState.releaseSuccess(opFences.idle, opFences.idle, { completionVerified: true }), operationState.OperationConflict);
 });
