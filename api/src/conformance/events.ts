@@ -679,6 +679,21 @@ export interface ValidatedEvent {
     readonly target: ReadonlyJsonObject;
     readonly payload: ReadonlyJsonObject;
 }
+/** Validate a submitted effect without constructing an event or granting authority. */
+export async function validateEventOperation(type: string, target: unknown, payload: unknown): Promise<{
+    readonly target: ReadonlyJsonObject;
+    readonly payload: ReadonlyJsonObject;
+}> {
+    try {
+        const operation = snapshot({ target, payload });
+        const t = object(operation.target), p = object(operation.payload);
+        await targetPayload(eventType(type), t, p);
+        return Object.freeze({ target: freezeJson(t as JsonObject), payload: freezeJson(p as JsonObject) });
+    }
+    catch {
+        throw new EventValidationError('invalid event operation');
+    }
+}
 export async function validateEvent(value: unknown, options: {
     expectedProjectId?: string;
     expectedPath?: string;
