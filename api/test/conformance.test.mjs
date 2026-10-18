@@ -10,6 +10,7 @@ import * as envelope from '../.conformance-build/conformance/envelope.js';
 import * as limits from '../.conformance-build/conformance/releaseProfile.js';
 import * as projections from '../.conformance-build/conformance/projections.js';
 import * as keyrings from '../.conformance-build/conformance/keyrings.js';
+import * as events from '../.conformance-build/conformance/events.js';
 
 const vectorDirectory = new URL('../../conformance/vectors/', import.meta.url);
 const vector = async name => JSON.parse(await readFile(new URL(name, vectorDirectory), 'utf8'));
@@ -614,4 +615,523 @@ test('M1-14 snapshots caller keys and metadata before asynchronous crypto', asyn
   const plaintext = keyrings.unwrapKeyCopy(mutable, unwrapping);
   mutable.nonce = 'changed'; callerKey.fill(255); unwrapping.expectedProjectId = 'changed';
   assert.equal(hex(await plaintext), wrapped.data_key_hex);
+});
+
+const [eventCorpus, eventIdentities, authorizationCorpus] = await Promise.all([
+  'events-v1.json', 'event-identities-v1.json', 'authorization-vocabulary-v1.json',
+].map(vector));
+const eventRows = Object.fromEntries(eventCorpus.events.map(row => [row.type, row]));
+const evtClone = value => structuredClone(value);
+const evtHead = event => event.confirmed_canonical_oid ?? 'b'.repeat(40);
+const evtLink = event => Object.fromEntries(['event_id', 'type', 'project_id', 'target', 'payload'].map(key => [key, evtClone(event[key])]));
+const evtSort = values => values.sort((a, b) => Buffer.compare(wire(a), wire(b)));
+async function evtSign(value) {
+  const row = evtClone(value);
+  const identity = await events.deriveEventIdentity(Object.fromEntries(['project_id', 'operation_nonce', 'actor', 'type', 'target', 'payload', 'confirmed_canonical_oid'].map(key => [key, row[key]])));
+  for (const key of ['event_id', 'idempotency_key', 'operation_sha256']) row[key] = identity[key];
+  return row;
+}
+function evtProjection(version, retired = []) {
+  return { agreement_id: version === null ? null : 'agreement-1', active_version: version, activation_event_id: version === null ? null : eventRows.agreement_activated.event_id, accepted_versions: version === null ? [] : [version], retired_versions: retired, projection_format: 1, shard_count: 32 };
+}
+// Independent construction of the authenticated facts named by the shared event fixtures.
+async function evtFacts(event, overrides = {}, head = evtHead(event)) {
+  const result = [], t = event.target, p = event.payload;
+  for (const requirement of await events.requiredPreconditions(event, head)) {
+    const name = requirement.name, shard = Number(name.slice(-2)); let value;
+    const key = Object.hasOwn(overrides, name) ? name : ['coverage-state', 'current-exemption-union'].find(prefix => name.startsWith(prefix + '-') && Object.hasOwn(overrides, prefix));
+    if (key !== undefined) value = evtClone(overrides[key]);
+    else if (name === 'generations-absence') value = null;
+    else if (name === 'source-first-add' || name.startsWith('scope-terminal-') || name.startsWith('publication-')) value = { path: requirement.path, present: false };
+    else if (name === 'prior-generations') value = Object.fromEntries(['derived_index', 'status_detail', 'reader_authority'].map(key => [key, event.event_id]));
+    else if (name === 'project-lifecycle') value = { project_id: event.project_id, state: 'active', successor_project_id: null };
+    else if (name === 'keyring-affected-repositories') value = { project_id: event.project_id, repository_ids: { records: 11, coverage: 12, control: 13 } };
+    else if (name === 'current-configuration') value = evtClone(eventRows.project_connected.payload.project_configuration);
+    else if (name === 'current-project-agreement') value = { project_id: event.project_id, recipient: evtClone(p.recipient), agreement_id: null, published_versions: [] };
+    else if (name === 'superseded-acceptance') value = evtLink(eventRows.acceptance);
+    else if (name === 'current-acceptance-basis') value = { project_id: event.project_id, github_user_id: t.coverage_tuple.github_user_id, agreement_id: t.coverage_tuple.agreement_id, basis: { event_id: p.supersedes, kind: 'acceptance' } };
+    else if (name === 'active-agreement') {
+      if (event.type === 'acceptance') value = { project_id: event.project_id, agreement_id: t.coverage_tuple.agreement_id, version: t.version, recipient: evtClone(t.recipient), digest: t.digest, state: 'active', accepted_versions: [t.version], retired_versions: [], active_version: t.version, activation_event_id: eventRows.agreement_activated.event_id, supersedes_coverage: false, publication: evtLink(eventRows.agreement_published) };
+      else value = event.type === 'agreement_activation_restored' ? evtProjection('2', ['1']) : evtProjection(t.version);
+    } else if (['published-agreement', 'target-activation', 'scope-request', 'source-event', 'rule-event'].includes(name)) {
+      const linked = name === 'published-agreement' ? 'agreement_published' : name === 'target-activation' ? 'agreement_activated' : name === 'scope-request' ? 'enforcement_scope_requested' : name === 'source-event' ? event.type === 'exemption_source_withdrawn' ? 'exemption' : 'records_reader_authorized' : event.type.startsWith('exemption') ? 'exemption_rule_configured' : 'records_reader_rule_configured';
+      const id = name === 'published-agreement' ? p.published_event_id : name === 'target-activation' ? t.activation_event_id : name === 'scope-request' ? p.request_event_id : name === 'source-event' ? t.source_event_id : t.rule_event_id;
+      const target = name === 'published-agreement' ? { agreement_id: t.agreement_id, version: t.version } : name === 'target-activation' ? evtClone(eventRows.agreement_activated.target) : name === 'scope-request' ? { change_id: t.change_id } : name === 'source-event' ? { subject: evtClone(t.subject) } : { team: evtClone(eventRows.exemption_rule_configured.target.team) };
+      const payload = name === 'published-agreement' ? evtClone(eventRows.agreement_published.payload) : name === 'target-activation' ? evtClone(eventRows.agreement_activated.payload) : name === 'scope-request' ? { prior_scope: [], desired_scope: evtClone(p.desired_scope ?? eventRows.enforcement_scope_requested.payload.desired_scope), prior_registry_generation: 0 } : {};
+      value = { event_id: id, type: linked, project_id: event.project_id, target, payload };
+      if (name === 'scope-request') value.authorizations = evtClone(event.authorizations);
+    } else if (name === 'successor-project') value = { event: { event_id: p.successor_connected_event_id, type: 'project_connected', project_id: t.successor_project_id, target: {}, payload: { successor_of: event.project_id, repository_ids: { records: 11, coverage: 12, control: 13 } } }, active_agreement: { project_id: t.successor_project_id, agreement_id: 'agreement-1', version: '1', state: 'active' } };
+    else if (name === 'current-repository-owner') {
+      const prior = { project_id: event.project_id, project_slug: p.project_slug, repository_owner: evtClone(t.prior_repository_owner), repository_ids: evtClone(p.repository_ids), registry_generation: Math.max(0, p.registry_generation - 1), enforcement_scope: [], request_event_links: {} };
+      value = { prior_entry: prior, staged_entry: { ...evtClone(prior), repository_owner: evtClone(p.new_repository_owner), registry_generation: p.registry_generation } };
+    } else if (name === 'current-scope') {
+      const entry = { project_id: event.project_id, project_slug: 'project-one', repository_owner: evtClone(eventRows.project_connected.payload.repository_owner), repository_ids: evtClone(eventRows.project_connected.payload.repository_ids), registry_generation: p.prior_registry_generation ?? p.registry_generation ?? 0, enforcement_scope: evtClone(p.prior_scope ?? []), request_event_links: {} };
+      if (event.type === 'enforcement_scope_requested') value = { prior_entry: entry, current_entry: evtClone(entry) };
+      else if (event.type === 'enforcement_scope_activated') {
+        const request = overrides['scope-request']?.payload ?? eventRows.enforcement_scope_requested.payload;
+        entry.enforcement_scope = evtClone(request.prior_scope); entry.registry_generation = request.prior_registry_generation;
+        value = { prior_entry: entry, staged_entry: { ...evtClone(entry), enforcement_scope: evtClone(p.desired_scope), registry_generation: p.registry_generation, request_event_links: { [t.change_id]: p.request_event_id } } };
+      } else value = { current_entry: entry };
+    } else if (name === 'override-grant') value = { event: { ...evtLink(eventRows.override), event_id: t.override_event_id }, active: true };
+    else if (name.startsWith('coverage-state-')) value = { project_id: event.project_id, state: 'current', resource: evtClone(t), subject_ids: event.type === 'revocation' ? [t.coverage_tuple.github_user_id] : p.subjects.map(row => row.github_user_id).filter(id => id % 32 === shard).sort((a, b) => a - b) };
+    else if (name.startsWith('current-exemption-union-')) {
+      const source = t.source_event_id ?? t.rule_event_id ?? eventRows.exemption.event_id;
+      const candidates = event.type === 'exemption_materialized' && p.result === 'add' ? [] : event.type === 'exemption_rule_withdrawn' ? [eventRows.exemption.target.subject] : t.subjects ?? [t.subject ?? eventRows.exemption.target.subject];
+      const subjects = evtClone(candidates.filter(row => row.github_user_id % 32 === shard));
+      value = { project_id: event.project_id, subjects, provenance: Object.fromEntries(subjects.map(row => [String(row.github_user_id), [source]])) };
+    } else if (name === 'current-reader-authority') {
+      value = { project_id: event.project_id, class_state: 'current', sources: event.type === 'records_reader_materialized' && p.result === 'withdraw' ? [t.rule_event_id] : [], cursor_event_id: event.event_id };
+      if (event.type === 'records_reader_materialized') Object.assign(value, { rule_event_id: t.rule_event_id, subject: evtClone(t.subject), source_record_present: true });
+    } else if (name === 'current-derived-state') {
+      value = { project_id: event.project_id, standing_rule_event_ids: [], max_continuous_exemption_rules: 10, max_state_ciphertext_bytes: 100000 };
+      if (event.type === 'records_reader_rule_configured') value.max_continuous_reader_rules = 10;
+    } else if (name === 'active-exemption-rule-state') value = { project_id: event.project_id, standing_rule_event_ids: [t.rule_event_id] };
+    else if (name.startsWith('active-reader-rules-')) value = { project_id: event.project_id, rule_event_ids: [] };
+    else if (name === 'reader-authority-state') {
+      value = { project_id: event.project_id, class_state: 'current', source_event_ids: [t.source_event_id ?? t.rule_event_id], cursor_event_id: event.event_id };
+      if (event.type === 'records_reader_withdrawn') Object.assign(value, { source_event_id: t.source_event_id, subject: evtClone(t.subject) }); else value.rule_event_id = t.rule_event_id;
+    } else if (name === 'materialization-cursor') value = { cursor_event_id: p.prior_materialization_event_id, prior_materialization_event_id: null, rule_event_id: t.rule_event_id, subject: evtClone(t.subject) };
+    else assert.fail('unhandled precondition fixture: ' + name);
+    const mode = requirement.binding_mode;
+    const binding = mode === 'events-head' ? { mode, events_head: head } : mode === 'generation' ? { mode, events_head: head, canonical_generation: event.event_id, derived_generation: event.event_id } : mode === 'canonical-sha' ? { mode, coverage_commit_oid: head, canonical_sha: head } : mode === 'registry-generation' ? { mode, registry_commit_oid: p.registry_commit_oid ?? 'a'.repeat(40), registry_generation: p.registry_generation ?? p.prior_registry_generation ?? 0 } : { mode, successor_project_id: t.successor_project_id, successor_events_head: head, repository_ids: [11, 12, 13] };
+    result.push({ ...Object.fromEntries(['name', 'artifact_kind', 'repository_role', 'branch', 'path', 'binding_mode'].map(key => [key, requirement[key]])), binding, value });
+  }
+  return result;
+}
+const evtFact = (facts, name) => facts.find(row => row.name === name);
+const evtHash = raw => 'sha256:' + createHash('sha256').update(raw).digest('hex');
+const evtArtifact = (kind, path, raw) => ({ kind, path, bytes: raw, sha256: evtHash(raw) });
+function evtMetadata(event) {
+  return { metadata_version: 1, agreement_id: event.target.agreement_id, version: event.target.version, ...Object.fromEntries(['recipient', 'ref', 'content_commit_oid', 'digest', 'snapshot_sha256'].map(key => [key, evtClone(event.payload[key])])) };
+}
+async function evtPackage(event, facts) {
+  const requirements = await events.requiredSideArtifacts(event, facts, evtHead(event));
+  return requirements.map(row => {
+    const prior = evtFact(facts, 'prior-generations')?.value;
+    const value = row.kind === 'agreement_snapshot' ? null : row.kind === 'project_config' ? event.payload.project_configuration : row.kind === 'agreement_metadata' ? evtMetadata(event) : { generations_version: 1, ...Object.fromEntries(['derived_index', 'status_detail', 'reader_authority'].map(name => [name, row.affected_classes.includes(name) ? event.event_id : prior[name]])) };
+    return evtArtifact(row.kind, row.path, row.kind === 'agreement_snapshot' ? bytes('agreement text') : wire(value));
+  });
+}
+
+test('M1-15 every closed event and deterministic identity agrees with the shared registries', async () => {
+  assert.deepEqual([...events.EVENT_TYPES].sort(), eventIdentities.event_types_v1.toSorted());
+  assert.deepEqual(eventCorpus.events.map(row => row.type).sort(), [...events.EVENT_TYPES].sort());
+  for (const row of eventIdentities.actors) assert.deepEqual(events.stableActorIdentity(row.actor), row.stable);
+  const checkIdentity = async (input, golden) => {
+    const result = await events.deriveEventIdentity(input);
+    for (const key of ['idempotency_key', 'operation_sha256', 'event_id']) assert.equal(result[key], golden[key]);
+    assert.equal(result.path, golden.event_path); assert.ok(Object.isFrozen(result));
+  };
+  for (const [type, row] of Object.entries(eventIdentities.event_identity_vectors)) await checkIdentity({ ...eventIdentities.event_identity_common_input, type, ...Object.fromEntries(['operation_nonce', 'actor', 'confirmed_canonical_oid'].map(key => [key, row[key]])) }, row);
+  for (const row of [eventIdentities.event_identity, ...eventIdentities.scope_terminal_identity_variants]) await checkIdentity({ ...Object.fromEntries(['project_id', 'operation_nonce', 'actor', 'target', 'payload', 'confirmed_canonical_oid'].map(key => [key, row[key]])), type: row.event_type }, row);
+  for (const row of eventIdentities.negative_examples) {
+    const { name, event_type, unexpected_kwargs, ...input } = row;
+    await assert.rejects(events.deriveEventIdentity({ ...input, ...unexpected_kwargs, type: event_type }), events.EventIdentityError, name);
+  }
+  const nonce = async row => row.domain === 'scope_terminal' ? events.deriveScopeTerminalNonce(row.request_event_id, row.terminal_type) : row.domain === 'github_retry' ? events.deriveGithubRetryNonce(row.repository_id, row.check_kind, row.check_identity, row.github_delivery_id) : events.deriveAutomationNonce(row.rule_event_id, row.subject_user_id, row.result, row.prior_materialization_event_id);
+  for (const row of [{ domain: 'automation', ...eventIdentities.automation_nonce }, { domain: 'github_retry', ...eventIdentities.github_retry_nonce }, ...eventIdentities.deterministic_nonce_variants]) assert.equal(await nonce(row), row.nonce);
+  for (const [field, type] of [['activation', 'enforcement_scope_activated'], ['abandonment', 'enforcement_scope_abandoned']]) assert.equal(await events.deriveScopeTerminalNonce(eventIdentities.scope_terminal_nonces.request_event_id, type), eventIdentities.scope_terminal_nonces[field]);
+  assert.equal(encoding.base64urlDecode(events.newOperationNonce()).length, 16);
+  for (const row of eventCorpus.events) {
+    const result = await events.validateEvent(row, { expectedProjectId: row.project_id, expectedPath: events.eventPath(row.event_id) });
+    assert.deepEqual(result, row); assert.ok(Object.isFrozen(result.payload)); assert.deepEqual(await events.parseEventJcs(wire(row)), row);
+    assert.deepEqual((await events.requiredPreconditions(row, evtHead(row))).map(row => row.name), eventCorpus.precondition_names[row.type]);
+    await events.requiredSideArtifacts(row, await evtFacts(row), evtHead(row));
+  }
+  for (const row of eventCorpus.negative_examples) await assert.rejects(events.validateEvent(row.input), events.EventValidationError, row.name);
+  for (const row of eventCorpus.jcs_negative_cases) await assert.rejects(events.parseEventJcs(encoding.base64urlDecode(row.bytes_b64)), events.EventValidationError, row.id);
+});
+
+function evtAuthorization(operation, kind, id, authority) {
+  return { operation, resource_kind: kind, resource_id: id, required_authority: authority, observed_authority: 'observed', authorized: true, checked_at: authorizationCorpus.timestamp, github_request_id: null };
+}
+function evtScopeAuthorization(row) {
+  const action = row.operation.split('_').at(-1), before = row.prior_scope, after = row.desired_scope;
+  const identity = value => [value.kind, value.repository_id ?? value.organization_id].join(':');
+  const selected = ['bind', 'widen'].includes(action) ? after.find(value => !before.some(prior => identity(prior) === identity(value))) : before.find(value => !after.some(next => identity(next) === identity(value)));
+  return evtAuthorization(row.operation, selected.kind, selected.repository_id ?? selected.organization_id, selected.kind === 'repository' ? 'contributing_repository_admin' : 'organization_owner');
+}
+test('M1-15 complete authorization vocabulary, scope transitions and negative corpus execute', () => {
+  const pairs = [...new Map(events.AUTHORIZATION_TABLE.map(row => [row[1], row.slice(1)])).values()];
+  assert.deepEqual(pairs, authorizationCorpus.operation_rows);
+  const actor = eventRows.agreement_published.actor;
+  for (const row of [...authorizationCorpus.connection_cases, ...authorizationCorpus.key_activation_cases]) {
+    const values = row.rows.map(([op, kind, id, authority]) => evtAuthorization(op, kind, id, authority));
+    assert.deepEqual(events.validateAuthorizations(row.event_type, {}, row.payload ?? {}, actor, values, row.affected_repository_ids), values);
+  }
+  for (const row of authorizationCorpus.scope_cases) {
+    const authorization = evtScopeAuthorization(row), payload = { prior_scope: row.prior_scope, desired_scope: row.desired_scope, prior_registry_generation: 0 };
+    events.validateAuthorizations('enforcement_scope_requested', { change_id: 'oracle' }, payload, actor, [authorization]);
+    events.validateAuthorizations('enforcement_scope_activated', { change_id: 'oracle' }, { desired_scope: row.desired_scope }, actor, [authorization]);
+    events.validateAuthorizations('enforcement_scope_abandoned', { change_id: 'oracle' }, {}, actor, [authorization]);
+  }
+  for (const [operation, kind, authority] of authorizationCorpus.pair_rejections) {
+    assert.throws(() => events.validateAuthorizations('agreement_published', {}, {}, actor, [evtAuthorization(operation, kind, 5, authority)]), events.AuthorizationValidationError);
+  }
+  for (const row of authorizationCorpus.negative_examples) assert.throws(() => events.validateAuthorizations(row.event_type, row.target, row.payload, row.actor, row.authorizations, row.affected_repository_ids), events.AuthorizationValidationError, row.name);
+  for (const row of eventCorpus.authorization_cases) {
+    if (row.category === 'scope') assert.ok(authorizationCorpus.scope_cases.some(value => value.operation === row.operation));
+    else assert.equal(eventRows[row.event_type].actor.kind, row.actor_kind);
+    assert.equal(row.expect, 'accept');
+  }
+});
+
+test('M1-15 all required evidence descriptors fail closed on missing, stale, malformed or inconsistent facts', async () => {
+  const byName = new Map();
+  for (const event of eventCorpus.events) for (const requirement of await events.requiredPreconditions(event, evtHead(event))) if (!byName.has(requirement.name)) byName.set(requirement.name, event);
+  for (const row of eventCorpus.precondition_cases) for (const name of row.descriptor === '*' ? row.descriptors : [row.descriptor]) {
+    const event = byName.get(name), head = evtHead(event), facts = await evtFacts(event), selected = evtFact(facts, name);
+    if (row.status === 'satisfied') { await events.validatePreconditions(event, facts, head); continue; }
+    if (row.status === 'missing') facts.splice(facts.indexOf(selected), 1);
+    else if (row.status === 'wrong-binding') selected.binding_mode = selected.binding_mode === 'events-head' ? 'generation' : 'events-head';
+    else if (row.status === 'inconsistent') selected.value = { inconsistent: true };
+    else if (selected.binding.mode === 'canonical-sha') selected.binding.canonical_sha = 'c'.repeat(40);
+    else if (selected.binding.mode === 'registry-generation') selected.binding.registry_generation += 1;
+    else if (selected.binding.mode === 'cross-project') selected.binding.successor_project_id = 'other-project';
+    else selected.binding.events_head = 'c'.repeat(40);
+    await assert.rejects(events.validatePreconditions(event, facts, head), events.PreconditionValidationError, row.id + '/' + name);
+  }
+  for (const event of eventCorpus.events) {
+    const head = evtHead(event), original = await evtFacts(event);
+    for (const row of original) {
+      for (const key of ['artifact_kind', 'repository_role', 'branch', 'path']) {
+        const facts = evtClone(original); evtFact(facts, row.name)[key] += '-wrong';
+        await assert.rejects(events.validatePreconditions(event, facts, head), events.PreconditionValidationError, event.type + '/' + row.name + '/' + key);
+      }
+      const facts = evtClone(original); evtFact(facts, row.name).binding.extra = true;
+      await assert.rejects(events.validatePreconditions(event, facts, head), events.PreconditionValidationError);
+    }
+    await assert.rejects(events.validatePreconditions(event, [...original, original[0]], head), events.PreconditionValidationError);
+    const mapping = Object.fromEntries(original.map(({ name, ...row }) => [name, row]));
+    assert.equal((await events.validatePreconditions(event, mapping, head)).length, original.length);
+  }
+});
+
+test('M1-15 every shared activation projection and cross-project case is enforced', async () => {
+  const projections = { empty: evtProjection(null), v1: evtProjection('1'), v2_after_supersession: evtProjection('2', ['1']) };
+  const malformed = {
+    missing_shard_count: { ...projections.empty }, format_two: { ...projections.empty, projection_format: 2 }, shard_count_sixteen: { ...projections.empty, shard_count: 16 }, partial_active: { ...projections.empty, agreement_id: 'agreement-1' },
+    duplicate_versions: { ...projections.v1, accepted_versions: ['1', '1'] }, active_version_not_member: { ...projections.v1, active_version: '2' }, bad_activation_event_id: { ...projections.v1, activation_event_id: 'bad' }, bad_accepted_versions: { ...projections.v1, accepted_versions: 'bad' }, non_string_version: { ...projections.v1, accepted_versions: [1] }, missing_agreement_id: { ...projections.v1, agreement_id: null }, missing_active_version: { ...projections.v1, active_version: '' }, extra_project_id: { ...projections.v1, project_id: 'project-1' }, wrong_agreement: { ...projections.v1, agreement_id: 'other' }, duplicate_retired: { ...projections.v2_after_supersession, retired_versions: ['1', '1'] }, overlapping_versions: { ...projections.v1, retired_versions: ['1'] }, unsorted_accepted: { ...projections.v1, accepted_versions: ['2', '1'] }, unsorted_retired: { ...projections.v2_after_supersession, retired_versions: ['3', '1'] }, bad_retired_versions: { ...projections.v1, retired_versions: 'bad' }, non_string_retired_version: { ...projections.v1, retired_versions: [1] }, empty_with_retired: { ...projections.empty, retired_versions: ['1'] },
+  }; delete malformed.missing_shard_count.shard_count;
+  for (const row of eventCorpus.activation_cases) {
+    const projection = evtClone(projections[row.prior] ?? malformed[row.prior]); assert.ok(projection, row.id);
+    const accepted = row.accepted_versions ?? (row.expect === 'accept' && !row.supersedes_coverage ? evtSort([...new Set([...projection.accepted_versions, row.event_version])]) : [row.event_version]);
+    const raw = evtClone(eventRows.agreement_activated); raw.target.version = row.event_version; Object.assign(raw.payload, { supersedes_coverage: row.supersedes_coverage, accepted_versions: accepted });
+    const event = await evtSign(raw), facts = await evtFacts(event, { 'active-agreement': projection });
+    if (row.expect === 'accept') await events.validatePreconditions(event, facts, evtHead(event)); else await assert.rejects(events.validatePreconditions(event, facts, evtHead(event)), events.PreconditionValidationError, row.id);
+  }
+  for (const row of eventCorpus.cross_project_cases) {
+    const event = eventRows.project_succeeded, facts = await evtFacts(event), selected = evtFact(facts, 'successor-project');
+    if (row.mutation === 'wrong_backlink') selected.value.event.payload.successor_of = 'other';
+    else if (row.mutation === 'missing_backlink') delete selected.value.event.payload.successor_of;
+    else if (row.mutation === 'wrong_project') selected.value.event.project_id = 'other';
+    else if (row.mutation === 'wrong_repository_set') selected.binding.repository_ids = [91, 92, 93];
+    else if (row.mutation === 'inactive_agreement') selected.value.active_agreement.state = 'inactive';
+    else assert.equal(row.mutation, 'valid');
+    if (row.expect === 'accept') await events.validatePreconditions(event, facts, evtHead(event)); else await assert.rejects(events.validatePreconditions(event, facts, evtHead(event)), events.PreconditionValidationError, row.id);
+  }
+});
+
+test('M1-15 override withdrawal authorization is bound to its authenticated grant repository', async () => {
+  const raw = evtClone(eventRows.override_withdrawn);
+  raw.target.override_event_id = eventRows.override.event_id;
+  const event = await evtSign(raw), facts = await evtFacts(event);
+  assert.equal(event.target.override_event_id, eventRows.override.event_id);
+  assert.equal(event.authorizations[0].resource_id, 11);
+  await events.validatePreconditions(event, facts, evtHead(event));
+  assert.deepEqual(await events.requiredSideArtifacts(event, facts, evtHead(event)), []);
+  await events.validateSideArtifactPackage(event, [], facts, evtHead(event));
+
+  const mismatched = evtClone(event);
+  mismatched.authorizations[0].resource_id = 1011;
+  await events.validateEvent(mismatched);
+  for (const check of [
+    () => events.validatePreconditions(mismatched, facts, evtHead(mismatched)),
+    () => events.requiredSideArtifacts(mismatched, facts, evtHead(mismatched)),
+    () => events.validateSideArtifactPackage(mismatched, [], facts, evtHead(mismatched)),
+  ]) await assert.rejects(check(), events.PreconditionValidationError);
+});
+
+test('M1-15 every exact side-artifact package vector and authenticated generation carry-forward executes', async () => {
+  for (const row of eventCorpus.package_cases) {
+    let event = evtClone(eventRows[row.fixture === 'publication' ? 'agreement_published' : row.fixture === 'connection' ? 'project_connected' : 'acceptance']);
+    if (row.fixture === 'publication') {
+      event.payload.digest = event.payload.snapshot_sha256 = evtHash(bytes('agreement text'));
+      event = await evtSign(event);
+    }
+    const mutation = row.mutation, raw = row.bytes_b64 === undefined ? null : encoding.base64urlDecode(row.bytes_b64);
+    if (mutation === 'digest_field_mismatch' || mutation === 'snapshot_sha_field_mismatch') {
+      event.payload[mutation === 'digest_field_mismatch' ? 'digest' : 'snapshot_sha256'] = evtHash(bytes('different')); event = await evtSign(event);
+    }
+    let facts = await evtFacts(event);
+    if (row.fixture === 'acceptance') Object.assign(evtFact(facts, 'prior-generations').value, Object.fromEntries(['derived_index', 'status_detail', 'reader_authority'].map(key => [key, eventRows.project_connected.event_id])));
+    let packageValue = await evtPackage(event, facts);
+    if (row.fixture === 'publication') {
+      if (['snapshot_exact', 'snapshot_digest_mismatch', 'digest_field_mismatch', 'snapshot_sha_field_mismatch'].includes(mutation)) packageValue[0] = evtArtifact(packageValue[0].kind, packageValue[0].path, raw);
+      else if (mutation === 'wrong_snapshot_path') packageValue[0].path = 'agreements/wrong.snapshot.enc.json';
+      else if (mutation.startsWith('metadata_')) packageValue[1] = evtArtifact(packageValue[1].kind, packageValue[1].path, raw);
+      else assert.fail('unhandled publication mutation ' + mutation);
+    } else if (mutation === 'missing_required') packageValue = [];
+    else if (mutation === 'extra_artifact') packageValue.push(evtArtifact('extra', 'extra.enc.json', raw));
+    else if (mutation === 'duplicate_required') packageValue = [packageValue[0], packageValue[0]];
+    else if (mutation === 'reverse_order') packageValue.reverse();
+    else if (mutation === 'wrong_kind') packageValue[0].kind = 'wrong-kind';
+    else if (mutation === 'wrong_path') packageValue[0].path = 'config/wrong.enc.json';
+    else if (mutation.startsWith('configuration_')) packageValue[1] = evtArtifact(packageValue[1].kind, packageValue[1].path, raw);
+    else if (mutation.startsWith('genesis_') || mutation.startsWith('generations_')) {
+      packageValue[0] = evtArtifact(packageValue[0].kind, packageValue[0].path, raw);
+      if (mutation === 'genesis_prior_exists') evtFact(facts, 'generations-absence').value = { absent: false };
+    } else assert.fail('unhandled package mutation ' + mutation);
+    if (row.expect === 'accept') {
+      await assert.doesNotReject(events.validateSideArtifactPackage(event, packageValue, facts, evtHead(event)), row.id);
+      await events.validateSideArtifactPackage(event, packageValue.map(({ bytes, ...item }) => ({ ...item, bytes_b64: encoding.base64urlEncode(bytes) })), facts, evtHead(event));
+    } else await assert.rejects(events.validateSideArtifactPackage(event, packageValue, facts, evtHead(event)), events.EventValidationError, row.id);
+  }
+});
+
+test('M1-15 project-wide continuous-reader limit authenticates all 32 shards and their generation join', async () => {
+  const event = eventRows.records_reader_rule_configured, facts = await evtFacts(event);
+  const distinct = new Map();
+  for (let i = 0; distinct.size < 11; i++) {
+    const id = createHash('sha256').update('M1-15 independent reader source ' + i).digest('base64url');
+    const shard = createHash('sha256').update(id, 'ascii').digest()[0] >> 3;
+    if (!distinct.has(shard)) distinct.set(shard, id);
+  }
+  const entries = [...distinct];
+  for (const count of [9, 10, 11]) {
+    const current = evtClone(facts);
+    for (const [shard, id] of entries.slice(0, count)) evtFact(current, 'active-reader-rules-' + String(shard).padStart(2, '0')).value.rule_event_ids = [id];
+    if (count === 9) await events.validatePreconditions(event, current, evtHead(event));
+    else await assert.rejects(events.validatePreconditions(event, current, evtHead(event)), events.PreconditionValidationError, 'count ' + count);
+  }
+  const wrongShard = evtClone(facts), [shard, id] = entries[0];
+  evtFact(wrongShard, 'active-reader-rules-' + String((shard + 1) % 32).padStart(2, '0')).value.rule_event_ids = [id];
+  await assert.rejects(events.validatePreconditions(event, wrongShard, evtHead(event)), events.PreconditionValidationError);
+  const missing = evtClone(facts); missing.splice(missing.findIndex(row => row.name === 'active-reader-rules-31'), 1);
+  await assert.rejects(events.validatePreconditions(event, missing, evtHead(event)), events.PreconditionValidationError);
+  const prior = evtFact(facts, 'prior-generations'); prior.value.status_detail = eventRows.revocation.event_id;
+  await events.validatePreconditions(event, facts, evtHead(event));
+  prior.value.reader_authority = eventRows.revocation.event_id;
+  await assert.rejects(events.validatePreconditions(event, facts, evtHead(event)), events.PreconditionValidationError);
+});
+
+async function evtContinuous(family) {
+  const rule = eventRows[family + '_rule_configured'];
+  const raw = evtClone(eventRows[family === 'exemption' ? 'exemption_source_withdrawn' : 'records_reader_withdrawn']);
+  raw.target.source_event_id = rule.event_id; raw.target.subject.login_snapshot = 'renamed-after-first-add';
+  const withdrawal = await evtSign(raw), firstRaw = evtClone(eventRows[family + '_materialized']);
+  firstRaw.target.rule_event_id = rule.event_id;
+  firstRaw.operation_nonce = await events.deriveAutomationNonce(rule.event_id, firstRaw.target.subject.github_user_id, firstRaw.payload.result, firstRaw.payload.prior_materialization_event_id);
+  const first = await evtSign(firstRaw), facts = await evtFacts(withdrawal);
+  evtFact(facts, 'source-event').value = evtLink(rule);
+  const proof = evtFact(facts, 'source-first-add'); proof.value = { path: proof.path, present: true, event: first };
+  return { rule, withdrawal, first, facts };
+}
+test('M1-15 historical continuous-source proof survives renames, departure, retirement and repeated withdrawal', async () => {
+  for (const golden of eventCorpus.source_first_add_paths) {
+    const { rule, withdrawal, first, facts } = await evtContinuous(golden.family), proof = evtFact(facts, 'source-first-add');
+    assert.equal(first.operation_nonce, golden.operation_nonce); assert.equal(first.event_id, golden.event_id); assert.equal(proof.path, golden.path);
+    assert.equal(rule.event_id, golden.source_event_id); assert.equal(withdrawal.project_id, golden.project_id); assert.equal(first.target.subject.github_user_id, golden.github_user_id);
+    assert.notEqual(first.target.subject.login_snapshot, withdrawal.target.subject.login_snapshot);
+    await events.validatePreconditions(withdrawal, facts, evtHead(withdrawal));
+    const empty = evtClone(facts);
+    if (golden.family === 'records_reader') {
+      const authority = evtFact(empty, 'reader-authority-state'); authority.value.source_event_ids = [];
+      assert.deepEqual(await events.requiredSideArtifacts(withdrawal, empty, evtHead(withdrawal)), []);
+      await events.validateSideArtifactPackage(withdrawal, [], empty, evtHead(withdrawal));
+      authority.value.class_state = 'stale'; authority.value.cursor_event_id = first.event_id; authority.binding.derived_generation = first.event_id;
+      assert.deepEqual((await events.requiredSideArtifacts(withdrawal, empty, evtHead(withdrawal))).map(row => row.affected_classes), [['reader_authority']]);
+      await events.validateSideArtifactPackage(withdrawal, await evtPackage(withdrawal, empty), empty, evtHead(withdrawal));
+    } else {
+      const union = empty.find(row => row.name.startsWith('current-exemption-union-')); union.value.subjects = []; union.value.provenance = {};
+      await events.validatePreconditions(withdrawal, empty, evtHead(withdrawal));
+    }
+    for (const mutate of [
+      row => { row.value = { path: row.path, present: false }; },
+      row => { row.value.path += '.wrong'; },
+      row => { row.value.extra = true; },
+      row => { row.binding.events_head = 'c'.repeat(40); },
+      row => { row.value.event.project_id = 'other-project'; },
+      row => { row.value.event.target.subject.github_user_id += 1; },
+      row => { row.value.event.payload.prior_materialization_event_id = rule.event_id; },
+      row => { row.value.event.payload.result = 'withdraw'; },
+      row => { row.value.event.payload.team.team_id += 1; },
+    ]) {
+      const bad = evtClone(facts); mutate(evtFact(bad, 'source-first-add'));
+      await assert.rejects(events.validatePreconditions(withdrawal, bad, evtHead(withdrawal)), events.PreconditionValidationError);
+    }
+  }
+  for (const row of eventCorpus.shrink_only_cases) {
+    let event = evtClone(eventRows[row.event_type]);
+    if (row.mutation === 'stale_departure') {
+      event.payload.result = 'withdraw'; event.payload.membership_evidence.state = 'not_member';
+      event.operation_nonce = await events.deriveAutomationNonce(event.target.rule_event_id, event.target.subject.github_user_id, 'withdraw', event.payload.prior_materialization_event_id); event = await evtSign(event);
+    }
+    const facts = await evtFacts(event), selected = evtFact(facts, row.event_type === 'records_reader_materialized' ? 'current-reader-authority' : 'reader-authority-state');
+    selected.value.class_state = row.state;
+    selected.value[row.event_type === 'records_reader_materialized' ? 'sources' : 'source_event_ids'] = row.source_present ? [event.target.source_event_id ?? event.target.rule_event_id] : [];
+    if (row.state === 'stale') selected.binding.derived_generation = selected.value.cursor_event_id = eventRows.revocation.event_id;
+    if (row.expect === 'defer') await assert.rejects(events.requiredSideArtifacts(event, facts, evtHead(event)), events.PreconditionValidationError, row.id);
+    else {
+      const requirements = await events.requiredSideArtifacts(event, facts, evtHead(event)); assert.equal(requirements.length > 0, row.expect === 'affected', row.id);
+      await events.validateSideArtifactPackage(event, await evtPackage(event, facts), facts, evtHead(event));
+    }
+  }
+});
+
+test('M1-15 lifecycle policy and confirmed heads use the same shared mutation cases', async () => {
+  for (const row of eventCorpus.head_binding_cases) {
+    const event = eventRows[row.event_type], facts = await evtFacts(event);
+    if (row.mutation === 'earlier_head') {
+      const selected = evtFact(facts, 'project-lifecycle'); selected.binding.canonical_sha = 'c'.repeat(40);
+    } else if (row.mutation === 'succeeded_lifecycle') Object.assign(evtFact(facts, 'project-lifecycle').value, { state: 'succeeded', successor_project_id: 'successor-project' });
+    else assert.equal(row.mutation, 'confirmed_head');
+    await assert.rejects(events.requiredSideArtifacts(event, facts, row.mutation === 'confirmed_head' ? 'b'.repeat(40) : evtHead(event)), events.PreconditionValidationError, row.id);
+  }
+  for (const row of eventCorpus.lifecycle_cases) {
+    let event = evtClone(eventRows[row.event_type]), overrides = {};
+    if (row.authorization_operation) {
+      // Keep the complete event valid while testing the lifecycle-specific disposition.
+      const fixture = authorizationCorpus.scope_cases.find(value => value.operation === row.authorization_operation), authorization = evtScopeAuthorization(fixture);
+      event.authorizations = [authorization];
+      if (event.type === 'enforcement_scope_requested') Object.assign(event.payload, { prior_scope: fixture.prior_scope, desired_scope: fixture.desired_scope });
+      else {
+        event.payload.desired_scope = fixture.desired_scope;
+        overrides['scope-request'] = { event_id: event.payload.request_event_id, type: 'enforcement_scope_requested', project_id: event.project_id, target: { change_id: event.target.change_id }, payload: { prior_scope: fixture.prior_scope, desired_scope: fixture.desired_scope, prior_registry_generation: 0 }, authorizations: [authorization] };
+      }
+      event = await evtSign(event);
+    }
+    overrides['project-lifecycle'] = { project_id: event.project_id, state: row.state, successor_project_id: row.state === 'succeeded' ? 'successor-project' : null };
+    const facts = await evtFacts(event, overrides);
+    if (row.expect === 'accept') await assert.doesNotReject(events.validatePreconditions(event, facts, evtHead(event)), row.id);
+    else await assert.rejects(events.validatePreconditions(event, facts, evtHead(event)), events.PreconditionValidationError, row.id);
+  }
+});
+
+test('M1-15 closed nested event schemas reject extra fields, unsafe values and changed byte identities', async () => {
+  const paths = value => {
+    const result = [];
+    function visit(item, path) {
+      if (!item || typeof item !== 'object') return;
+      if (!Array.isArray(item)) result.push(path);
+      for (const [key, child] of Object.entries(item)) visit(child, [...path, key]);
+    }
+    visit(value, []); return result;
+  };
+  for (const event of eventCorpus.events) {
+    for (const path of paths(event)) {
+      const raw = evtClone(event); let item = raw;
+      for (const key of path) item = item[key];
+      Object.defineProperty(item, 'unknown_v1_member', { value: true, enumerable: true, writable: true });
+      await assert.rejects(async () => events.validateEvent(await evtSign(raw)), events.EventValidationError, event.type + '/' + path.join('/'));
+    }
+    for (const key of Object.keys(event)) {
+      const raw = evtClone(event); delete raw[key];
+      await assert.rejects(events.validateEvent(raw), events.EventValidationError, event.type + '/' + key);
+    }
+    await assert.rejects(events.validateEvent(event, { expectedProjectId: 'other' }), events.EventValidationError);
+    await assert.rejects(events.validateEvent(event, { expectedPath: events.eventPath(eventRows.project_connected.event_id) + '.wrong' }), events.EventValidationError);
+  }
+  const invalidUrls = ['https:example.test', 'https:///example.test', 'https://exa mple.test/path', 'https://example.test/%ZZ', 'https://example.test/foo\\bar', 'https://example.test/\npath', 'https://', 'https://:443/path', 'https://[bad]/path', 'https://example.test:bad/path', 'https://example.test:65536/path', 'https://example.test:/path', 'http://example.test', 'https://user:secret@example.test'];
+  for (const url of invalidUrls) {
+    const raw = evtClone(eventRows.config_updated); raw.payload.project_configuration.privacy_policy_url = url;
+    await assert.rejects(events.validateEvent(await evtSign(raw)), events.EventValidationError, url);
+  }
+  for (const value of [true, '1', 0, 2, 1.1]) {
+    const raw = evtClone(eventRows.config_updated); raw.schema_version = value;
+    await assert.rejects(events.validateEvent(raw), events.EventValidationError);
+  }
+  for (const value of [null, [], 'event', Object.assign({}, { secret_marker: 'M1-15-private-input' }), { get type() { throw Error('must not invoke accessor'); } }]) await assert.rejects(events.validateEvent(value), events.EventValidationError);
+  for (const value of ['', 'bad', 'AA=', 'a'.repeat(43)]) assert.throws(() => events.eventPath(value), events.EventIdentityError);
+  assert.throws(() => events.stableActorIdentity({ kind: 'automation', principal: 'unknown' }), events.EventIdentityError);
+  for (const call of [() => events.deriveAutomationNonce('', 7, 'add', null), () => events.deriveAutomationNonce('rule', false, 'add', null), () => events.deriveAutomationNonce('rule', 7, 'other', null), () => events.deriveGithubRetryNonce(1, 'other', 1, null), () => events.deriveGithubRetryNonce(1, 'merge_group', 'bad', null), () => events.deriveScopeTerminalNonce('request', 'other')]) await assert.rejects(call(), events.EventIdentityError);
+  const base = eventIdentities.event_identity, input = { ...Object.fromEntries(['project_id', 'operation_nonce', 'actor', 'target', 'payload', 'confirmed_canonical_oid'].map(key => [key, evtClone(base[key])])), type: base.event_type };
+  const changed = await events.deriveEventIdentity({ ...input, payload: eventIdentities.changed_payload.changed_payload });
+  assert.equal(changed.event_id, base.event_id); assert.equal(changed.idempotency_key, base.idempotency_key); assert.notEqual(changed.operation_sha256, base.operation_sha256);
+});
+
+test('M1-15 URL acceptance preserves the non-normalizing Python configuration contract', async () => {
+  const accepted = [
+    'https://example.test/\ufeffpath', 'https://127.0.0.999/path', 'https://%00.example/path',
+    'https://[v1.foo]/path', 'https://example.test/path', 'HTTPS://example.test:000443/path',
+    'https://@example.test/path', 'https://:@example.test/path', 'https://[::1]:0/path',
+    'https://[::ffff:192.168.1.1]/path', 'https://[fe80::1%25zone]/path',
+    'https://例え.test/path', 'https://example.test:65535/path',
+  ];
+  const rejected = [
+    'https://example.test/\u0085path', 'https://example.test/\u001cpath',
+    ...['\u00a0', '\u1680', '\u2000', '\u200a', '\u2028', '\u2029', '\u202f', '\u205f', '\u3000'].map(c => 'https://example.test/' + c),
+    'https://example.test：443/path', 'https://example.test／path',
+    'https://user@example.test', 'https://:password@example.test', 'https://@@example.test',
+    'https://[V1.foo]/path', 'https://[v.foo]/path', 'https://[v1.]/path',
+    'https://[127.0.0.1]/path', 'https://[::ffff:192.168.001.1]/path',
+    'https://[::1%25zone%25other]/path', 'https://[::1]extra/path', 'https://host[::1]/path',
+    'https://[::1]]/path', 'https://[::1]:/path', 'https://[::1]:65536/path',
+    'https://example.test:１２/path', 'https://example.test:1:2/path',
+  ];
+  for (const [urls, valid] of [[accepted, true], [rejected, false]]) {
+    for (const url of urls) {
+      const raw = evtClone(eventRows.config_updated);
+      raw.payload.project_configuration.privacy_policy_url = url;
+      const event = await evtSign(raw);
+      if (valid) {
+        const validated = await events.validateEvent(event);
+        assert.equal(validated.payload.project_configuration.privacy_policy_url, url);
+      } else await assert.rejects(events.validateEvent(event), events.EventValidationError, url);
+    }
+  }
+});
+
+test('M1-15 correction evidence, registry transitions and union effects remain fully bound', async () => {
+  const raw = evtClone(eventRows.acceptance); raw.payload.supersedes = raw.event_id; const correction = await evtSign(raw);
+  const correctionFacts = await evtFacts(correction); await events.validatePreconditions(correction, correctionFacts, evtHead(correction));
+  for (const [name, path, value] of [
+    ['superseded-acceptance', ['target', 'version'], 'other'], ['superseded-acceptance', ['event_id'], eventRows.revocation.event_id],
+    ['current-acceptance-basis', ['basis', 'event_id'], eventRows.revocation.event_id], ['current-acceptance-basis', ['github_user_id'], 8],
+    ['active-agreement', ['publication', 'payload', 'digest'], 'sha256:' + 'b'.repeat(64)], ['current-configuration', ['confirmation_labels'], []],
+  ]) {
+    const facts = evtClone(correctionFacts); let row = evtFact(facts, name).value;
+    for (const key of path.slice(0, -1)) row = row[key]; row[path.at(-1)] = value;
+    await assert.rejects(events.validatePreconditions(correction, facts, evtHead(correction)), events.PreconditionValidationError, name + '/' + path.join('/'));
+  }
+  const withdrawing = eventRows.exemption_rule_withdrawn, facts = await evtFacts(withdrawing);
+  assert.deepEqual((await events.requiredSideArtifacts(withdrawing, facts, evtHead(withdrawing)))[0].affected_classes, ['derived_index', 'status_detail']);
+  const union = facts.find(row => row.name.startsWith('current-exemption-union-') && row.value.subjects.length);
+  union.value.provenance[String(union.value.subjects[0].github_user_id)].push(eventRows.exemption.event_id);
+  assert.deepEqual((await events.requiredSideArtifacts(withdrawing, facts, evtHead(withdrawing)))[0].affected_classes, ['status_detail']);
+  await events.validateSideArtifactPackage(withdrawing, await evtPackage(withdrawing, facts), facts, evtHead(withdrawing));
+  const restored = eventRows.agreement_activation_restored, restoreFacts = await evtFacts(restored);
+  await events.validateSideArtifactPackage(restored, [], restoreFacts, evtHead(restored));
+  for (const event of [eventRows.project_repository_owner_changed, eventRows.enforcement_scope_requested, eventRows.enforcement_scope_activated, eventRows.enforcement_scope_abandoned]) {
+    const original = await evtFacts(event), name = event.type === 'project_repository_owner_changed' ? 'current-repository-owner' : 'current-scope';
+    for (const entryName of Object.keys(evtFact(original, name).value)) {
+      const bad = evtClone(original); evtFact(bad, name).value[entryName].project_id = 'other';
+      await assert.rejects(events.validatePreconditions(event, bad, evtHead(event)), events.PreconditionValidationError);
+    }
+  }
+  const materialized = eventRows.records_reader_materialized, materializedFacts = await evtFacts(materialized);
+  evtFact(materializedFacts, 'current-reader-authority').value.source_record_present = false;
+  await assert.rejects(events.validatePreconditions(materialized, materializedFacts, evtHead(materialized)), events.PreconditionValidationError);
+  const malformed = evtClone(restoreFacts); malformed[0].binding_mode = 'unknown'; malformed[0].binding.mode = 'unknown';
+  await assert.rejects(events.validatePreconditions(restored, malformed, evtHead(restored)), events.PreconditionValidationError);
+});
+
+test('M1-15 async validation owns caller event, authenticated facts and artifact bytes', async () => {
+  const raw = evtClone(eventRows.config_updated), expected = evtClone(raw);
+  const pending = events.validateEvent(raw); raw.project_id = 'changed'; raw.payload.project_configuration.retention_statement = 'changed';
+  const event = await pending; assert.deepEqual(event, expected); assert.ok(Object.isFrozen(event.payload.project_configuration.required_fields));
+  const facts = await evtFacts(expected), packageValue = await evtPackage(expected, facts);
+  const validation = events.validateSideArtifactPackage(expected, packageValue, facts, evtHead(expected));
+  expected.payload.project_configuration.retention_statement = 'changed'; facts[0].value.project_id = 'changed'; packageValue[0].bytes.fill(0); packageValue[0].path = 'changed';
+  await validation;
+  const source = evtClone(eventRows.config_updated), originalFacts = await evtFacts(source), checks = events.validatePreconditions(source, originalFacts, evtHead(source));
+  source.project_id = 'changed'; originalFacts[0].value.project_id = 'changed';
+  const result = await checks; assert.ok(Object.isFrozen(result[0].value)); assert.equal(result[0].value.project_id, 'project-1');
+  const valid = eventRows.project_connected, validFacts = await evtFacts(valid), validPackage = await evtPackage(valid, validFacts);
+  for (const change of [row => { row.sha256 = 'sha256:' + '0'.repeat(64); }, row => { row.bytes = bytes('{'); row.sha256 = evtHash(row.bytes); }, row => { row.extra = true; }, row => { row.bytes_b64 = 'e30'; }, row => { row.bytes = 'not bytes'; }]) {
+    const invalid = evtClone(validPackage); change(invalid[0]);
+    await assert.rejects(events.validateSideArtifactPackage(valid, invalid, validFacts, evtHead(valid)), events.SideArtifactValidationError);
+  }
+  const invalidB64 = evtClone(validPackage).map(({ bytes, ...row }) => ({ ...row, bytes_b64: '!' }));
+  await assert.rejects(events.validateSideArtifactPackage(valid, invalidB64, validFacts, evtHead(valid)), events.SideArtifactValidationError);
 });
