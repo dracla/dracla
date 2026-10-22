@@ -1493,3 +1493,244 @@ test('M1-16 fence and marker decoding own byte views; invalid transition facts n
     { checkIdentity: operations.check_identity.expected, projectionCommit: opHead }), operationState.OperationConflict);
   assert.throws(() => operationState.releaseSuccess(opFences.idle, opFences.idle, { completionVerified: true }), operationState.OperationConflict);
 });
+
+// M1-17 consumes the checked-in reference outputs; it never runs Python/replay.
+const edgeCoverage = await import('../.conformance-build/conformance/coverage.js');
+function coverageFiles(basis = null, exempt = false) {
+  const files = structuredClone(coverage.empty_files);
+  files['agreements/active.enc.json'] = structuredClone(coverage.active);
+  if (basis) files['users/07.enc.json']['7'] = { agreements: { 'agreement-1': structuredClone(coverage[basis]) }, overrides: {} };
+  if (exempt) files['exemptions.enc.json']['7'] = { active: true };
+  return files;
+}
+function coverageUpdateInput(c) {
+  const input = c.input;
+  const options = { expectedHead: c.before.canonical_oid, builtAt: input.built_at, draclaVersion: input.dracla_version, operationState: input.operation_state };
+  if (Object.hasOwn(input, 'prior_exemption_union')) options.priorExemptionUnion = {
+    project_id: transitions.project_id, canonical_oid: c.before.canonical_oid, sources: input.prior_exemption_union,
+  };
+  if (input.record.event.type === 'agreement_activation_restored') options.restoredActivation = {
+    project_id: transitions.project_id, canonical_oid: c.before.canonical_oid,
+    event: c.history.find(r => r.event.event_id === input.record.event.target.activation_event_id).event,
+  };
+  return structuredClone({ record: input.record, options });
+}
+async function applyCoverageCase(c) {
+  const before = await edgeCoverage.coverageProjection(transitions.project_id, c.before.coverage, c.before.canonical_oid);
+  const { record, options } = coverageUpdateInput(c);
+  return { before, after: await edgeCoverage.updateCoverage(before, record, options) };
+}
+test('M1-17 every incremental coverage triple equals reference bytes and exact logical delta', async () => {
+  const families = new Set(), shards = new Set();
+  for (const c of transitions.cases) {
+    const { before, after } = await applyCoverageCase(c);
+    assert.deepEqual(after.toDict(), c.after.coverage, c.id);
+    assert.equal(after.projectId, transitions.project_id);
+    const plain = after.plaintextFiles();
+    assert.equal(Object.keys(plain).length, 37);
+    for (const [path, expected] of Object.entries(c.after.coverage)) assert.deepEqual(plain[path], wire(expected), c.id + ':' + path);
+    assert.deepEqual(edgeCoverage.coverageDelta(before, after).files, c.changed.coverage, c.id);
+    for (const shard of edgeCoverage.coverageDelta(before, after).shards) shards.add(shard);
+    families.add(c.input.record.event.type);
+  }
+  assert.equal(families.size, 27);
+  assert.deepEqual([...shards].sort((a, b) => a - b), Array.from({ length: 32 }, (_, i) => i));
+});
+test('M1-17 fixed subject decisions, currency restore and combined bases match reference', async () => {
+  for (const c of [...coverage.evaluation_cases, ...coverage.combined_basis_cases]) {
+    const files = coverageFiles(c.basis, c.exempt);
+    Object.assign(files['agreements/active.enc.json'], c.active ?? {});
+    const p = await edgeCoverage.coverageProjection('project-1', files);
+    const d = await edgeCoverage.evaluateSubject(p, 7, 'agreement-1');
+    assert.deepEqual([d.decision, d.reason_code], c.expected, c.name);
+    assert.equal(d.overridden, false); assert.equal(d.successor_project_id, null);
+  }
+  const before = await edgeCoverage.coverageProjection('project-1', coverageFiles('signed'));
+  for (const c of coverage.currency_cases) {
+    const files = before.toDict();
+    Object.assign(files['agreements/active.enc.json'], Object.fromEntries(Object.entries(c).filter(([k]) => k !== 'expected')));
+    const p = await edgeCoverage.coverageProjection('project-1', files);
+    const d = await edgeCoverage.evaluateSubject(p, 7, 'agreement-1');
+    assert.deepEqual([d.decision, d.reason_code], c.expected);
+    assert.deepEqual(edgeCoverage.coverageDelta(before, p).shards, []);
+  }
+  for (const c of coverage.shard_cases) assert.equal(edgeCoverage.coverageShard(c.user, 32), c.expected);
+  assert.equal(edgeCoverage.coverageShard(Number.MAX_SAFE_INTEGER, 32), 31);
+  for (const id of [0, -1, 1.1, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, true, '7']) assert.throws(() => edgeCoverage.coverageShard(id, 32));
+  for (const count of [0, 31, 33, '32', true]) assert.throws(() => edgeCoverage.coverageShard(7, count));
+});
+test('M1-17 subject and project fences fail closed with open or empty markers, succession takes precedence', async () => {
+  for (const subjects of [[], [7], [8]]) for (const open of [false, true]) {
+    const files = coverageFiles('signed', true), f = structuredClone(coverage.operation_states.fences.mutation);
+    f.subjects = subjects; f.project_wide = !subjects.length;
+    files['decision-fence.enc.json'] = f;
+    if (open) {
+      const marker = structuredClone(coverage.operation_states.markers.open);
+      Object.assign(Object.values(marker.ops)[0], { subjects, project_wide: !subjects.length }); files['inflight.enc.json'] = marker;
+    }
+    const p = await edgeCoverage.coverageProjection('project-1', files);
+    const d = await edgeCoverage.evaluateSubject(p, 7, 'agreement-1');
+    assert.equal(d.reason_code, subjects.includes(8) ? 'signed' : 'indeterminate');
+    files['source.enc.json'].project_state = 'succeeded'; files['source.enc.json'].successor_project_id = 'next';
+    const s = await edgeCoverage.coverageProjection('project-1', files);
+    assert.deepEqual(await edgeCoverage.evaluateSubject(s, 7, 'agreement-1'), { decision: 'uncovered', reason_code: null, overridden: false, successor_project_id: 'next' });
+  }
+});
+test('M1-17 exact override tuple grants no generic signature and cannot hide indeterminate basis', async () => {
+  const c = transitions.cases.find(c => c.input.record.event.type === 'override');
+  const { after } = await applyCoverageCase(c), e = c.input.record.event;
+  const id = e.payload.subjects[0].github_user_id;
+  const context = { repository_id: e.target.repository_id, pull_request_number: e.target.pull_request_number, tree_oid: e.target.tree_oid };
+  const d = await edgeCoverage.evaluateSubject(after, id, 'agreement-1', context);
+  assert.equal(d.decision, 'covered'); assert.equal(d.overridden, true); assert.equal(d.reason_code, null);
+  for (const changed of [{ ...context, repository_id: context.repository_id + 1 }, { ...context, pull_request_number: context.pull_request_number + 1 }, { ...context, tree_oid: 'f'.repeat(40) }, null]) {
+    assert.equal((await edgeCoverage.evaluateSubject(after, id, 'agreement-1', changed)).overridden, false);
+  }
+  const files = after.toDict(); files[`users/${String(id % 32).padStart(2, '0')}.enc.json`][id].agreements['agreement-1'] = coverage.unresolved;
+  const p = await edgeCoverage.coverageProjection('project-1', files);
+  assert.equal((await edgeCoverage.evaluateSubject(p, id, 'agreement-1', context)).reason_code, 'indeterminate');
+});
+test('M1-17 coverage snapshots reject malformed whole state and every marker fence inconsistency', async () => {
+  const mutations = [
+    f => { delete f['users/31.enc.json']; }, f => { f.extra = {}; },
+    f => { f['agreements/active.enc.json'].projection_format = 2; }, f => { f['agreements/active.enc.json'].shard_count = 31; },
+    f => { f['users/31.enc.json']['7'] = { agreements: {}, overrides: {} }; },
+    f => { f['users/31.enc.json']['31'] = { agreements: {}, overrides: {}, login_snapshot: 'private' }; },
+    f => { f['users/07.enc.json']['7'].agreements['agreement-1'].reason_code = 'exempt'; },
+    f => { f['source.enc.json'].private = true; }, f => { f['source.enc.json'].project_state = 'unknown'; },
+    f => { f['source.enc.json'].canonical_sha += '\n'; }, f => { f['source.enc.json'].built_at = '2026-02-30T00:00:00Z'; },
+    f => { f['source.enc.json'].project_state = 'succeeded'; f['source.enc.json'].successor_project_id = 'project-1'; },
+    f => { f['exemptions.enc.json']['07'] = { active: true }; }, f => { f['exemptions.enc.json']['7'] = { active: false }; },
+    f => { f['inflight.enc.json'] = structuredClone(coverage.operation_states.markers.open); },
+    f => { f['inflight.enc.json'] = structuredClone(coverage.operation_states.markers.open); f['decision-fence.enc.json'] = structuredClone(coverage.operation_states.fences.success); },
+  ];
+  for (const mutate of mutations) {
+    const f = coverageFiles('signed'); mutate(f);
+    await assert.rejects(edgeCoverage.coverageProjection('project-1', f), edgeCoverage.CoverageError);
+  }
+  for (const field of ['operation_id', 'operation_sha256', 'subjects', 'project_wide']) {
+    const f = coverageFiles('signed'); f['inflight.enc.json'] = structuredClone(coverage.operation_states.markers.open);
+    f['decision-fence.enc.json'] = structuredClone(coverage.operation_states.fences.mutation);
+    const fence = f['decision-fence.enc.json'];
+    if (field === 'operation_id') fence[field] = encoding.base64urlEncode(new Uint8Array(32));
+    if (field === 'operation_sha256') fence[field] = 'sha256:' + '0'.repeat(64);
+    if (field === 'subjects' || field === 'project_wide') { fence.subjects = [7]; fence.project_wide = false; }
+    await assert.rejects(edgeCoverage.coverageProjection('project-1', f), edgeCoverage.CoverageError);
+  }
+  const grant = transitions.cases.find(c => c.input.record.event.type === 'override').after.coverage;
+  const f = structuredClone(grant), row = Object.values(f['users/07.enc.json'])[0], key = Object.keys(row.overrides)[0];
+  row.overrides.bad = row.overrides[key]; delete row.overrides[key];
+  await assert.rejects(edgeCoverage.coverageProjection('project-1', f), edgeCoverage.CoverageError);
+  for (const c of coverage.version_ordering_cases) {
+    const f = coverageFiles(); f['agreements/active.enc.json'][c.set] = c.canonical_values;
+    f['agreements/active.enc.json'].active_version = c.active_version;
+    await edgeCoverage.coverageProjection('project-1', f);
+    f['agreements/active.enc.json'][c.set] = c.reversed_values;
+    await assert.rejects(edgeCoverage.coverageProjection('project-1', f), edgeCoverage.CoverageError);
+  }
+});
+test('M1-17 missing, stale, incomplete and inconsistent exemption unions are rejected', async () => {
+  for (const type of ['exemption', 'exemption_snapshot', 'exemption_materialized', 'exemption_source_withdrawn', 'exemption_rule_withdrawn']) {
+    const c = transitions.cases.find(c => c.input.record.event.type === type);
+    const before = await edgeCoverage.coverageProjection(transitions.project_id, c.before.coverage);
+    const { record, options } = coverageUpdateInput(c);
+    const mutations = [o => { delete o.priorExemptionUnion; }, o => { o.priorExemptionUnion.canonical_oid = 'f'.repeat(40); },
+      o => { o.priorExemptionUnion.project_id = 'other'; }, o => { o.priorExemptionUnion.sources = {}; },
+      o => { o.priorExemptionUnion.sources['07'] = []; }, o => { o.priorExemptionUnion.sources['8'] = ['invalid']; }];
+    for (const mutate of mutations) {
+      const o = structuredClone(options); mutate(o);
+      await assert.rejects(edgeCoverage.updateCoverage(before, record, o), edgeCoverage.CoverageError, type);
+    }
+  }
+  const c = transitions.cases.find(c => c.input.record.event.type === 'exemption_source_withdrawn' && Object.values(c.input.prior_exemption_union).some(v => v.length > 1));
+  const { before, after } = await applyCoverageCase(c);
+  assert.deepEqual(after.toDict()['exemptions.enc.json'], before.toDict()['exemptions.enc.json']);
+  const { record, options } = coverageUpdateInput(c); options.priorExemptionUnion.sources['7'] = [];
+  await assert.rejects(edgeCoverage.updateCoverage(before, record, options), edgeCoverage.CoverageError);
+});
+test('M1-17 restores require the exact authenticated original activation and immutable source', async () => {
+  const c = transitions.cases.find(c => c.input.record.event.type === 'agreement_activation_restored');
+  const before = await edgeCoverage.coverageProjection(transitions.project_id, c.before.coverage);
+  const { record, options } = coverageUpdateInput(c);
+  for (const mutate of [o => { delete o.restoredActivation; }, o => { o.restoredActivation.canonical_oid = 'f'.repeat(40); },
+    o => { o.restoredActivation.project_id = 'other'; }, o => { o.restoredActivation.event = c.history[0].event; },
+    o => { o.restoredActivation.event.target.version = 'fake'; }]) {
+    const o = structuredClone(options); mutate(o);
+    await assert.rejects(edgeCoverage.updateCoverage(before, record, o), edgeCoverage.CoverageError);
+  }
+  for (const mutate of [r => { r.parent_oid = 'f'.repeat(40); }, r => { r.commit_oid = r.parent_oid; },
+    r => { r.commit_oid += '\n'; }, r => { r.extra = {}; }, r => { r.event.operation_sha256 = 'sha256:' + '0'.repeat(64); }]) {
+    const r = structuredClone(record); mutate(r); await assert.rejects(edgeCoverage.updateCoverage(before, r, options), edgeCoverage.CoverageError);
+  }
+  await assert.rejects(edgeCoverage.updateCoverage(before, record, { ...options, expectedHead: 'f'.repeat(40) }), edgeCoverage.CoverageError);
+});
+test('M1-17 reader-only appends advance canonical binding while private derivation remains unwritten', async () => {
+  for (const c of transitions.cases.filter(c => c.input.record.event.type.startsWith('records_reader'))) {
+    const { before, after } = await applyCoverageCase(c);
+    assert.deepEqual(edgeCoverage.coverageDelta(before, after).files, ['source.enc.json'], c.id);
+    edgeCoverage.validateCoverageProjection(after, transitions.project_id, c.after.canonical_oid);
+    assert.throws(() => edgeCoverage.validateCoverageProjection(after, transitions.project_id, c.before.canonical_oid));
+    // The updater has no derived-state parameter. This independent stale copy
+    // remains unchanged while coverage already binds the appended canonical head.
+    const privateBefore = structuredClone(c.before.derived);
+    assert.deepEqual(privateBefore, c.before.derived);
+    assert.deepEqual(after.toDict(), c.after.coverage);
+  }
+});
+test('M1-17 snapshots, update observations and override contexts own inputs before await', async () => {
+  const input = coverageFiles('signed'), promise = edgeCoverage.coverageProjection('project-1', input);
+  input['users/07.enc.json']['7'].agreements['agreement-1'].reason_code = 'revoked';
+  const p = await promise; assert.equal((await edgeCoverage.evaluateSubject(p, 7, 'agreement-1')).reason_code, 'signed');
+  assert.ok(Object.isFrozen(p)); const copy = p.toDict(); copy['source.enc.json'].canonical_sha = 'f'.repeat(40);
+  const plain = p.plaintextFiles(); plain['source.enc.json'].fill(0);
+  assert.notDeepEqual(p.plaintextFiles()['source.enc.json'], plain['source.enc.json']);
+  assert.deepEqual(edgeCoverage.coverageDelta(p, p), { files: [], shards: [] });
+  assert.throws(() => edgeCoverage.validateCoverageProjection({ ...p }, 'project-1'), edgeCoverage.CoverageError);
+  assert.throws(() => edgeCoverage.validateCoverageProjection(p, 'other'), edgeCoverage.CoverageError);
+  await assert.rejects(edgeCoverage.evaluateSubject(p, 7, 'other'), edgeCoverage.CoverageError);
+  for (const context of [{ repository_id: 1, pull_request_number: 2, tree_oid: 'f'.repeat(40), extra: true }, { repository_id: 0, pull_request_number: 2, tree_oid: 'f'.repeat(40) }]) {
+    await assert.rejects(edgeCoverage.evaluateSubject(p, 7, 'agreement-1', context));
+  }
+  for (const type of ['exemption', 'agreement_activation_restored', 'override']) {
+    const c = transitions.cases.find(c => c.input.record.event.type === type);
+    const before = await edgeCoverage.coverageProjection(transitions.project_id, c.before.coverage);
+    const { record, options } = coverageUpdateInput(c), pending = edgeCoverage.updateCoverage(before, record, options);
+    record.event.target = {}; options.operationState[0].ops = { bad: {} }; options.expectedHead = 'f'.repeat(40);
+    if (options.priorExemptionUnion) options.priorExemptionUnion.sources = {};
+    if (options.restoredActivation) options.restoredActivation.event.target.version = 'wrong';
+    assert.deepEqual((await pending).toDict(), c.after.coverage, type);
+  }
+});
+test('M1-17 operational crash windows reproduce the reference without an append or private branch', async () => {
+  for (const c of transitions.operational_cases) {
+    const before = await edgeCoverage.coverageProjection(transitions.project_id, c.before.coverage);
+    const after = await edgeCoverage.updateCoverageOperations(before, c.input.operation_state);
+    assert.deepEqual(after.toDict(), c.after.coverage, c.id);
+    assert.equal(after.toDict()['source.enc.json'].canonical_sha, before.toDict()['source.enc.json'].canonical_sha);
+    const changed = edgeCoverage.coverageDelta(before, after).files;
+    assert.ok(changed.every(path => ['inflight.enc.json', 'decision-fence.enc.json'].includes(path)));
+  }
+});
+test('M1-17 dynamic agreement keys remain data and untouched empty rows are preserved', async () => {
+  for (const agreement of ['__proto__', 'constructor', 'toString']) {
+    const f = coverageFiles(); f['agreements/active.enc.json'].agreement_id = agreement;
+    const p = await edgeCoverage.coverageProjection('project-1', f);
+    assert.equal((await edgeCoverage.evaluateSubject(p, 7, agreement)).reason_code, 'not_signed');
+    const c = structuredClone(transitions.cases.find(c => c.input.record.event.type === 'acceptance'));
+    c.before.coverage['agreements/active.enc.json'].agreement_id = agreement;
+    c.input.record.event.target.coverage_tuple.agreement_id = agreement;
+    const event = c.input.record.event;
+    Object.assign(event, await events.deriveEventIdentity({ project_id: event.project_id, operation_nonce: event.operation_nonce, actor: event.actor,
+      type: event.type, target: event.target, payload: event.payload, confirmed_canonical_oid: event.confirmed_canonical_oid }));
+    delete event.path;
+    const before = await edgeCoverage.coverageProjection('project-1', c.before.coverage);
+    const { record, options } = coverageUpdateInput(c), after = await edgeCoverage.updateCoverage(before, record, options);
+    const agreements = after.toDict()['users/07.enc.json']['7'].agreements;
+    assert.ok(Object.hasOwn(agreements, agreement));
+    assert.equal((await edgeCoverage.evaluateSubject(after, 7, agreement)).reason_code, 'signed');
+  }
+  const c = structuredClone(transitions.cases.find(c => c.input.record.event.type === 'override_withdrawn'));
+  c.before.coverage['users/31.enc.json']['31'] = { agreements: {}, overrides: {} };
+  const { after } = await applyCoverageCase(c);
+  assert.deepEqual(after.toDict()['users/31.enc.json']['31'], { agreements: {}, overrides: {} });
+});
