@@ -414,6 +414,8 @@ function scope(value: unknown): ObjectValue[] {
     return values;
 }
 function scopeIdentity(row: ObjectValue): string { return `${row.kind}:${row.repository_id ?? row.organization_id}`; }
+/** Closed effective-scope validation shared with private-derived reads. */
+export { scope as validateEnforcementScope };
 function authorizationRow(value: unknown): ObjectValue {
     const row = object(value, ['operation', 'resource_kind', 'resource_id', 'required_authority', 'observed_authority', 'authorized', 'checked_at', 'github_request_id']);
     require(AUTH_ROWS.some(item => item[1] === row.operation && item[2] === row.resource_kind && item[3] === row.required_authority), 'authorization operation/authority mismatch');

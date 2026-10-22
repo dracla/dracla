@@ -1734,3 +1734,213 @@ test('M1-17 dynamic agreement keys remain data and untouched empty rows are pres
   const { after } = await applyCoverageCase(c);
   assert.deepEqual(after.toDict()['users/31.enc.json']['31'], { agreements: {}, overrides: {} });
 });
+
+const edgeDerived = await import('../.conformance-build/conformance/derived.js');
+const derivedConsumed = { triples: new Set(), operations: new Set(), reads: new Set(), publications: new Set() };
+const privateModel = (endpoint, projectId = transitions.project_id) => edgeDerived.derivedPlaintext(projectId, endpoint.canonical_oid, endpoint.derived ?? endpoint.plaintext, profile);
+async function encodedPrivate(model, recipe) {
+  return Object.fromEntries(await Promise.all(Object.entries(model.plaintextFiles()).map(async ([path, raw]) => [path, await envelope.encryptArtifact(raw, { projectId: model.projectId, identity: identity(path), kid: unhex(recipe.kid_hex), key: unhex(recipe.key_hex) })])));
+}
+const rulesForRow = row => Object.fromEntries(Object.entries(row.exemption_sources ?? {}).filter(([, s]) => s.source_kind === 'continuous_team').map(([id, s]) => [id, { team: s.team, basis: s.basis, instrument_ref: s.instrument_ref }]));
+test('M1-18 every incremental private triple equals exact reference bytes and affected-only deltas', async t => {
+  t.mock.method(crypto, 'getRandomValues', array => { array.fill(0); return array; });
+  const families = new Set(), touched = new Set();
+  for (const c of transitions.cases) {
+    const before = await privateModel(c.before);
+    const after = await edgeDerived.updateDerived(before, c.input.record, c.before.canonical_oid);
+    assert.deepEqual(after.toDict(), c.after.derived, c.id);
+    for (const [path, raw] of Object.entries(after.plaintextFiles())) assert.deepEqual(raw, wire(c.after.derived.files[path]), c.id + ':' + path);
+    const delta = edgeDerived.derivedDelta(before, after);
+    assert.deepEqual(delta.files, c.changed.derived, c.id);
+    for (const path of delta.files) touched.add(path);
+    families.add(c.input.record.event.type);
+    if (c.publication) {
+      const encoded = await encodedPrivate(after, c.publication.crypto);
+      const assembled = await edgeDerived.assembleDerivedProjection(after, c.after.generations, encoded);
+      assert.deepEqual(assembled.plaintextFiles()['derived/state.enc.json'], new Uint8Array(Buffer.from(c.publication.after.state_bytes_b64, 'base64url')), c.id);
+      const prior = await edgeDerived.assembleDerivedProjection(before, c.before.generations, await encodedPrivate(before, c.publication.crypto));
+      const updated = await edgeDerived.updateDerivedProjection(prior, c.input.record, { expectedHead: c.before.canonical_oid, priorGenerations: c.before.generations, generations: c.after.generations, encryptedShards: encoded });
+      assert.equal(updated.skipped, false); assert.deepEqual(updated.projection.stateDict(), assembled.stateDict());
+      for (const path of c.publication.unchanged_shards) assert.equal(assembled.stateDict().shard_digests[path.includes('/reader-authority/') ? 'reader_authority' : path.includes('/status-detail/') ? 'status_detail' : 'derived_index'][path.slice(-11, -9)], prior.stateDict().shard_digests[path.includes('/reader-authority/') ? 'reader_authority' : path.includes('/status-detail/') ? 'status_detail' : 'derived_index'][path.slice(-11, -9)]);
+    }
+    derivedConsumed.triples.add(c.id);
+  }
+  assert.equal(families.size, 27);
+  assert.ok(touched.has('derived/state.enc.json'));
+  assert.deepEqual([...new Set([...touched].filter(p => p !== 'derived/state.enc.json').map(p => Number(p.slice(-11, -9))))].sort((a, b) => a - b), Array.from({ length: 32 }, (_, i) => i));
+});
+test('M1-18 all operational windows preserve private bytes and all live read overlays match Python', async () => {
+  for (const c of transitions.operational_cases) {
+    const before = await edgeDerived.derivedPlaintext(transitions.project_id, c.before.coverage['source.enc.json'].canonical_sha, c.before.derived, profile);
+    assert.deepEqual(c.before.derived, c.after.derived, c.id);
+    for (const [path, raw] of Object.entries(before.plaintextFiles())) assert.deepEqual(raw, wire(c.after.derived.files[path]), c.id);
+    derivedConsumed.operations.add(c.id);
+  }
+  for (const c of transitions.read_cases) {
+    const cv = await edgeCoverage.coverageProjection(transitions.project_id, c.coverage);
+    const actual = await edgeDerived.resolveReadStatus({ projectId: transitions.project_id, canonicalOid: c.canonical_oid, subject: c.subject, agreementId: c.agreement_id, row: c.row, coverage: cv, effectiveScope: c.effective_scope, operationState: c.operation_state, profile, standingRules: rulesForRow(c.row) });
+    assert.deepEqual(actual, c.expected, c.id); derivedConsumed.reads.add(c.id);
+  }
+});
+async function readClass(projection, encoded, c, generation, overrides = {}) {
+  const all = projection.plaintext.toDict().files, selectedFiles = Object.fromEntries(Object.entries(all).filter(([path]) => path.startsWith('derived/' + ({ derived_index: 'index', status_detail: 'status-detail', reader_authority: 'reader-authority' })[c] + '/')));
+  return edgeDerived.derivedReadProjection(projection.plaintext.projectId, projection.plaintext.canonicalOid, { state: projection.stateDict(), selectedFiles, selectedEnvelopes: Object.fromEntries(Object.keys(selectedFiles).map(p => [p, encoded[p]])), generation, profile, ...overrides });
+}
+test('M1-18 incomplete bulk publication denies reads; stale reader withdrawal skips until complete repair', async t => {
+  t.mock.method(crypto, 'getRandomValues', array => { array.fill(0); return array; });
+  const stale = transitions.publication_cases[0], p = stale.stale_private, model = await privateModel(p), encoded = await encodedPrivate(model, p.crypto);
+  const before = await edgeDerived.assembleDerivedProjection(model, p.generations, encoded);
+  assert.deepEqual(before.plaintextFiles()['derived/state.enc.json'], new Uint8Array(Buffer.from(p.state_bytes_b64, 'base64url')));
+  const result = await edgeDerived.updateDerivedProjection(before, stale.input.record, { expectedHead: stale.before.canonical_oid, priorGenerations: { ...p.generations, reader_authority: stale.before.reader_generation }, generations: stale.repair.generations, encryptedShards: {} });
+  assert.equal(result.skipped, true); assert.equal(result.projection, before);
+  assert.notEqual(stale.after.canonical_source_advanced, before.plaintext.canonicalOid);
+  await assert.rejects(readClass(before, encoded, 'reader_authority', stale.repair.generations.reader_authority), edgeDerived.DerivedError);
+  const repaired = await privateModel(stale.repair), repairedEncoded = await encodedPrivate(repaired, stale.repair.crypto), repairedProjection = await edgeDerived.assembleDerivedProjection(repaired, stale.repair.generations, repairedEncoded);
+  assert.deepEqual(repairedProjection.plaintextFiles()['derived/state.enc.json'], new Uint8Array(Buffer.from(stale.repair.state_bytes_b64, 'base64url')));
+  await readClass(repairedProjection, repairedEncoded, 'reader_authority', stale.repair.generations.reader_authority);
+  derivedConsumed.publications.add(stale.id);
+  const bulk = transitions.publication_cases[1]; let candidate = await privateModel(bulk.before);
+  for (const r of bulk.input.records) candidate = await edgeDerived.updateDerived(candidate, r, candidate.canonicalOid);
+  assert.deepEqual(candidate.toDict(), bulk.after.derived);
+  const full = await encodedPrivate(candidate, bulk.publication.crypto), missing = { ...full }; delete missing[bulk.input.missing_shard];
+  await assert.rejects(edgeDerived.assembleDerivedProjection(candidate, bulk.publication.after.generations, missing), edgeDerived.DerivedError);
+  const complete = await edgeDerived.publishDerivedProjection(await privateModel(bulk.before), candidate, bulk.publication.after.generations, full);
+  const bounded = new limits.ReleaseProfile({ ...profileValue, max_bulk_shards_per_operation: 2 });
+  const boundedBefore = await edgeDerived.derivedPlaintext(transitions.project_id, bulk.before.canonical_oid, bulk.before.derived, bounded), boundedAfter = await edgeDerived.derivedPlaintext(transitions.project_id, bulk.after.canonical_oid, bulk.after.derived, bounded);
+  await assert.rejects(edgeDerived.publishDerivedProjection(boundedBefore, boundedAfter, bulk.publication.after.generations, full));
+  await assert.rejects(edgeDerived.publishDerivedProjection(boundedBefore, candidate, bulk.publication.after.generations, full));
+  assert.deepEqual(complete.plaintextFiles()['derived/state.enc.json'], new Uint8Array(Buffer.from(bulk.publication.after.state_bytes_b64, 'base64url')));
+  const partialState = complete.stateDict(); partialState.generations.reader_authority = bulk.partial_publication.published_generation;
+  await assert.rejects(readClass(complete, full, 'reader_authority', bulk.publication.after.generations.reader_authority, { state: partialState }), edgeDerived.DerivedError);
+  await readClass(complete, full, 'reader_authority', bulk.publication.after.generations.reader_authority);
+  derivedConsumed.publications.add(bulk.id);
+});
+
+test('M1-18 aggregate reader cap rejects eleven distinct shards; named sources and selected reads fail closed', async t => {
+  t.mock.method(crypto, 'getRandomValues', array => { array.fill(0); return array; });
+  const c = transitions.cases[0], value = structuredClone(c.before.derived), g = c.before.generations, recipe = transitions.publication_cases[0].repair.crypto;
+  const used = new Set(), ids = [];
+  for (let i = 0; ids.length < 11; i++) {
+    const id = encoding.base64urlEncode(await artifacts.sha256(bytes('M1-18 distributed reader rule ' + i))), shard = await edgeDerived.readerAuthorityShard(id);
+    if (!used.has(shard)) { ids.push([id, shard]); used.add(shard); }
+  }
+  for (const [id, shard] of ids.slice(0, 10)) value.files[`derived/reader-authority/${String(shard).padStart(2, '0')}.enc.json`][id] = { kind: 'continuous_team', team: { organization_id: 1, team_id: 2, slug_snapshot: 'readers' }, materialization_cursor: {}, subjects: {} };
+  const model = await edgeDerived.derivedPlaintext(transitions.project_id, c.before.canonical_oid, value, profile), encoded = await encodedPrivate(model, recipe), projection = await edgeDerived.assembleDerivedProjection(model, g, encoded);
+  const read = await readClass(projection, encoded, 'reader_authority', g.reader_authority);
+  await assert.rejects(edgeDerived.readerSourceForSubject(read, ids[0][0], 7)); await assert.rejects(edgeDerived.readerSourceForSubject(read, ids[0][0], 0)); await assert.rejects(edgeDerived.readerSourceForSubject({ ...read }, ids[0][0], 7));
+  const [id, shard] = ids[10], path = `derived/reader-authority/${String(shard).padStart(2, '0')}.enc.json`;
+  value.files[path][id] = { kind: 'continuous_team', team: { organization_id: 1, team_id: 2, slug_snapshot: 'readers' }, materialization_cursor: {}, subjects: {} };
+  for (const [path, raw] of Object.entries(value.files).filter(([p]) => p.includes('/reader-authority/'))) await projections.decodeProjection(identity(path), wire(raw), { profile });
+  await assert.rejects(edgeDerived.derivedPlaintext(transitions.project_id, c.before.canonical_oid, value, profile), edgeDerived.DerivedError);
+  const tooManyFiles = Object.fromEntries(Object.entries(value.files).filter(([p]) => p.includes('/reader-authority/'))), allEncoded = { ...encoded }, state = projection.stateDict();
+  allEncoded[path] = await envelope.encryptJsonArtifact(value.files[path], { projectId: transitions.project_id, identity: identity(path), kid: unhex(recipe.kid_hex), key: unhex(recipe.key_hex) });
+  state.shard_digests.reader_authority[String(shard).padStart(2, '0')] = 'sha256:' + hex(await artifacts.sha256(allEncoded[path]));
+  const readerEnvelopes = Object.fromEntries(Object.keys(tooManyFiles).map(p => [p, allEncoded[p]]));
+  await assert.rejects(edgeDerived.derivedReadProjection(transitions.project_id, c.before.canonical_oid, { state, selectedFiles: tooManyFiles, selectedEnvelopes: readerEnvelopes, generation: g.reader_authority, profile }), edgeDerived.DerivedError);
+  const selected = read.selectedFiles(), selectedEncoded = Object.fromEntries(Object.keys(selected).map(p => [p, encoded[p]]));
+  const reject = extra => assert.rejects(edgeDerived.derivedReadProjection(transitions.project_id, c.before.canonical_oid, { state: projection.stateDict(), selectedFiles: selected, selectedEnvelopes: selectedEncoded, generation: g.reader_authority, profile, ...extra }), edgeDerived.DerivedError);
+  const missing = { ...selected }; delete missing[Object.keys(missing)[0]]; await reject({ selectedFiles: missing });
+  const missingBoth = { ...selectedEncoded }; delete missingBoth[Object.keys(missingBoth)[0]]; await reject({ selectedFiles: missing, selectedEnvelopes: missingBoth });
+  await reject({ selectedFiles: { ...selected, 'derived/reader-authority/32.enc.json': {} }, selectedEnvelopes: { ...selectedEncoded, 'derived/reader-authority/32.enc.json': encoded[path] } });
+  await reject({ generation: encoding.base64urlEncode(new Uint8Array(32)) });
+  const corrupt = { ...selectedEncoded }, first = Object.keys(corrupt)[0]; corrupt[first] = encoded[Object.keys(encoded).find(p => p.includes('/reader-authority/') && p !== first)]; await reject({ selectedEnvelopes: corrupt });
+  const staleState = projection.stateDict(); staleState.profile.max_reader_source_members++; await reject({ state: staleState });
+  const badState = projection.stateDict(); delete badState.shard_digests.reader_authority['31']; await reject({ state: badState });
+  const huge = { ...profileValue, max_shard_ciphertext_bytes: { ...profileValue.max_shard_ciphertext_bytes, reader_authority: 17 } }; await reject({ profile: new limits.ReleaseProfile(huge) });
+  const accessor = Object.defineProperty({}, first, { enumerable: true, get() { assert.fail('envelope accessor executed'); } }); await reject({ selectedEnvelopes: accessor });
+  const memberCase = transitions.cases.find(c => c.input.record.event.type === 'records_reader_authorized'), member = await privateModel(memberCase.after), memberEncoded = await encodedPrivate(member, recipe), memberProjection = await edgeDerived.assembleDerivedProjection(member, memberCase.after.generations, memberEncoded), memberRead = await readClass(memberProjection, memberEncoded, 'reader_authority', memberCase.after.generations.reader_authority);
+  assert.deepEqual(await edgeDerived.readerSourceForSubject(memberRead, memberCase.input.record.event.event_id, memberCase.input.record.event.target.subject.github_user_id), { source_id: memberCase.input.record.event.event_id, kind: 'individual', organization_id: null, team_id: null });
+  assert.throws(() => memberRead.rowForSubject(7));
+});
+test('M1-18 reader lookup preserves the exact source and continuous live-check identity', async t => {
+  t.mock.method(crypto, 'getRandomValues', array => { array.fill(0); return array; });
+  const c = transitions.cases[0], value = structuredClone(c.before.derived), recipe = transitions.publication_cases[0].repair.crypto;
+  const ids = await Promise.all(['individual', 'snapshot', 'continuous_team', 'member-event', 'departure-event', 'missing'].map(async name => encoding.base64urlEncode(await artifacts.sha256(bytes('M1-18 named source ' + name)))));
+  const team = { organization_id: 41, team_id: 42, slug_snapshot: 'renamed-team' };
+  for (const [i, kind] of ['individual', 'snapshot', 'continuous_team'].entries()) {
+    const sourceId = ids[i], path = `derived/reader-authority/${String(await edgeDerived.readerAuthorityShard(sourceId)).padStart(2, '0')}.enc.json`;
+    value.files[path][sourceId] = { kind, team: kind === 'individual' ? null : team, materialization_cursor: kind === 'continuous_team' ? { '7': ids[3], '8': ids[4] } : {}, subjects: { '7': { added_event_id: kind === 'continuous_team' ? ids[3] : sourceId } } };
+  }
+  const model = await edgeDerived.derivedPlaintext(transitions.project_id, c.before.canonical_oid, value, profile), encoded = await encodedPrivate(model, recipe), projection = await edgeDerived.assembleDerivedProjection(model, c.before.generations, encoded), read = await readClass(projection, encoded, 'reader_authority', c.before.generations.reader_authority);
+  assert.equal('readerAuthorized' in edgeDerived, false);
+  for (const [i, kind] of ['individual', 'snapshot', 'continuous_team'].entries()) {
+    const source = await edgeDerived.readerSourceForSubject(read, ids[i], 7);
+    assert.deepEqual(source, { source_id: ids[i], kind, organization_id: kind === 'continuous_team' ? 41 : null, team_id: kind === 'continuous_team' ? 42 : null });
+    assert.ok(Object.isFrozen(source)); assert.throws(() => { source.team_id = 999; }, TypeError);
+    await assert.rejects(edgeDerived.readerSourceForSubject(read, ids[i], 8), edgeDerived.DerivedError);
+  }
+  for (const sourceId of [ids[3], ids[5], 'bad', null]) await assert.rejects(edgeDerived.readerSourceForSubject(read, sourceId, 7));
+  for (const subject of [0, -1, 1.5, true, '7', Number.MAX_SAFE_INTEGER + 1]) await assert.rejects(edgeDerived.readerSourceForSubject(read, ids[2], subject));
+  const indexRead = await readClass(projection, encoded, 'derived_index', c.before.generations.derived_index);
+  await assert.rejects(edgeDerived.readerSourceForSubject(indexRead, ids[2], 7), edgeDerived.DerivedError);
+  await assert.rejects(edgeDerived.readerSourceForSubject({ ...read }, ids[2], 7), edgeDerived.DerivedError);
+});
+test('M1-18 selected dashboard rows resolve immutable facts; malformed whole models and status contexts reject', async t => {
+  t.mock.method(crypto, 'getRandomValues', array => { array.fill(0); return array; });
+  const c = transitions.cases.find(c => c.input.record.event.type === 'acceptance'), before = await privateModel(c.before), after = await privateModel(c.after), recipe = c.publication.crypto, encoded = await encodedPrivate(after, recipe), projection = await edgeDerived.assembleDerivedProjection(after, c.after.generations, encoded), cv = await edgeCoverage.coverageProjection(transitions.project_id, c.after.coverage);
+  const subject = c.input.record.event.target.coverage_tuple.github_user_id, agreement = c.input.record.event.target.coverage_tuple.agreement_id;
+  for (const cls of ['derived_index', 'status_detail']) {
+    const read = await readClass(projection, encoded, cls, c.after.generations[cls]);
+    const result = await edgeDerived.resolveSelectedReadStatus(read, subject, agreement, cv, [], c.input.operation_state);
+    assert.equal(result.status, 'current'); assert.equal(result.coverage_decision, 'covered');
+    const row = read.rowForSubject(subject); row.login_snapshot = 'changed'; assert.notEqual(read.rowForSubject(subject).login_snapshot, 'changed');
+    const files = read.selectedFiles(); delete files[Object.keys(files)[0]]; assert.equal(Object.keys(read.selectedFiles()).length, 32);
+    assert.throws(() => read.rowForSubject(9000)); assert.throws(() => read.rowForSubject(-1));
+    await assert.rejects(edgeDerived.resolveSelectedReadStatus({ ...read }, subject, agreement, cv, [], c.input.operation_state));
+    if (cls === 'status_detail') {
+      const path = `derived/status-detail/${String(subject % 32).padStart(2, '0')}.enc.json`;
+      const one = await edgeDerived.derivedReadProjection(transitions.project_id, c.after.canonical_oid, { state: projection.stateDict(), selectedFiles: { [path]: after.toDict().files[path] }, selectedEnvelopes: { [path]: encoded[path] }, generation: c.after.generations.status_detail, profile });
+      assert.equal((await edgeDerived.resolveSelectedReadStatus(one, subject, agreement, cv, [], c.input.operation_state)).status, 'current'); assert.throws(() => one.rowForSubject(subject + 1));
+    }
+  }
+  const baseline = structuredClone(c.before.derived), reject = value => assert.rejects(edgeDerived.derivedPlaintext(transitions.project_id, c.before.canonical_oid, value, profile), edgeDerived.DerivedError);
+  const noShard = structuredClone(baseline); delete noShard.files['derived/index/31.enc.json']; await reject(noShard);
+  const extra = structuredClone(baseline); extra.files['derived/index/32.enc.json'] = {}; await reject(extra);
+  const mismatch = after.toDict(); delete mismatch.files[`derived/index/${String(subject % 32).padStart(2, '0')}.enc.json`][String(subject)]; await reject(mismatch);
+  const config = structuredClone(baseline); config.configuration.required_fields.push({ name: 'bad-name!', label: 'Bad', kind: 'text', required: true }); await reject(config);
+  const rules = structuredClone(baseline); rules.standing_rules[encoding.base64urlEncode(new Uint8Array(32))] = {}; await reject(rules);
+  await assert.rejects(edgeDerived.derivedPlaintext('', c.before.canonical_oid, baseline, profile)); await assert.rejects(edgeDerived.derivedPlaintext(transitions.project_id, 'bad', baseline, profile)); await assert.rejects(edgeDerived.derivedPlaintext(transitions.project_id, c.before.canonical_oid, baseline, {}));
+  assert.throws(() => edgeDerived.derivedDelta({ ...before }, after));
+  const wrongProject = await edgeDerived.derivedPlaintext('other', c.before.canonical_oid, baseline, profile); assert.throws(() => edgeDerived.derivedDelta(wrongProject, before));
+  const input = { projectId: transitions.project_id, canonicalOid: c.after.canonical_oid, subject, agreementId: agreement, row: after.toDict().files[`derived/status-detail/${String(subject % 32).padStart(2, '0')}.enc.json`][String(subject)], coverage: cv, effectiveScope: [], operationState: c.input.operation_state, profile };
+  for (const mutation of [{ projectId: 'other' }, { canonicalOid: 'b'.repeat(40) }, { agreementId: 'other' }, { effectiveScope: [{ kind: 'repository', repository_id: 1 }] }, { operationState: [] }, { row: { ...input.row, private_extra: true } }]) await assert.rejects(edgeDerived.resolveReadStatus({ ...input, ...mutation }));
+  const succeeded = cv.toDict(); succeeded['source.enc.json'].project_state = 'succeeded'; succeeded['source.enc.json'].successor_project_id = 'other'; await assert.rejects(edgeDerived.resolveReadStatus({ ...input, coverage: await edgeCoverage.coverageProjection(transitions.project_id, succeeded) }));
+  const record = structuredClone(c.input.record); record.parent_oid = 'b'.repeat(40); await assert.rejects(edgeDerived.updateDerived(before, record, c.before.canonical_oid)); await assert.rejects(edgeDerived.updateDerived(before, c.input.record, 'b'.repeat(40)));
+  record.parent_oid = c.before.canonical_oid; record.event.project_id = 'other'; await assert.rejects(edgeDerived.updateDerived(before, record, c.before.canonical_oid));
+  const tiny = new limits.ReleaseProfile({ ...profileValue, max_shard_ciphertext_bytes: { ...profileValue.max_shard_ciphertext_bytes, status_detail: 17 } }); await assert.rejects(edgeDerived.derivedPlaintext(transitions.project_id, c.after.canonical_oid, c.after.derived, tiny), edgeDerived.DerivedClassOverflow);
+  const stateTiny = new limits.ReleaseProfile({ ...profileValue, max_state_ciphertext_bytes: 17 }), tinyModel = await edgeDerived.derivedPlaintext(transitions.project_id, c.after.canonical_oid, c.after.derived, stateTiny); await assert.rejects(edgeDerived.assembleDerivedProjection(tinyModel, c.after.generations, encoded), edgeDerived.DerivedClassOverflow);
+});
+
+test('M1-18 generation publication never repairs unrelated stale classes and owns all asynchronous inputs', async t => {
+  t.mock.method(crypto, 'getRandomValues', array => { array.fill(0); return array; });
+  const c = transitions.cases.find(c => c.input.record.event.type === 'records_reader_authorized'), beforeInput = structuredClone(c.before.derived);
+  const pendingModel = edgeDerived.derivedPlaintext(transitions.project_id, c.before.canonical_oid, beforeInput, profile); beforeInput.configuration.retention_statement = 'mutated';
+  const before = await pendingModel; assert.deepEqual(before.toDict(), c.before.derived);
+  const copied = before.toDict(); copied.configuration.retention_statement = 'mutated'; assert.deepEqual(before.toDict(), c.before.derived);
+  const view = before.plaintextFiles(); view[Object.keys(view)[0]].fill(0); assert.notEqual(before.plaintextFiles()[Object.keys(view)[0]][0], 0);
+  const record = structuredClone(c.input.record), pending = edgeDerived.updateDerived(before, record, c.before.canonical_oid); record.event.target.subject.github_user_id = 999; assert.deepEqual((await pending).toDict(), c.after.derived);
+  const after = await privateModel(c.after), encoded = await encodedPrivate(after, c.publication.crypto), beforeEncoded = await encodedPrivate(before, c.publication.crypto), original = await edgeDerived.assembleDerivedProjection(before, c.before.generations, beforeEncoded);
+  const opts = { expectedHead: c.before.canonical_oid, priorGenerations: structuredClone(c.before.generations), generations: structuredClone(c.after.generations), encryptedShards: Object.fromEntries(Object.entries(encoded).map(([k, v]) => [k, new Uint8Array(v)])) };
+  const update = edgeDerived.updateDerivedProjection(original, c.input.record, opts); opts.expectedHead = 'b'.repeat(40); opts.generations.reader_authority = 'bad'; Object.values(opts.encryptedShards).forEach(v => v.fill(0)); assert.deepEqual((await update).projection.plaintext.toDict(), c.after.derived);
+  const old = encoding.base64urlEncode(new Uint8Array(32)), staleGenerations = { ...c.before.generations, status_detail: old }, stale = await edgeDerived.assembleDerivedProjection(before, staleGenerations, beforeEncoded);
+  const updated = await edgeDerived.updateDerivedProjection(stale, c.input.record, { expectedHead: c.before.canonical_oid, priorGenerations: c.before.generations, generations: c.after.generations, encryptedShards: encoded });
+  assert.equal(updated.projection.stateDict().generations.status_detail, old);
+  const staleAffected = await edgeDerived.assembleDerivedProjection(before, { ...c.before.generations, reader_authority: old }, beforeEncoded);
+  const normal = { expectedHead: c.before.canonical_oid, priorGenerations: c.before.generations, generations: c.after.generations, encryptedShards: encoded };
+  await assert.rejects(edgeDerived.updateDerivedProjection(staleAffected, c.input.record, normal));
+  await assert.rejects(edgeDerived.updateDerivedProjection(original, c.input.record, { ...normal, generations: { ...c.after.generations, reader_authority: c.before.generations.reader_authority } }));
+  await assert.rejects(edgeDerived.updateDerivedProjection(original, c.input.record, { ...normal, generations: { ...c.after.generations, reader_authority: old } }));
+  await assert.rejects(edgeDerived.updateDerivedProjection({ ...original }, c.input.record, normal));
+  await assert.rejects(edgeDerived.updateDerivedProjection(original, c.input.record, { ...normal, expectedHead: 'b'.repeat(40) }));
+  const getterOptions = Object.defineProperty({ ...normal }, 'generations', { enumerable: true, get() { assert.fail('option accessor executed'); } }); await assert.rejects(edgeDerived.updateDerivedProjection(original, c.input.record, getterOptions));
+  for (const change of [g => delete g.generations_version, g => g.generations_version = 2, g => g.status_detail = 'bad', g => g.extra = 1]) { const g = structuredClone(c.after.generations); change(g); await assert.rejects(edgeDerived.assembleDerivedProjection(after, g, encoded)); }
+  const path = Object.keys(encoded)[0], bad = { ...encoded };
+  for (const change of [v => v.project_id = 'other', v => v.algorithm = 'none', v => v.logical_id = 'other', v => v.schema_version = 2, v => v.kid = 'bad', v => v.nonce = 'bad', v => v.ciphertext = '', v => v.extra = 1]) { const value = parse(encoded[path]); change(value); bad[path] = wire(value); await assert.rejects(edgeDerived.assembleDerivedProjection(after, c.after.generations, bad)); }
+  const selected = Object.fromEntries(Object.entries(after.toDict().files).filter(([p]) => p.includes('/reader-authority/'))), selectedEncoded = Object.fromEntries(Object.keys(selected).map(p => [p, new Uint8Array(encoded[p])])), state = (await edgeDerived.assembleDerivedProjection(after, c.after.generations, encoded)).stateDict();
+  const readInput = { state, selectedFiles: selected, selectedEnvelopes: selectedEncoded, generation: c.after.generations.reader_authority, profile };
+  const pendingRead = edgeDerived.derivedReadProjection(transitions.project_id, c.after.canonical_oid, readInput); state.generations.reader_authority = 'bad'; Object.values(selectedEncoded).forEach(v => v.fill(0)); Object.keys(selected).forEach(k => delete selected[k]);
+  assert.deepEqual(await edgeDerived.readerSourceForSubject(await pendingRead, c.input.record.event.event_id, c.input.record.event.target.subject.github_user_id), { source_id: c.input.record.event.event_id, kind: 'individual', organization_id: null, team_id: null });
+  const sample = transitions.read_cases.find(c => c.expected.status === 'current'), cv = await edgeCoverage.coverageProjection(transitions.project_id, sample.coverage), input = { projectId: transitions.project_id, canonicalOid: sample.canonical_oid, subject: sample.subject, agreementId: sample.agreement_id, row: structuredClone(sample.row), coverage: cv, effectiveScope: [], operationState: structuredClone(sample.operation_state), profile };
+  const status = edgeDerived.resolveReadStatus(input); input.row.agreements = {}; input.operationState[1].state = 'bad'; assert.deepEqual(await status, sample.expected);
+  assert.deepEqual([...derivedConsumed.triples].sort(), transitions.cases.map(c => c.id).sort()); assert.deepEqual([...derivedConsumed.operations].sort(), transitions.operational_cases.map(c => c.id).sort()); assert.deepEqual([...derivedConsumed.reads].sort(), transitions.read_cases.map(c => c.id).sort()); assert.deepEqual([...derivedConsumed.publications].sort(), transitions.publication_cases.map(c => c.id).sort());
+});
