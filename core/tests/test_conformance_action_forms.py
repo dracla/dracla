@@ -21,6 +21,8 @@ from dracla.conformance import (  # noqa: E402
 )
 from dracla.conformance import action_forms as module  # noqa: E402
 
+from core.tests.corpus_consumption import CLAIMS
+
 
 VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors"
 
@@ -80,6 +82,9 @@ class TestActionForms(unittest.TestCase):
     def test_independent_fixed_jcs_tag_and_one_dot_token(self):
         golden = self.corpus["golden"]
         payload = golden["form"]
+        bound = copy.deepcopy(payload)
+        self._bind_operation(bound, golden["operation"])
+        self.assertEqual(bound["operation_sha256"], payload["operation_sha256"])
         self.assertEqual(canonical_json(payload), golden["payload_jcs"].encode())
         self.assertEqual(encode_action_form(payload, key=self.key), golden["token"])
         self.assertEqual(encode_action_form(ActionForm(**payload), key=self.key), golden["token"])
@@ -95,6 +100,8 @@ class TestActionForms(unittest.TestCase):
             verified.form.type = "override"
         with self.assertRaises(ActionFormError):
             VerifiedActionForm(None)
+        CLAIMS.value('action-form-v1.json', 'golden', 'domain_hex', 'context')
+        self.assertEqual(bytes.fromhex(self.corpus["domain_hex"]), b"dracla-action-form-v1\0")
 
     def test_verified_result_requires_authentication_factory(self):
         payload = self._payload()
@@ -121,6 +128,7 @@ class TestActionForms(unittest.TestCase):
         for row in self.corpus["actions"]:
             spec = form_action_spec(row["type"])
             self.assertEqual((spec.action_type, spec.write_type, spec.terminal_types), (row["type"], row["write_type"], tuple(row["terminal_types"])))
+            CLAIMS.case('action-form-v1.json', 'actions', row)
         for name in list(EVENT_TYPES - expected) + ["unknown", "", None, [], True]:
             with self.subTest(name=name), self.assertRaises(ActionFormError):
                 form_action_spec(name)
@@ -131,6 +139,7 @@ class TestActionForms(unittest.TestCase):
             payload["kid"] = kid
             token = encode_action_form(payload, key=key)
             self.assertEqual(verify_action_form(token, keys=self.keys, context=self._context(payload)).form.kid, kid)
+            CLAIMS.case("action-form-v1.json", "keys", next(row for row in self.corpus["keys"] if row["kid"] == kid))
             remaining = {k: v for k, v in self.keys.items() if k != kid}
             with self.assertRaises(ActionFormError):
                 verify_action_form(token, keys=remaining, context=self._context(payload))
@@ -252,6 +261,7 @@ class TestActionForms(unittest.TestCase):
             self.assertTrue(verified.preparable)
             with self.subTest(action=row["type"]), self.assertRaises(ActionFormError):
                 self._verify(payload, confirmed_canonical_oid=self.corpus["later_head"])
+            CLAIMS.case('action-form-v1.json', 'actions', row)
         self._verify(dict(self._payload(), confirmed_canonical_oid="d" * 64))
 
     def test_every_terminal_alternative_is_stable_after_head_advances(self):
@@ -268,9 +278,11 @@ class TestActionForms(unittest.TestCase):
                 self._prove(payload, validate_event(terminal), case["operation"])
                 self._prove(payload, canonical_json(terminal), case["operation"])
                 covered.add((payload["type"], terminal["type"]))
+            CLAIMS.case('action-form-v1.json', 'terminal_noops', case)
         expected = {(row["type"], terminal) for row in self.corpus["actions"] for terminal in row["terminal_types"]}
         self.assertEqual(covered, expected)
         self.assertEqual(len(covered), 24)
+        CLAIMS.value('action-form-v1.json', 'later_head')
 
     def test_admin_digest_uses_event_null_head_and_contributors_use_form_head(self):
         for case in self.corpus["terminal_noops"]:
@@ -282,6 +294,7 @@ class TestActionForms(unittest.TestCase):
             payload["operation_sha256"] = derive_event_identity(payload["project_id"], payload["operation_nonce"], {"kind": "github", "github_user_id": payload["github_user_id"], "login_snapshot": "other"}, payload["type"], case["operation"]["target"], case["operation"]["payload"], wrong_head).operation_sha256
             with self.subTest(action=payload["type"]), self.assertRaises(ActionFormError):
                 self._prove(payload, self.events[case["terminal_fixture_type"]], case["operation"])
+            CLAIMS.case('action-form-v1.json', 'terminal_noops', case)
 
     def test_terminal_requires_verified_noop_and_exact_read_context(self):
         case = self.corpus["terminal_noops"][0]

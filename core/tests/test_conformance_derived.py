@@ -20,6 +20,8 @@ from dracla.conformance import (
 from core.tests import test_conformance_coverage as coverage_fixtures
 from core.tests import test_conformance_replay as replay_fixtures
 
+from core.tests.corpus_consumption import CLAIMS
+
 BASE = replay_fixtures.BASE
 
 
@@ -140,6 +142,7 @@ class TestDerived(unittest.TestCase):
         value = plain.to_dict()
         value["files"]["derived/index/00.enc.json"]["32"] = {}
         self.assertEqual(plain.to_dict()["files"], self.v["empty_shards"])
+        CLAIMS.equal("derived-v1.json", "empty_shards", plain.to_dict()["files"])
 
     def test_all_fixed_status_reason_and_generic_mapping_vectors(self):
         for case in self.v["cases"]:
@@ -165,6 +168,8 @@ class TestDerived(unittest.TestCase):
                 covered = evaluate_subject(CoverageProjection("project-1", files), 7, "agreement-1")
                 self.assertEqual((actual.coverage_decision, actual.coverage_reason_code),
                                  (covered.decision, covered.reason_code))
+            CLAIMS.case('derived-v1.json', 'cases', case)
+        CLAIMS.value('derived-v1.json', 'active_agreement', 'recorded_at', 'event_id')
 
     def test_index_only_exemption_and_synthesized_agreement_row(self):
         detail = self.detail(exempt=True)
@@ -193,6 +198,7 @@ class TestDerived(unittest.TestCase):
                 result = self.read(detail, pair=self.cf.pair(fence, "empty"))
                 self.assertEqual((result.status, result.reason_code), (case["status"], case["reason"]))
             self.assertEqual(detail, original)
+            CLAIMS.case('derived-v1.json', 'cases', case)
 
     def test_read_rejects_rolled_back_coverage_and_every_operation_mismatch(self):
         detail = self.detail("acceptance", "1")
@@ -406,6 +412,7 @@ class TestDerived(unittest.TestCase):
                 del bad["exemption_sources"][self.v["event_id"]][field]
                 with self.assertRaises(DerivedError):
                     self.read(bad)
+            CLAIMS.case('derived-v1.json', 'source_kinds', kind)
         for basis in [None, "basis"]:
             for instrument in [None, "instrument"]:
                 row = self.detail(exempt=True)
@@ -438,6 +445,7 @@ class TestDerived(unittest.TestCase):
                                  self.fixed_bytes(golden["status_detail_bytes_hex"]))
                 self.assertEqual(actual["derived/index/07.enc.json"],
                                  self.fixed_bytes(golden["index_bytes_hex"]))
+        CLAIMS.case("derived-v1.json", "wire_goldens", 'status_rows')
 
     def test_canonical_prepublication_exemption_and_withdrawal_wire_goldens(self):
         golden = self.v["wire_goldens"]["pre_agreement_exemption"]
@@ -467,6 +475,7 @@ class TestDerived(unittest.TestCase):
         result = self.read(withdrawn_row)
         self.assertEqual(result.reason_code, golden["expected"]["withdrawn_reason"])
         self.assertIsNone(result.event_id)
+        CLAIMS.case("derived-v1.json", "wire_goldens", 'pre_agreement_exemption')
 
     def test_canonical_signature_acceptance_and_revocation_wire_goldens(self):
         golden = self.v["wire_goldens"]["canonical_signature"]
@@ -487,6 +496,7 @@ class TestDerived(unittest.TestCase):
             self.assertEqual(revoked.plaintext_files()[path], self.fixed_bytes(expected))
         revoked_row = revoked.to_dict()["files"]["derived/status-detail/07.enc.json"]["7"]
         self.assertEqual(self.read(revoked_row).reason_code, golden["expected"]["revoked_reason"])
+        CLAIMS.case("derived-v1.json", "wire_goldens", 'canonical_signature')
 
     def test_canonical_recorded_exemption_wire_golden(self):
         golden = self.v["wire_goldens"]["canonical_recorded_exemption"]
@@ -500,6 +510,7 @@ class TestDerived(unittest.TestCase):
             self.assertEqual(plain.plaintext_files()[path], self.fixed_bytes(expected))
         row = plain.to_dict()["files"]["derived/status-detail/07.enc.json"]["7"]
         self.assertEqual(self.read(row).reason_code, golden["expected_reason"])
+        CLAIMS.case("derived-v1.json", "wire_goldens", 'canonical_recorded_exemption')
 
     def test_canonical_reader_authoring_wire_goldens(self):
         golden = self.v["wire_goldens"]["canonical_readers"]
@@ -518,6 +529,7 @@ class TestDerived(unittest.TestCase):
         actual = plain.plaintext_files()
         for path, expected in golden["files"].items():
             self.assertEqual(actual[path], self.fixed_bytes(expected))
+        CLAIMS.case("derived-v1.json", "wire_goldens", 'canonical_readers')
 
     def test_canonical_assembled_state_with_standing_rule_wire_golden(self):
         golden = self.v["wire_goldens"]["canonical_assembled_state"]
@@ -555,6 +567,7 @@ class TestDerived(unittest.TestCase):
         })
         self.assertEqual({name: len(tokens) for name, tokens in state["shard_digests"].items()},
                          golden["digest_token_counts"])
+        CLAIMS.case("derived-v1.json", "wire_goldens", 'canonical_assembled_state')
 
     def test_exemption_source_kind_wire_goldens_cover_null_patterns(self):
         goldens = self.v["wire_goldens"]["exemption_source_rows"]
@@ -587,6 +600,7 @@ class TestDerived(unittest.TestCase):
                                  self.fixed_bytes(golden["status_detail_bytes_hex"]))
                 self.assertEqual(actual["derived/index/07.enc.json"],
                                  self.fixed_bytes(golden["index_bytes_hex"]))
+        CLAIMS.case("derived-v1.json", "wire_goldens", 'exemption_source_rows')
 
     def test_reader_authority_wire_goldens_cover_all_reader_kinds(self):
         goldens = self.v["wire_goldens"]["reader_authority"]
@@ -602,6 +616,7 @@ class TestDerived(unittest.TestCase):
                 plain = self.rebuild(base, files=files)
                 self.assertEqual(plain.plaintext_files()[golden["path"]],
                                  self.fixed_bytes(golden["bytes_hex"]))
+        CLAIMS.case("derived-v1.json", "wire_goldens", 'reader_authority')
 
     def test_assembled_state_wire_golden_carries_all_digest_tokens(self):
         golden = self.v["wire_goldens"]["assembled_state"]
@@ -634,6 +649,7 @@ class TestDerived(unittest.TestCase):
                          {"derived_index", "status_detail", "reader_authority"})
         for digests in state["shard_digests"].values():
             self.assertEqual(set(digests), {f"{i:02d}" for i in range(32)})
+        CLAIMS.case("derived-v1.json", "wire_goldens", 'assembled_state')
 
     def test_standing_rule_empty_membership_and_withdrawal_only_change_detail(self):
         records = self.connected()
@@ -929,6 +945,7 @@ class TestDerived(unittest.TestCase):
         self.assertEqual({case["shard"] for case in additions}, {0, 3, 14, 24, 26, 29})
         for case in cases:
             self.assertEqual(reader_authority_shard(case["source_id"]), case["shard"])
+            CLAIMS.case("derived-v1.json", "source_shards", case)
         for case in additions:
             digest = hashlib.sha256(case["source_id"].encode("utf-8")).hexdigest()
             self.assertEqual(digest, case["sha256"])
@@ -1165,6 +1182,20 @@ class TestDerived(unittest.TestCase):
             with self.assertRaises(DerivedError):
                 DerivedProjection(plain, state)
 
+    def test_full_release_profile_contract_claim_follows_schema_assertions(self):
+        from core.tests.test_conformance_release_profile import TestReleaseProfile
+
+        checks = TestReleaseProfile()
+        for name in (
+            "test_checked_in_numeric_profile_and_canonical_roundtrip",
+            "test_every_root_member_is_required_and_unknowns_are_rejected",
+            "test_invalid_scalar_profiles_and_fixed_values",
+            "test_coverage_cap_and_misclassified_limits_are_unrepresentable",
+        ):
+            checks.setUp()
+            getattr(checks, name)()
+        CLAIMS.contract("closed_schemas", "release-profile")
+
     def test_replay_basis_and_source_context_cannot_be_substituted(self):
         records, _, _ = self.f.active_records(nonce=1700)
         self.f.append(records, "acceptance", 1703)
@@ -1316,6 +1347,7 @@ class TestDerived(unittest.TestCase):
         with self.assertRaises(DerivedError):
             reader_source_for_subject(reader, source.event_id, 8)
         self.assertEqual(self.bounded_coverage(state).project_id, "project-1")
+        CLAIMS.value('derived-v1.json', 'bounded_read')
 
     def test_bounded_reader_rule_count_matches_complete_profile_across_selected_shards(self):
         plain = self.materialize(self.connected())

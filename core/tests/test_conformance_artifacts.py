@@ -23,6 +23,8 @@ from dracla.conformance.canonical import (  # noqa: E402
     parse_canonical_json,
 )
 
+from core.tests.corpus_consumption import CLAIMS
+
 VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "artifact-identities-v1.json"
 EVENT_ID = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
 
@@ -84,6 +86,7 @@ class TestArtifactIdentities(unittest.TestCase):
                 self.assertEqual(identity.capability, capability)
                 self.assertEqual(identity.schema_version, 1)
                 self.assertEqual(identity.logical_id, f"{branch}:{path}")
+            CLAIMS.case('artifact-identities-v1.json', 'identities', list((repository, branch, path, kind, capability)))
 
     def test_dynamic_path_relations_fail_closed(self):
         invalid = [
@@ -106,6 +109,7 @@ class TestArtifactIdentities(unittest.TestCase):
             with self.subTest(value=vector["value"]):
                 self.assertEqual(segment(vector["value"]), vector["token"])
                 self.assertNotIn("=", vector["token"])
+            CLAIMS.case('artifact-identities-v1.json', 'segments', vector)
 
     def test_override_key_is_jcs_bound_and_validated(self):
         vector = self.vectors["override_key"]
@@ -158,6 +162,7 @@ class TestArtifactIdentities(unittest.TestCase):
             ),
             43,
         )
+        CLAIMS.value('artifact-identities-v1.json', 'override_key')
 
 
 if __name__ == "__main__":

@@ -24,6 +24,8 @@ from dracla.conformance import (
 )
 from dracla.conformance import coverage, events, operations, vectors
 
+from core.tests.corpus_consumption import CLAIMS
+
 ROOT = Path(__file__).resolve().parents[2]
 DIRECTORY = ROOT / "conformance/vectors"
 
@@ -316,6 +318,8 @@ class TestSharedVectors(unittest.TestCase):
                 after = self.reference(records + self.records([case["input"]["record"]]), operation, case["input"])
                 self.assertEqual(before, (case["before"]["coverage"], case["before"]["derived"]))
                 self.assertEqual(after, (case["after"]["coverage"], case["after"]["derived"]))
+            CLAIMS.case('incremental-v1.json', 'cases', case)
+        CLAIMS.value('incremental-v1.json', 'project_id')
 
     def _publication_material(self, case, side):
         """Recreate source-test envelopes from a compact publication recipe."""
@@ -371,6 +375,7 @@ class TestSharedVectors(unittest.TestCase):
             if "publication" in case:
                 self.assertEqual(case["publication"]["before"]["generations"], before)
                 self.assertEqual(case["publication"]["after"]["generations"], after)
+            CLAIMS.case('incremental-v1.json', 'cases', case)
 
         union = next(case for case in self.transitions["cases"]
                       if case["id"] == "exemption-source-union/02/exemption")
@@ -417,6 +422,7 @@ class TestSharedVectors(unittest.TestCase):
                 self.assertFalse(unchanged & set(case["changed"]["derived"]))
                 self.assertEqual(before.project_id, after.project_id)
                 published += 1
+            CLAIMS.case('incremental-v1.json', 'cases', case)
         self.assertEqual(published, 93)
 
     def test_stale_reader_skip_repair_and_partial_bulk_publication_fail_closed(self):
@@ -536,6 +542,8 @@ class TestSharedVectors(unittest.TestCase):
             bulk["partial_publication"]["published_generation"],
             bulk["publication"]["before"]["generations"]["reader_authority"],
         )
+        CLAIMS.case("incremental-v1.json", "publication_cases", stale)
+        CLAIMS.case("incremental-v1.json", "publication_cases", bulk)
 
     def test_all_shards_source_unions_reader_source_advance_and_operational_windows(self):
         subject_shards, reader_shards = set(), set()
@@ -548,6 +556,7 @@ class TestSharedVectors(unittest.TestCase):
                 self.assertEqual(case["changed"]["coverage"], ["source.enc.json"])
             if case["id"].startswith("exemption-source-union/"):
                 union_sizes.update(len(values) for values in case["input"]["prior_exemption_union"].values())
+            CLAIMS.case('incremental-v1.json', 'cases', case)
         self.assertEqual(subject_shards, {f"users/{i:02d}.enc.json" for i in range(32)})
         self.assertEqual(reader_shards, {f"derived/reader-authority/{i:02d}.enc.json" for i in range(32)})
         self.assertTrue({0, 1, 2}.issubset(union_sizes))
@@ -557,6 +566,7 @@ class TestSharedVectors(unittest.TestCase):
                 after = self.reference(self.records(case["history"]), case["input"]["operation_state"], case["input"])
                 self.assertEqual(after, (case["after"]["coverage"], case["after"]["derived"]))
                 self.assertEqual(case["before"]["derived"], case["after"]["derived"])
+            CLAIMS.case('incremental-v1.json', 'operational_cases', case)
 
     def test_cli_check_passes_for_complete_checked_in_corpus(self):
         result = subprocess.run([sys.executable, "-m", "dracla.conformance.vectors", "--check"],
@@ -602,3 +612,4 @@ class TestSharedVectors(unittest.TestCase):
                 served = resolve_read_status(index_row, projection, case["effective_scope"], pair)
                 self.assertEqual((served.status, served.reason_code),
                                  (resolved["status"], resolved["reason_code"]))
+            CLAIMS.case('incremental-v1.json', 'read_cases', case)

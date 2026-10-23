@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash, createHmac } from 'node:crypto';
-import test from 'node:test';
+import test, { after } from 'node:test';
+import { CLAIMS, Consumption } from './corpus-consumption.mjs';
 import * as canonical from '../.conformance-build/conformance/canonical.js';
 import * as encoding from '../.conformance-build/conformance/encoding.js';
 import * as artifacts from '../.conformance-build/conformance/artifacts.js';
@@ -112,8 +113,9 @@ test('every artifact identity, segment and override golden matches the common co
     assert.equal(result.schema_version, 1); assert.equal(result.logical_id, row[1] + ':' + row[2]);
     assert.ok(Object.isFrozen(result));
     for (const bad of [row[2] + '\n', '/' + row[2], './' + row[2], row[2].replace('/', '//'), row[2] + '/', row[2].replace('.enc.', '.ENC.')].filter(value => value !== row[2])) assert.throws(() => artifacts.resolveArtifactIdentity(row[0], row[1], bad), artifacts.ArtifactIdentityError);
+    CLAIMS.case('artifact-identities-v1.json', 'identities', row);
   }
-  for (const row of identities.segments) assert.equal(await artifacts.segment(row.value), row.token);
+  for (const row of identities.segments) { assert.equal(await artifacts.segment(row.value), row.token); CLAIMS.case('artifact-identities-v1.json', 'segments', row); }
   const eventPath = identities.identities.find(row => row[3] === 'canonical-event')[2];
   const wrongPrefix = eventPath.slice(7, 9) === 'AA' ? 'BB' : 'AA';
   assert.throws(() => artifacts.resolveArtifactIdentity('records', 'events', 'events/' + wrongPrefix + eventPath.slice(9)), artifacts.ArtifactIdentityError);
@@ -123,6 +125,8 @@ test('every artifact identity, segment and override golden matches the common co
   for (const tree_oid of ['a'.repeat(39), 'A'.repeat(40), 'a'.repeat(40) + '\n']) await assert.rejects(artifacts.overrideKey({ ...input, tree_oid }), artifacts.ArtifactIdentityError);
   for (const bad of ['', '\ud800', 1]) await assert.rejects(artifacts.segment(bad), artifacts.ArtifactIdentityError);
   for (const args of [['other', 'coverage', 'source.enc.json'], ['coverage', '', 'source.enc.json'], ['records', 'derived', 'derived/index/32.enc.json'], ['coverage', 'derived', 'derived/index/00.enc.json'], ['records', 'events', 'events/AA/AA/' + 'B'.repeat(43) + '.enc.json'], ['records', 'derived', 'derived/exports/' + 'B'.repeat(22) + '.enc.csv']]) assert.throws(() => artifacts.resolveArtifactIdentity(...args), artifacts.ArtifactIdentityError);
+
+  CLAIMS.value('artifact-identities-v1.json', 'override_key');
 });
 
 test('AAD and encrypted bytes match the Python golden under a test-only nonce mock', async t => {
@@ -130,9 +134,12 @@ test('AAD and encrypted bytes match the Python golden under a test-only nonce mo
   t.mock.method(crypto, 'getRandomValues', array => { array.set(unhex(encrypted.nonce_hex)); return array; });
   const actual = await envelope.encryptArtifact(bytes(encrypted.plaintext_utf8), encryption);
   assert.equal(new TextDecoder().decode(actual), encrypted.envelope_utf8);
+  assert.equal(parse(actual).ciphertext, encrypted.ciphertext_base64url);
   assert.equal(new TextDecoder().decode(await envelope.decryptArtifact(actual, decryption)), encrypted.plaintext_utf8);
   assert.deepEqual(await envelope.decryptJsonArtifact(actual, decryption), JSON.parse(encrypted.plaintext_utf8));
   assert.equal(hex(await envelope.encryptJsonArtifact(JSON.parse(encrypted.plaintext_utf8), encryption)), hex(actual));
+
+  CLAIMS.value('artifact-envelope-v1.json', 'key_hex', 'kid_hex', 'nonce_hex', 'project_id', 'repository_role', 'branch', 'path', 'plaintext_utf8', 'aad_utf8', 'ciphertext_base64url', 'envelope_utf8');
 });
 
 test('production nonce is fresh and every envelope binding rejects its mutation', async () => {
@@ -140,6 +147,10 @@ test('production nonce is fresh and every envelope binding rejects its mutation'
   const second = await envelope.encryptArtifact(bytes(encrypted.plaintext_utf8), encryption);
   assert.notEqual(parse(first).nonce, parse(second).nonce);
   const original = JSON.parse(encrypted.envelope_utf8);
+  await assert.rejects(envelope.decryptArtifact(wire({ ...original, purpose: 'wrapped-key' }), decryption), envelope.ArtifactEnvelopeFormatError);
+  const changedTag = encoding.base64urlDecode(original.ciphertext); changedTag[changedTag.length - 1] ^= 1;
+  await assert.rejects(envelope.decryptArtifact(wire({ ...original, ciphertext: encoding.base64urlEncode(changedTag) }), decryption), envelope.ArtifactAuthenticationError);
+
   for (const field of Object.keys(original)) {
     const missing = { ...original }; delete missing[field];
     await assert.rejects(envelope.decryptArtifact(wire(missing), decryption), envelope.ArtifactEnvelopeFormatError);
@@ -198,6 +209,7 @@ test('release profile is closed, finite, immutable, class-specific and has no co
   assert.throws(() => profile.limit('max_shard_ciphertext_bytes'), limits.ReleaseProfileError);
   assert.throws(() => profile.limit('max_reader_source_members', 'derived_index'), limits.ReleaseProfileError);
   assert.throws(() => limits.loadReleaseProfile(bytes('{} ')), limits.ReleaseProfileError);
+  CLAIMS.contract('closed_schemas', 'release-profile');
 });
 
 const samples = [];
@@ -216,9 +228,9 @@ async function accept(path, value, standingRules = {}) {
 let preparedSamples;
 function prepareSamples() { return preparedSamples ??= (async () => {
   assert.deepEqual(Object.keys(derived.wire_goldens).sort(), allWireGoldenNames, 'wire golden group inventory changed');
-  for (const [path, value] of Object.entries(coverage.empty_files)) await accept(path, value);
+  for (const [path, value] of Object.entries(coverage.empty_files)) { await accept(path, value); CLAIMS.case('coverage-v1.json', 'empty_files', path); }
   await accept('agreements/active.enc.json', coverage.active);
-  for (const [path, value] of Object.entries(derived.empty_shards)) await accept(path, value);
+  for (const [path, value] of Object.entries(derived.empty_shards)) { await accept(path, value); CLAIMS.case('derived-v1.json', 'empty_shards', path); }
   for (const value of Object.values(operations.fences)) await accept('decision-fence.enc.json', value);
   for (const value of Object.values(operations.markers)) await accept('inflight.enc.json', value);
   for (const row of derived.wire_goldens.status_rows) {
@@ -274,6 +286,7 @@ function prepareSamples() { return preparedSamples ??= (async () => {
     const path = `derived/status-detail/${String(row.subject % 32).padStart(2, '0')}.enc.json`;
     await accept(path, { [String(row.subject)]: row.row });
     for (const [path, value] of row.operation_state.map((value, i) => [i ? 'decision-fence.enc.json' : 'inflight.enc.json', value])) await accept(path, value);
+    CLAIMS.case('incremental-v1.json', 'read_cases', row);
   }
   for (const row of transitions.publication_cases) {
     for (const side of ['before', 'after']) for (const [path, value] of Object.entries(row[side].coverage)) await accept(path, value);
@@ -282,10 +295,20 @@ function prepareSamples() { return preparedSamples ??= (async () => {
       await accept('derived/state.enc.json', parse(new Uint8Array(Buffer.from(publication.state_bytes_b64, 'base64url'))));
       for (const [path, value] of Object.entries(publication.plaintext.files)) await accept(path, value, publication.plaintext.standing_rules);
     }
+    CLAIMS.case('incremental-v1.json', 'publication_cases', row);
   }
   assert.deepEqual([...consumedProjectionGoldenGroups].sort(), Object.keys(projectionGoldenInventory).sort(), 'projection golden group consumption incomplete');
   const expectedProjectionGoldenFixtures = Object.entries(projectionGoldenInventory).flatMap(([name, stages]) => Object.entries(stages).flatMap(([stage, paths]) => paths.map(path => `${name}/${stage}/${path}`))).sort();
   assert.deepEqual([...consumedProjectionGoldenFixtures].sort(), expectedProjectionGoldenFixtures, 'projection golden fixture consumption incomplete');
+  CLAIMS.case('derived-v1.json', 'wire_goldens', 'status_rows');
+  CLAIMS.case('derived-v1.json', 'wire_goldens', 'reader_authority');
+  CLAIMS.case('derived-v1.json', 'wire_goldens', 'exemption_source_rows');
+  CLAIMS.case('derived-v1.json', 'wire_goldens', 'pre_agreement_exemption');
+  CLAIMS.case('derived-v1.json', 'wire_goldens', 'canonical_signature');
+  CLAIMS.case('derived-v1.json', 'wire_goldens', 'canonical_recorded_exemption');
+  CLAIMS.case('derived-v1.json', 'wire_goldens', 'canonical_readers');
+  CLAIMS.case('derived-v1.json', 'wire_goldens', 'assembled_state');
+  CLAIMS.case('derived-v1.json', 'wire_goldens', 'canonical_assembled_state');
   assert.equal(new Set(samples.map(row => identity(row.path).artifact_kind)).size, 10);
   assert.ok(samples.length > 100);
 })(); }
@@ -330,12 +353,14 @@ test('currency, calendar, shard placement and durable signature invariants rejec
     await projections.decodeProjection(identity('agreements/active.enc.json'), wire(ordered), { profile });
     await reject('agreements/active.enc.json', { ...ordered, [fixture.set]: fixture.reversed_values });
     await reject('agreements/active.enc.json', { ...ordered, [fixture.set]: [fixture.canonical_values[0], fixture.canonical_values[0]] });
+    CLAIMS.case('coverage-v1.json', 'version_ordering_cases', fixture);
   }
   for (const fixture of coverage.shard_cases) {
     const value = { [String(fixture.user)]: { agreements: {}, overrides: {} } };
     const path = `users/${String(fixture.expected).padStart(2, '0')}.enc.json`;
     await projections.decodeProjection(identity(path), wire(value), { profile });
     await reject(`users/${String((fixture.expected + 1) % 32).padStart(2, '0')}.enc.json`, value);
+    CLAIMS.case('coverage-v1.json', 'shard_cases', fixture);
   }
   const sourceShards = new Set();
   const hashedSources = derived.source_shards.filter(fixture => Object.hasOwn(fixture, 'sha256'));
@@ -346,6 +371,7 @@ test('currency, calendar, shard placement and durable signature invariants rejec
     sourceShards.add(shard);
     assert.equal(shard, fixture.shard, fixture.source_id);
     if (fixture.sha256) assert.equal(hex(digest), fixture.sha256, fixture.source_id);
+    CLAIMS.case('derived-v1.json', 'source_shards', fixture);
   }
   assert.deepEqual([...sourceShards].sort((a, b) => a - b), [...Array(32).keys()]);
   for (const mutation of [{ active_version: 'missing' }, { accepted_versions: ['1', '1'] }, { accepted_versions: ['2', '1'] }, { retired_versions: ['1'] }, { projection_format: 2 }, { shard_count: 31 }, { agreement_id: null }]) await reject('agreements/active.enc.json', { ...coverage.active, ...mutation });
@@ -477,6 +503,8 @@ test('M1-14 fixed-nonce wrapped key, AAD and canonical keyring match the shared 
   assert.equal(hex(keyrings.encodeKeyring(decoded)), hex(bytes(wrapped.keyring_utf8)));
   for (const object of [copy, decoded, decoded.keys, decoded.keys[0]]) assert.ok(Object.isFrozen(object));
   assert.throws(() => { decoded.keys[0].project_id = 'other'; }, TypeError);
+
+  CLAIMS.value('wrapped-key-v1.json', 'project_id', 'capability', 'wrapper_id', 'wrapper_generation', 'data_key_hex', 'data_kid_hex', 'wrapping_key_hex', 'nonce_hex', 'wrapped_key_base64url', 'aad_utf8', 'copy_utf8', 'keyring_utf8');
 });
 
 test('M1-14 every capability/wrapper pair, fresh nonce, rotation and UTF8 keyring ordering', async () => {
@@ -494,6 +522,7 @@ test('M1-14 every capability/wrapper pair, fresh nonce, rotation and UTF8 keyrin
         [first, second].sort((a, b) => Buffer.compare(Buffer.from(wire(a)), Buffer.from(wire(b)))));
       const reversed = parse(encoded); reversed.keys.reverse();
       assert.throws(() => decodeKeys(wire(reversed)), keyrings.KeyringFormatError);
+      CLAIMS.contract('wrapper_pairs', capability + ':' + wrapperId);
     }
   }
   // Unicode generation ordering uses complete UTF8 object bytes, not locale order.
@@ -718,30 +747,36 @@ async function evtPackage(event, facts) {
 test('M1-15 every closed event and deterministic identity agrees with the shared registries', async () => {
   assert.deepEqual([...events.EVENT_TYPES].sort(), eventIdentities.event_types_v1.toSorted());
   assert.deepEqual(eventCorpus.events.map(row => row.type).sort(), [...events.EVENT_TYPES].sort());
-  for (const row of eventIdentities.actors) assert.deepEqual(events.stableActorIdentity(row.actor), row.stable);
+  for (const row of eventIdentities.actors) { assert.deepEqual(events.stableActorIdentity(row.actor), row.stable); CLAIMS.case('event-identities-v1.json', 'actors', row); }
   const checkIdentity = async (input, golden) => {
     const result = await events.deriveEventIdentity(input);
     for (const key of ['idempotency_key', 'operation_sha256', 'event_id']) assert.equal(result[key], golden[key]);
     assert.equal(result.path, golden.event_path); assert.ok(Object.isFrozen(result));
   };
-  for (const [type, row] of Object.entries(eventIdentities.event_identity_vectors)) await checkIdentity({ ...eventIdentities.event_identity_common_input, type, ...Object.fromEntries(['operation_nonce', 'actor', 'confirmed_canonical_oid'].map(key => [key, row[key]])) }, row);
-  for (const row of [eventIdentities.event_identity, ...eventIdentities.scope_terminal_identity_variants]) await checkIdentity({ ...Object.fromEntries(['project_id', 'operation_nonce', 'actor', 'target', 'payload', 'confirmed_canonical_oid'].map(key => [key, row[key]])), type: row.event_type }, row);
+  for (const [type, row] of Object.entries(eventIdentities.event_identity_vectors)) { await checkIdentity({ ...eventIdentities.event_identity_common_input, type, ...Object.fromEntries(['operation_nonce', 'actor', 'confirmed_canonical_oid'].map(key => [key, row[key]])) }, row); CLAIMS.case('event-identities-v1.json', 'event_identity_vectors', type); }
+  for (const row of [eventIdentities.event_identity, ...eventIdentities.scope_terminal_identity_variants]) { await checkIdentity({ ...Object.fromEntries(['project_id', 'operation_nonce', 'actor', 'target', 'payload', 'confirmed_canonical_oid'].map(key => [key, row[key]])), type: row.event_type }, row); if (eventIdentities.scope_terminal_identity_variants.includes(row)) CLAIMS.case('event-identities-v1.json', 'scope_terminal_identity_variants', row); }
   for (const row of eventIdentities.negative_examples) {
     const { name, event_type, unexpected_kwargs, ...input } = row;
     await assert.rejects(events.deriveEventIdentity({ ...input, ...unexpected_kwargs, type: event_type }), events.EventIdentityError, name);
+    CLAIMS.case('event-identities-v1.json', 'negative_examples', row);
   }
   const nonce = async row => row.domain === 'scope_terminal' ? events.deriveScopeTerminalNonce(row.request_event_id, row.terminal_type) : row.domain === 'github_retry' ? events.deriveGithubRetryNonce(row.repository_id, row.check_kind, row.check_identity, row.github_delivery_id) : events.deriveAutomationNonce(row.rule_event_id, row.subject_user_id, row.result, row.prior_materialization_event_id);
-  for (const row of [{ domain: 'automation', ...eventIdentities.automation_nonce }, { domain: 'github_retry', ...eventIdentities.github_retry_nonce }, ...eventIdentities.deterministic_nonce_variants]) assert.equal(await nonce(row), row.nonce);
+  for (const row of [{ domain: 'automation', ...eventIdentities.automation_nonce }, { domain: 'github_retry', ...eventIdentities.github_retry_nonce }, ...eventIdentities.deterministic_nonce_variants]) { assert.equal(await nonce(row), row.nonce); if (eventIdentities.deterministic_nonce_variants.includes(row)) CLAIMS.case('event-identities-v1.json', 'deterministic_nonce_variants', row); }
   for (const [field, type] of [['activation', 'enforcement_scope_activated'], ['abandonment', 'enforcement_scope_abandoned']]) assert.equal(await events.deriveScopeTerminalNonce(eventIdentities.scope_terminal_nonces.request_event_id, type), eventIdentities.scope_terminal_nonces[field]);
   assert.equal(encoding.base64urlDecode(events.newOperationNonce()).length, 16);
   for (const row of eventCorpus.events) {
     const result = await events.validateEvent(row, { expectedProjectId: row.project_id, expectedPath: events.eventPath(row.event_id) });
     assert.deepEqual(result, row); assert.ok(Object.isFrozen(result.payload)); assert.deepEqual(await events.parseEventJcs(wire(row)), row);
     assert.deepEqual((await events.requiredPreconditions(row, evtHead(row))).map(row => row.name), eventCorpus.precondition_names[row.type]);
+    CLAIMS.case('events-v1.json', 'precondition_names', row.type);
     await events.requiredSideArtifacts(row, await evtFacts(row), evtHead(row));
+    CLAIMS.case('events-v1.json', 'events', row);
   }
-  for (const row of eventCorpus.negative_examples) await assert.rejects(events.validateEvent(row.input), events.EventValidationError, row.name);
-  for (const row of eventCorpus.jcs_negative_cases) await assert.rejects(events.parseEventJcs(encoding.base64urlDecode(row.bytes_b64)), events.EventValidationError, row.id);
+  for (const row of eventCorpus.negative_examples) { await assert.rejects(events.validateEvent(row.input), events.EventValidationError, row.name); CLAIMS.case('events-v1.json', 'negative_examples', row); }
+  for (const row of eventCorpus.jcs_negative_cases) { await assert.rejects(events.parseEventJcs(encoding.base64urlDecode(row.bytes_b64)), events.EventValidationError, row.id); CLAIMS.case('events-v1.json', 'jcs_negative_cases', row); }
+
+  CLAIMS.value('event-identities-v1.json', 'event_identity_common_input', 'event_identity', 'automation_nonce', 'github_retry_nonce', 'scope_terminal_nonces');
+  for (const type of events.EVENT_TYPES) CLAIMS.case('event-identities-v1.json', 'event_types_v1', type);
 });
 
 function evtAuthorization(operation, kind, id, authority) {
@@ -760,28 +795,37 @@ test('M1-15 complete authorization vocabulary, scope transitions and negative co
   for (const row of [...authorizationCorpus.connection_cases, ...authorizationCorpus.key_activation_cases]) {
     const values = row.rows.map(([op, kind, id, authority]) => evtAuthorization(op, kind, id, authority));
     assert.deepEqual(events.validateAuthorizations(row.event_type, {}, row.payload ?? {}, actor, values, row.affected_repository_ids), values);
+    CLAIMS.case('authorization-vocabulary-v1.json', authorizationCorpus.connection_cases.includes(row) ? 'connection_cases' : 'key_activation_cases', row);
   }
   for (const row of authorizationCorpus.scope_cases) {
     const authorization = evtScopeAuthorization(row), payload = { prior_scope: row.prior_scope, desired_scope: row.desired_scope, prior_registry_generation: 0 };
     events.validateAuthorizations('enforcement_scope_requested', { change_id: 'oracle' }, payload, actor, [authorization]);
     events.validateAuthorizations('enforcement_scope_activated', { change_id: 'oracle' }, { desired_scope: row.desired_scope }, actor, [authorization]);
     events.validateAuthorizations('enforcement_scope_abandoned', { change_id: 'oracle' }, {}, actor, [authorization]);
+    CLAIMS.case('authorization-vocabulary-v1.json', 'scope_cases', row);
   }
   for (const [operation, kind, authority] of authorizationCorpus.pair_rejections) {
     assert.throws(() => events.validateAuthorizations('agreement_published', {}, {}, actor, [evtAuthorization(operation, kind, 5, authority)]), events.AuthorizationValidationError);
+    CLAIMS.case('authorization-vocabulary-v1.json', 'pair_rejections', [operation, kind, authority]);
   }
-  for (const row of authorizationCorpus.negative_examples) assert.throws(() => events.validateAuthorizations(row.event_type, row.target, row.payload, row.actor, row.authorizations, row.affected_repository_ids), events.AuthorizationValidationError, row.name);
+  for (const row of authorizationCorpus.negative_examples) { assert.throws(() => events.validateAuthorizations(row.event_type, row.target, row.payload, row.actor, row.authorizations, row.affected_repository_ids), events.AuthorizationValidationError, row.name); CLAIMS.case('authorization-vocabulary-v1.json', 'negative_examples', row); }
   for (const row of eventCorpus.authorization_cases) {
     if (row.category === 'scope') assert.ok(authorizationCorpus.scope_cases.some(value => value.operation === row.operation));
     else assert.equal(eventRows[row.event_type].actor.kind, row.actor_kind);
     assert.equal(row.expect, 'accept');
+    CLAIMS.case('events-v1.json', 'authorization_cases', row);
   }
+
+  CLAIMS.value('authorization-vocabulary-v1.json', 'timestamp');
+  CLAIMS.equal('authorization-vocabulary-v1.json', 'operation_rows', pairs);
+  assert.deepEqual(authorizationCorpus.scope_operations.toSorted(), [...new Set(authorizationCorpus.scope_cases.map(row => row.operation))].sort());
+  for (const operation of authorizationCorpus.scope_operations) CLAIMS.case('authorization-vocabulary-v1.json', 'scope_operations', operation);
 });
 
 test('M1-15 all required evidence descriptors fail closed on missing, stale, malformed or inconsistent facts', async () => {
   const byName = new Map();
-  for (const event of eventCorpus.events) for (const requirement of await events.requiredPreconditions(event, evtHead(event))) if (!byName.has(requirement.name)) byName.set(requirement.name, event);
-  for (const row of eventCorpus.precondition_cases) for (const name of row.descriptor === '*' ? row.descriptors : [row.descriptor]) {
+  for (const event of eventCorpus.events) { for (const requirement of await events.requiredPreconditions(event, evtHead(event))) if (!byName.has(requirement.name)) byName.set(requirement.name, event); CLAIMS.case('events-v1.json', 'events', event); }
+  for (const row of eventCorpus.precondition_cases) { for (const name of row.descriptor === '*' ? row.descriptors : [row.descriptor]) {
     const event = byName.get(name), head = evtHead(event), facts = await evtFacts(event), selected = evtFact(facts, name);
     if (row.status === 'satisfied') { await events.validatePreconditions(event, facts, head); continue; }
     if (row.status === 'missing') facts.splice(facts.indexOf(selected), 1);
@@ -792,7 +836,7 @@ test('M1-15 all required evidence descriptors fail closed on missing, stale, mal
     else if (selected.binding.mode === 'cross-project') selected.binding.successor_project_id = 'other-project';
     else selected.binding.events_head = 'c'.repeat(40);
     await assert.rejects(events.validatePreconditions(event, facts, head), events.PreconditionValidationError, row.id + '/' + name);
-  }
+  } CLAIMS.case('events-v1.json', 'precondition_cases', row); }
   for (const event of eventCorpus.events) {
     const head = evtHead(event), original = await evtFacts(event);
     for (const row of original) {
@@ -806,6 +850,7 @@ test('M1-15 all required evidence descriptors fail closed on missing, stale, mal
     await assert.rejects(events.validatePreconditions(event, [...original, original[0]], head), events.PreconditionValidationError);
     const mapping = Object.fromEntries(original.map(({ name, ...row }) => [name, row]));
     assert.equal((await events.validatePreconditions(event, mapping, head)).length, original.length);
+    CLAIMS.case('events-v1.json', 'events', event);
   }
 });
 
@@ -821,6 +866,7 @@ test('M1-15 every shared activation projection and cross-project case is enforce
     const raw = evtClone(eventRows.agreement_activated); raw.target.version = row.event_version; Object.assign(raw.payload, { supersedes_coverage: row.supersedes_coverage, accepted_versions: accepted });
     const event = await evtSign(raw), facts = await evtFacts(event, { 'active-agreement': projection });
     if (row.expect === 'accept') await events.validatePreconditions(event, facts, evtHead(event)); else await assert.rejects(events.validatePreconditions(event, facts, evtHead(event)), events.PreconditionValidationError, row.id);
+    CLAIMS.case('events-v1.json', 'activation_cases', row);
   }
   for (const row of eventCorpus.cross_project_cases) {
     const event = eventRows.project_succeeded, facts = await evtFacts(event), selected = evtFact(facts, 'successor-project');
@@ -831,6 +877,7 @@ test('M1-15 every shared activation projection and cross-project case is enforce
     else if (row.mutation === 'inactive_agreement') selected.value.active_agreement.state = 'inactive';
     else assert.equal(row.mutation, 'valid');
     if (row.expect === 'accept') await events.validatePreconditions(event, facts, evtHead(event)); else await assert.rejects(events.validatePreconditions(event, facts, evtHead(event)), events.PreconditionValidationError, row.id);
+    CLAIMS.case('events-v1.json', 'cross_project_cases', row);
   }
 });
 
@@ -888,7 +935,9 @@ test('M1-15 every exact side-artifact package vector and authenticated generatio
       await assert.doesNotReject(events.validateSideArtifactPackage(event, packageValue, facts, evtHead(event)), row.id);
       await events.validateSideArtifactPackage(event, packageValue.map(({ bytes, ...item }) => ({ ...item, bytes_b64: encoding.base64urlEncode(bytes) })), facts, evtHead(event));
     } else await assert.rejects(events.validateSideArtifactPackage(event, packageValue, facts, evtHead(event)), events.EventValidationError, row.id);
+    CLAIMS.case('events-v1.json', 'package_cases', row);
   }
+  CLAIMS.contract('closed_schemas', 'agreement-metadata');
 });
 
 test('M1-15 project-wide continuous-reader limit authenticates all 32 shards and their generation join', async () => {
@@ -962,6 +1011,7 @@ test('M1-15 historical continuous-source proof survives renames, departure, reti
       const bad = evtClone(facts); mutate(evtFact(bad, 'source-first-add'));
       await assert.rejects(events.validatePreconditions(withdrawal, bad, evtHead(withdrawal)), events.PreconditionValidationError);
     }
+    CLAIMS.case('events-v1.json', 'source_first_add_paths', golden);
   }
   for (const row of eventCorpus.shrink_only_cases) {
     let event = evtClone(eventRows[row.event_type]);
@@ -978,6 +1028,7 @@ test('M1-15 historical continuous-source proof survives renames, departure, reti
       const requirements = await events.requiredSideArtifacts(event, facts, evtHead(event)); assert.equal(requirements.length > 0, row.expect === 'affected', row.id);
       await events.validateSideArtifactPackage(event, await evtPackage(event, facts), facts, evtHead(event));
     }
+    CLAIMS.case('events-v1.json', 'shrink_only_cases', row);
   }
 });
 
@@ -989,6 +1040,7 @@ test('M1-15 lifecycle policy and confirmed heads use the same shared mutation ca
     } else if (row.mutation === 'succeeded_lifecycle') Object.assign(evtFact(facts, 'project-lifecycle').value, { state: 'succeeded', successor_project_id: 'successor-project' });
     else assert.equal(row.mutation, 'confirmed_head');
     await assert.rejects(events.requiredSideArtifacts(event, facts, row.mutation === 'confirmed_head' ? 'b'.repeat(40) : evtHead(event)), events.PreconditionValidationError, row.id);
+    CLAIMS.case('events-v1.json', 'head_binding_cases', row);
   }
   for (const row of eventCorpus.lifecycle_cases) {
     let event = evtClone(eventRows[row.event_type]), overrides = {};
@@ -1007,6 +1059,7 @@ test('M1-15 lifecycle policy and confirmed heads use the same shared mutation ca
     const facts = await evtFacts(event, overrides);
     if (row.expect === 'accept') await assert.doesNotReject(events.validatePreconditions(event, facts, evtHead(event)), row.id);
     else await assert.rejects(events.validatePreconditions(event, facts, evtHead(event)), events.PreconditionValidationError, row.id);
+    CLAIMS.case('events-v1.json', 'lifecycle_cases', row);
   }
 });
 
@@ -1033,6 +1086,7 @@ test('M1-15 closed nested event schemas reject extra fields, unsafe values and c
     }
     await assert.rejects(events.validateEvent(event, { expectedProjectId: 'other' }), events.EventValidationError);
     await assert.rejects(events.validateEvent(event, { expectedPath: events.eventPath(eventRows.project_connected.event_id) + '.wrong' }), events.EventValidationError);
+    CLAIMS.case('events-v1.json', 'events', event);
   }
   const invalidUrls = ['https:example.test', 'https:///example.test', 'https://exa mple.test/path', 'https://example.test/%ZZ', 'https://example.test/foo\\bar', 'https://example.test/\npath', 'https://', 'https://:443/path', 'https://[bad]/path', 'https://example.test:bad/path', 'https://example.test:65536/path', 'https://example.test:/path', 'http://example.test', 'https://user:secret@example.test'];
   for (const url of invalidUrls) {
@@ -1162,6 +1216,11 @@ async function formBind(form, operation) {
 
 test('M1-16 fixed form bytes, all 24 action rows and every terminal alternative', async () => {
   const golden = formCorpus.golden;
+  const formIdentity = await events.deriveEventIdentity({ project_id: golden.form.project_id, operation_nonce: golden.form.operation_nonce,
+    actor: { kind: 'github', github_user_id: golden.form.github_user_id, login_snapshot: 'fixture' }, type: golden.form.type,
+    target: golden.operation.target, payload: golden.operation.payload,
+    confirmed_canonical_oid: ['acceptance', 'revocation'].includes(golden.form.type) ? golden.form.confirmed_canonical_oid : null });
+  assert.equal(formIdentity.operation_sha256, golden.form.operation_sha256);
   assert.equal(hex(wire(golden.form)), hex(bytes(golden.payload_jcs)));
   assert.equal(await actionForms.encodeActionForm(golden.form, { key: unhex(formCorpus.keys[0].key_hex) }), golden.token);
   assert.equal(hex(encoding.base64urlDecode(golden.token.split('.')[1])), golden.tag_hex);
@@ -1172,6 +1231,7 @@ test('M1-16 fixed form bytes, all 24 action rows and every terminal alternative'
     const form = { ...golden.form, type: row.type }, result = await formVerify(form);
     assert.equal(result.isNoop, false); assert.equal(result.preparable, true);
     await assert.rejects(formVerify(form, { confirmed_canonical_oid: formCorpus.later_head }), actionForms.ActionFormError);
+    CLAIMS.case('action-form-v1.json', 'actions', row);
   }
   for (const type of [...events.EVENT_TYPES.filter(type => !actionForms.FORM_ACTION_TYPES.includes(type)), '', 'Acceptance', null, 7, {}])
     assert.throws(() => actionForms.formActionSpec(type), actionForms.ActionFormError);
@@ -1181,7 +1241,11 @@ test('M1-16 fixed form bytes, all 24 action rows and every terminal alternative'
     const terminal = eventRows[row.terminal_fixture_type], options = { expectedProjectId: row.form.project_id, expectedConfirmedOid: row.form.confirmed_canonical_oid };
     await actionForms.validateTerminalNoop(result, terminal, row.operation, options);
     await actionForms.validateTerminalNoop(result, wire(terminal), row.operation, options);
+    CLAIMS.case('action-form-v1.json', 'terminal_noops', row);
   }
+
+  CLAIMS.value('action-form-v1.json', 'domain_hex', 'context', 'later_head', 'golden');
+  assert.equal(hex(bytes('dracla-action-form-v1\0')), formCorpus.domain_hex);
 });
 
 test('M1-16 strict form encodings and authenticated closed payload rejection', async () => {
@@ -1231,6 +1295,8 @@ test('M1-16 eligible keys, exact context and lifetime boundaries use native HMAC
     await assert.rejects(actionForms.verifyActionForm(formSignBytes(wire(form), new Uint8Array(32).fill(71)), { keys: formKeys(), context: formContext(form) }), actionForms.ActionFormError);
     assert.deepEqual(calls, ['HMAC', 'HMAC']);
   } finally { crypto.subtle.verify = original; }
+
+  for (const row of formCorpus.keys) { const payload = { ...form, kid: row.kid }; const token = await actionForms.encodeActionForm(payload, { key: unhex(row.key_hex) }); assert.equal((await actionForms.verifyActionForm(token, { keys: formKeys(), context: formContext(payload) })).form.kid, row.kid); CLAIMS.case('action-form-v1.json', 'keys', row); }
 });
 
 test('M1-16 terminal proofs require authenticated factory, exact immutable read and complete desired effect', async () => {
@@ -1307,6 +1373,9 @@ test('M1-16 independent operation hash and complete state wire goldens', async (
   const renewed = await opClaim(opCells.appending, { appendHead: 'a'.repeat(40), expectedAppendClaim: operations.cells.appending.append_claim });
   assert.equal(renewed.toDict().append_claim, await operationState.appendClaim(opOwner.operationId, opOwner.operationSha256, 'a'.repeat(40)));
   assert.equal(renewed.toDict().event_jcs_b64, operations.cells.prepared.event_jcs_b64);
+
+  CLAIMS.value('operation-state-v1.json', 'profile', 'project_id', 'append_claim', 'check_identity');
+  for (const [field, values] of [['cells', opCells], ['fences', opFences], ['markers', opMarkers]]) CLAIMS.equal('operation-state-v1.json', field, Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value.toDict()])));
 });
 
 test('M1-16 every persisted crash tuple accepts exactly its legal transitions, without age recovery', async () => {
@@ -1331,6 +1400,7 @@ test('M1-16 every persisted crash tuple accepts exactly its legal transitions, w
       catch (error) { assert.ok(error instanceof operationState.OperationConflict || error instanceof operationState.OperationCorruption, `${row.id}/${name}: ${error}`); }
     }
     assert.deepEqual(allowed.sort(), [...row.allowed].sort(), row.id);
+    CLAIMS.case('operation-state-v1.json', 'crashes', row);
   }
 });
 
@@ -1532,32 +1602,39 @@ test('M1-17 every incremental coverage triple equals reference bytes and exact l
     assert.deepEqual(edgeCoverage.coverageDelta(before, after).files, c.changed.coverage, c.id);
     for (const shard of edgeCoverage.coverageDelta(before, after).shards) shards.add(shard);
     families.add(c.input.record.event.type);
+    CLAIMS.case('incremental-v1.json', 'cases', c);
   }
   assert.equal(families.size, 27);
   assert.deepEqual([...shards].sort((a, b) => a - b), Array.from({ length: 32 }, (_, i) => i));
+
+  CLAIMS.value('incremental-v1.json', 'project_id');
 });
 test('M1-17 fixed subject decisions, currency restore and combined bases match reference', async () => {
   for (const c of [...coverage.evaluation_cases, ...coverage.combined_basis_cases]) {
     const files = coverageFiles(c.basis, c.exempt);
     Object.assign(files['agreements/active.enc.json'], c.active ?? {});
-    const p = await edgeCoverage.coverageProjection('project-1', files);
+    const p = await edgeCoverage.coverageProjection(coverage.project_id, files);
     const d = await edgeCoverage.evaluateSubject(p, 7, 'agreement-1');
     assert.deepEqual([d.decision, d.reason_code], c.expected, c.name);
     assert.equal(d.overridden, false); assert.equal(d.successor_project_id, null);
+    CLAIMS.case('coverage-v1.json', coverage.evaluation_cases.includes(c) ? 'evaluation_cases' : 'combined_basis_cases', c);
   }
   const before = await edgeCoverage.coverageProjection('project-1', coverageFiles('signed'));
   for (const c of coverage.currency_cases) {
     const files = before.toDict();
     Object.assign(files['agreements/active.enc.json'], Object.fromEntries(Object.entries(c).filter(([k]) => k !== 'expected')));
-    const p = await edgeCoverage.coverageProjection('project-1', files);
+    const p = await edgeCoverage.coverageProjection(coverage.project_id, files);
     const d = await edgeCoverage.evaluateSubject(p, 7, 'agreement-1');
     assert.deepEqual([d.decision, d.reason_code], c.expected);
     assert.deepEqual(edgeCoverage.coverageDelta(before, p).shards, []);
+    CLAIMS.case('coverage-v1.json', 'currency_cases', c);
   }
-  for (const c of coverage.shard_cases) assert.equal(edgeCoverage.coverageShard(c.user, 32), c.expected);
+  for (const c of coverage.shard_cases) { assert.equal(edgeCoverage.coverageShard(c.user, 32), c.expected); CLAIMS.case('coverage-v1.json', 'shard_cases', c); }
   assert.equal(edgeCoverage.coverageShard(Number.MAX_SAFE_INTEGER, 32), 31);
   for (const id of [0, -1, 1.1, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, true, '7']) assert.throws(() => edgeCoverage.coverageShard(id, 32));
   for (const count of [0, 31, 33, '32', true]) assert.throws(() => edgeCoverage.coverageShard(7, count));
+
+  CLAIMS.value('coverage-v1.json', 'project_id', 'active', 'signed', 'revoked', 'unresolved');
 });
 test('M1-17 subject and project fences fail closed with open or empty markers, succession takes precedence', async () => {
   for (const subjects of [[], [7], [8]]) for (const open of [false, true]) {
@@ -1627,6 +1704,7 @@ test('M1-17 coverage snapshots reject malformed whole state and every marker fen
     await edgeCoverage.coverageProjection('project-1', f);
     f['agreements/active.enc.json'][c.set] = c.reversed_values;
     await assert.rejects(edgeCoverage.coverageProjection('project-1', f), edgeCoverage.CoverageError);
+    CLAIMS.case('coverage-v1.json', 'version_ordering_cases', c);
   }
 });
 test('M1-17 missing, stale, incomplete and inconsistent exemption unions are rejected', async () => {
@@ -1675,6 +1753,7 @@ test('M1-17 reader-only appends advance canonical binding while private derivati
     const privateBefore = structuredClone(c.before.derived);
     assert.deepEqual(privateBefore, c.before.derived);
     assert.deepEqual(after.toDict(), c.after.coverage);
+    CLAIMS.case('incremental-v1.json', 'cases', c);
   }
 });
 test('M1-17 snapshots, update observations and override contexts own inputs before await', async () => {
@@ -1709,6 +1788,7 @@ test('M1-17 operational crash windows reproduce the reference without an append 
     assert.equal(after.toDict()['source.enc.json'].canonical_sha, before.toDict()['source.enc.json'].canonical_sha);
     const changed = edgeCoverage.coverageDelta(before, after).files;
     assert.ok(changed.every(path => ['inflight.enc.json', 'decision-fence.enc.json'].includes(path)));
+    CLAIMS.case('incremental-v1.json', 'operational_cases', c);
   }
 });
 test('M1-17 dynamic agreement keys remain data and untouched empty rows are preserved', async () => {
@@ -1764,6 +1844,7 @@ test('M1-18 every incremental private triple equals exact reference bytes and af
       for (const path of c.publication.unchanged_shards) assert.equal(assembled.stateDict().shard_digests[path.includes('/reader-authority/') ? 'reader_authority' : path.includes('/status-detail/') ? 'status_detail' : 'derived_index'][path.slice(-11, -9)], prior.stateDict().shard_digests[path.includes('/reader-authority/') ? 'reader_authority' : path.includes('/status-detail/') ? 'status_detail' : 'derived_index'][path.slice(-11, -9)]);
     }
     derivedConsumed.triples.add(c.id);
+    CLAIMS.case('incremental-v1.json', 'cases', c);
   }
   assert.equal(families.size, 27);
   assert.ok(touched.has('derived/state.enc.json'));
@@ -1775,11 +1856,13 @@ test('M1-18 all operational windows preserve private bytes and all live read ove
     assert.deepEqual(c.before.derived, c.after.derived, c.id);
     for (const [path, raw] of Object.entries(before.plaintextFiles())) assert.deepEqual(raw, wire(c.after.derived.files[path]), c.id);
     derivedConsumed.operations.add(c.id);
+    CLAIMS.case('incremental-v1.json', 'operational_cases', c);
   }
   for (const c of transitions.read_cases) {
     const cv = await edgeCoverage.coverageProjection(transitions.project_id, c.coverage);
     const actual = await edgeDerived.resolveReadStatus({ projectId: transitions.project_id, canonicalOid: c.canonical_oid, subject: c.subject, agreementId: c.agreement_id, row: c.row, coverage: cv, effectiveScope: c.effective_scope, operationState: c.operation_state, profile, standingRules: rulesForRow(c.row) });
     assert.deepEqual(actual, c.expected, c.id); derivedConsumed.reads.add(c.id);
+    CLAIMS.case('incremental-v1.json', 'read_cases', c);
   }
 });
 async function readClass(projection, encoded, c, generation, overrides = {}) {
@@ -1943,4 +2026,85 @@ test('M1-18 generation publication never repairs unrelated stale classes and own
   const sample = transitions.read_cases.find(c => c.expected.status === 'current'), cv = await edgeCoverage.coverageProjection(transitions.project_id, sample.coverage), input = { projectId: transitions.project_id, canonicalOid: sample.canonical_oid, subject: sample.subject, agreementId: sample.agreement_id, row: structuredClone(sample.row), coverage: cv, effectiveScope: [], operationState: structuredClone(sample.operation_state), profile };
   const status = edgeDerived.resolveReadStatus(input); input.row.agreements = {}; input.operationState[1].state = 'bad'; assert.deepEqual(await status, sample.expected);
   assert.deepEqual([...derivedConsumed.triples].sort(), transitions.cases.map(c => c.id).sort()); assert.deepEqual([...derivedConsumed.operations].sort(), transitions.operational_cases.map(c => c.id).sort()); assert.deepEqual([...derivedConsumed.reads].sort(), transitions.read_cases.map(c => c.id).sort()); assert.deepEqual([...derivedConsumed.publications].sort(), transitions.publication_cases.map(c => c.id).sort());
+});
+
+after(async () => { await CLAIMS.assertComplete(); });
+
+test('M1-19 random nonce bytes and changed-payload identity relations execute', async () => {
+  assert.equal(encoding.base64urlEncode(unhex(eventIdentities.random_nonce.bytes_hex)), eventIdentities.random_nonce.operation_nonce);
+  CLAIMS.value('event-identities-v1.json', 'random_nonce');
+  const v = eventIdentities.event_identity, changes = eventIdentities.changed_payload;
+  assert.equal(changes.same_operation_nonce, v.operation_nonce);
+  const input = { project_id: v.project_id, operation_nonce: v.operation_nonce, actor: v.actor, type: v.event_type, target: v.target, confirmed_canonical_oid: v.confirmed_canonical_oid };
+  const first = await events.deriveEventIdentity({ ...input, payload: changes.original_payload });
+  const changed = await events.deriveEventIdentity({ ...input, payload: changes.changed_payload });
+  assert.equal(first.idempotency_key, changed.idempotency_key); assert.equal(first.event_id, changed.event_id);
+  assert.notEqual(first.operation_sha256, changed.operation_sha256);
+  CLAIMS.value('event-identities-v1.json', 'changed_payload');
+});
+
+test('M1-19 all original derived status cases execute the live resolver', async () => {
+  for (const c of derived.cases) {
+    const golden = derived.wire_goldens.status_rows.find(row => row.name === c.name);
+    assert.ok(golden, c.name);
+    const row = parse(unhex(golden.status_detail_bytes_hex))['7'];
+    const facts = row.agreements['agreement-1'];
+    for (const field of ['accepted_at', 'revoked_at']) if (facts[field] !== null) assert.equal(facts[field], derived.recorded_at, c.name);
+    if (facts.basis.event_id !== null) assert.equal(facts.basis.event_id, derived.event_id, c.name);
+    const files = coverageFiles(); files['agreements/active.enc.json'] = structuredClone(derived.active_agreement);
+    const cv = await edgeCoverage.coverageProjection('project-1', files);
+    for (const privateRow of [row, parse(unhex(golden.index_bytes_hex))['7']]) {
+      const actual = await edgeDerived.resolveReadStatus({ projectId: 'project-1', canonicalOid: files['source.enc.json'].canonical_sha, subject: 7, agreementId: 'agreement-1', row: privateRow, coverage: cv, effectiveScope: [], operationState: [files['inflight.enc.json'], files['decision-fence.enc.json']], profile, standingRules: {} });
+      assert.deepEqual([actual.status, actual.reason_code, actual.coverage_reason_code], [c.status, c.reason, c.generic], c.name);
+    }
+    CLAIMS.case('derived-v1.json', 'cases', c);
+  }
+  CLAIMS.value('derived-v1.json', 'active_agreement', 'recorded_at', 'event_id');
+});
+
+
+test('M1-19 source-kind inputs, operation-state inputs and bounded paths are consumed', async () => {
+  for (const [kind, expected] of Object.entries(derived.source_kinds)) {
+    const golden = derived.wire_goldens.exemption_source_rows.find(row => row.name === kind);
+    assert.ok(golden, kind);
+    const detail = parse(unhex(golden.status_detail_bytes_hex));
+    const source = Object.values(detail['7'].exemption_sources)[0];
+    assert.equal(source.source_kind, kind);
+    assert.deepEqual(Object.fromEntries(Object.keys(expected).map(key => [key, source[key]])), expected);
+    const rules = kind === 'continuous_team' ? { [source.rule_event_id]: { team: source.team, basis: source.basis, instrument_ref: source.instrument_ref } } : {};
+    await projections.decodeProjection(identity('derived/status-detail/07.enc.json'), wire(detail), { profile, standingRules: rules });
+    CLAIMS.case('derived-v1.json', 'source_kinds', kind);
+  }
+  for (const [field, decoder] of [['fences', operationState.decodeDecisionFence], ['markers', operationState.decodeInflightMarker]]) {
+    const decoded = Object.fromEntries(await Promise.all(Object.entries(coverage.operation_states[field]).map(async ([key, value]) => [key, (await decoder(wire(value))).toDict()])));
+    assert.deepEqual(decoded, coverage.operation_states[field]);
+    CLAIMS.case('coverage-v1.json', 'operation_states', field);
+  }
+  for (const [field, kind] of [['index_path', 'derived-index'], ['status_path', 'status-detail'], ['reader_path', 'reader-authority']]) {
+    const path = derived.bounded_read[field];
+    assert.equal(identity(path).artifact_kind, kind);
+    const sample = samples.find(row => row.path === path); assert.ok(sample, path);
+    await projections.decodeProjection(identity(path), wire(sample.value), { profile, standingRules: sample.standingRules });
+  }
+  CLAIMS.value('derived-v1.json', 'bounded_read');
+});
+
+
+test('M1-19 missing, new, foreign and inapplicable cases fail closed', async () => {
+  const values = { 'probe.json': { cases: [{ id: 'first', result: true }, { id: 'new', result: false }] } };
+  const spec = { schema_version: 1, files: { 'probe.json': { runtimes: ['typescript'], fields: { cases: { mode: 'cases' } } } }, contracts: { wrapper_pairs: {} } };
+  const manifest = { files: { 'probe.json': { cases: ['cases', 'cases/first', 'cases/new'] } } };
+  const ledger = new Consumption(spec, manifest, values);
+  ledger.case('probe.json', 'cases', values['probe.json'].cases[0]);
+  await assert.rejects(ledger.assertComplete(), /unconsumed.*corpus/s);
+  assert.throws(() => ledger.claim('probe.json', 'cases/missing'), /unknown or inapplicable/);
+  assert.throws(() => ledger.case('probe.json', 'cases', { id: 'first', result: false }), /foreign case/);
+  assert.throws(() => ledger.equal('probe.json', 'cases', []));
+  ledger.case('probe.json', 'cases', values['probe.json'].cases[1]);
+  assert.equal((await ledger.assertComplete()).semantic_claims.length, 2);
+  const wrong = structuredClone(manifest); wrong.files['probe.json'].cases.pop();
+  assert.throws(() => new Consumption(spec, wrong, values), /case registry/);
+  const excluded = structuredClone(spec); excluded.files['probe.json'].runtimes = ['python']; excluded.files['probe.json'].inapplicable_reason = 'test-only applicability';
+  const other = new Consumption(excluded, manifest, values);
+  assert.throws(() => other.claim('probe.json', 'cases/first'), /inapplicable/);
 });

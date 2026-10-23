@@ -31,6 +31,8 @@ from dracla.conformance import (  # noqa: E402
 )
 from dracla.conformance import events as event_module  # noqa: E402
 
+from core.tests.corpus_consumption import CLAIMS
+
 
 VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "events-v1.json"
 HEAD = "b" * 40
@@ -425,6 +427,29 @@ class TestEventPreconditions(unittest.TestCase):
                 preconditions = self._preconditions(event, event_head)
                 if case["status"] == "satisfied":
                     required_side_artifacts(event, preconditions=preconditions, expected_head=event_head)
+                    continue
+                selected = next(item for item in preconditions if item["name"] == name)
+                status = case["status"]
+                if status == "missing":
+                    preconditions.remove(selected)
+                elif status == "wrong-binding":
+                    selected["binding_mode"] = "generation" if selected["binding_mode"] == "events-head" else "events-head"
+                elif status == "inconsistent":
+                    selected["value"] = {"inconsistent": True}
+                else:
+                    self.assertEqual(status, "stale")
+                    mode = selected["binding"]["mode"]
+                    if mode == "canonical-sha":
+                        selected["binding"]["canonical_sha"] = "c" * 40
+                    elif mode == "registry-generation":
+                        selected["binding"]["registry_generation"] += 1
+                    elif mode == "cross-project":
+                        selected["binding"]["successor_project_id"] = "other-project"
+                    else:
+                        selected["binding"]["events_head"] = "c" * 40
+                with self.subTest(case=case["id"], descriptor=name), self.assertRaises(PreconditionValidationError):
+                    event_module._validate_preconditions(event, preconditions, event_head)
+            CLAIMS.case('events-v1.json', 'precondition_cases', case)
 
     def test_activation_prior_projection_vectors(self):
         activation_event_id = self.rows["agreement_activated"]["event_id"]
@@ -503,6 +528,7 @@ class TestEventPreconditions(unittest.TestCase):
                 else:
                     with self.assertRaises(PreconditionValidationError):
                         event_module._validate_preconditions(event, values, HEAD)
+            CLAIMS.case('events-v1.json', 'activation_cases', case)
 
     def test_restore_validates_exact_target_and_derives_currency_transition(self):
         restore = validate_event(self.rows["agreement_activation_restored"])
@@ -594,6 +620,7 @@ class TestEventPreconditions(unittest.TestCase):
                 lifecycle["value"].update(state="succeeded", successor_project_id="successor-project")
                 with self.assertRaises(PreconditionValidationError):
                     required_side_artifacts(event, preconditions=preconditions, expected_head=HEAD)
+            CLAIMS.case('events-v1.json', 'head_binding_cases', case)
         for case in self.corpus["lifecycle_cases"]:
             event = validate_event(self.rows[case["event_type"]])
             if "authorization_operation" in case:
@@ -614,6 +641,7 @@ class TestEventPreconditions(unittest.TestCase):
             except PreconditionValidationError:
                 accepted = False
             self.assertEqual(accepted, case["expect"] == "accept")
+            CLAIMS.case('events-v1.json', 'lifecycle_cases', case)
 
     def test_event_links_and_active_agreement(self):
         for event_type, replacement in (("agreement_activated", {"event_id": "wrong"}), ("enforcement_scope_activated", {}), ("project_succeeded", {"successor_project_id": "wrong", "successor_of": "wrong"})):
@@ -935,6 +963,24 @@ class TestEventPreconditions(unittest.TestCase):
             with self.assertRaises(PreconditionValidationError):
                 event_module._validate_preconditions(exemption, values, HEAD)
 
+    def test_override_withdrawal_authorization_matches_authenticated_grant_repository(self):
+        event = validate_event(self.rows["override_withdrawn"])
+        facts = self._preconditions(event)
+        event_module._validate_preconditions(event, facts, HEAD)
+        self.assertEqual(required_side_artifacts(event, preconditions=facts, expected_head=HEAD), ())
+        event_module.validate_side_artifact_package(event, (), preconditions=facts, expected_head=HEAD)
+        changed = event.to_dict()
+        for row in changed["authorizations"]:
+            row["resource_id"] += 1000
+        mismatched = validate_event(changed)
+        for check in (
+            lambda: event_module._validate_preconditions(mismatched, facts, HEAD),
+            lambda: required_side_artifacts(mismatched, preconditions=facts, expected_head=HEAD),
+            lambda: event_module.validate_side_artifact_package(mismatched, (), preconditions=facts, expected_head=HEAD),
+        ):
+            with self.assertRaisesRegex(PreconditionValidationError, "repository mismatch"):
+                check()
+
     def test_override_and_keyring_facts_are_bound_to_events(self):
         override = validate_event(self.rows["override_withdrawn"])
         values = self._preconditions(override)
@@ -1190,6 +1236,7 @@ class TestEventPreconditions(unittest.TestCase):
                                   descriptor.binding_mode, descriptor.expected_head),
                                  (row["path"], "events", "records", "events-head", HEAD))
                 event_module._validate_preconditions(withdrawal, values, HEAD)
+            CLAIMS.case('events-v1.json', 'source_first_add_paths', row)
 
     def test_source_first_add_survives_departure_rule_retirement_and_repeated_withdrawal(self):
         for family in ("exemption", "records_reader"):
@@ -1367,6 +1414,29 @@ class TestEventPreconditions(unittest.TestCase):
         prior["value"]["reader_authority"] = self.rows["revocation"]["event_id"]
         with self.assertRaises(PreconditionValidationError):
             event_module._validate_preconditions(event, values, HEAD)
+
+    def test_every_shared_shrink_only_case(self):
+        for case in self.corpus["shrink_only_cases"]:
+            raw = copy.deepcopy(self.rows[case["event_type"]])
+            if case["mutation"] == "stale_departure":
+                raw["payload"]["result"] = "withdraw"
+                raw["payload"]["membership_evidence"]["state"] = "not_member"
+            event = self._signed_source_event(raw)
+            facts = self._preconditions(event)
+            name = "current-reader-authority" if event.type == "records_reader_materialized" else "reader-authority-state"
+            selected = next(item for item in facts if item["name"] == name)
+            selected["value"]["class_state"] = case["state"]
+            key = "sources" if event.type == "records_reader_materialized" else "source_event_ids"
+            selected["value"][key] = [event.target.get("source_event_id", event.target.get("rule_event_id"))] if case["source_present"] else []
+            if case["state"] == "stale":
+                selected["binding"]["derived_generation"] = selected["value"]["cursor_event_id"] = self.rows["revocation"]["event_id"]
+            if case["expect"] == "defer":
+                with self.assertRaises(PreconditionValidationError):
+                    required_side_artifacts(event, preconditions=facts, expected_head=HEAD)
+            else:
+                actual = required_side_artifacts(event, preconditions=facts, expected_head=HEAD)
+                self.assertEqual(bool(actual), case["expect"] == "affected", case["id"])
+            CLAIMS.case("events-v1.json", "shrink_only_cases", case)
 
     def test_reader_materialization_and_affected_classes(self):
         for event_type, target_key in (("records_reader_withdrawn", "source_event_id"), ("records_reader_rule_withdrawn", "rule_event_id")):
@@ -1548,6 +1618,7 @@ class TestEventPreconditions(unittest.TestCase):
             except PreconditionValidationError:
                 accepted = False
             self.assertEqual(accepted, case["expect"] == "accept")
+            CLAIMS.case('events-v1.json', 'cross_project_cases', case)
         values = self._preconditions(event)
         next(item for item in values if item["name"] == "successor-project")["value"]["event"]["payload"].pop("repository_ids")
         with self.assertRaises(PreconditionValidationError):

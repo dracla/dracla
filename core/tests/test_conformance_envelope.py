@@ -46,6 +46,9 @@ ENVELOPE_FIELDS = {
 }
 
 
+from core.tests.corpus_consumption import CLAIMS
+
+
 class TestArtifactEnvelope(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -114,6 +117,7 @@ class TestArtifactEnvelope(unittest.TestCase):
             ),
             {"agreement": "v1", "enabled": True},
         )
+        CLAIMS.value('artifact-envelope-v1.json', 'key_hex', 'kid_hex', 'nonce_hex', 'project_id', 'repository_role', 'branch', 'path', 'plaintext_utf8', 'aad_utf8', 'ciphertext_base64url', 'envelope_utf8')
 
     def test_all_sixteen_identity_rows_round_trip(self):
         vectors = json.loads(IDENTITIES.read_text(encoding="utf-8"))
@@ -159,6 +163,14 @@ class TestArtifactEnvelope(unittest.TestCase):
                 ArtifactEnvelopeContextError
             ):
                 self.decrypt(self.mutate(**{field: value}))
+
+    def test_purpose_and_authentication_tag_mutations_reject(self):
+        with self.assertRaises(ArtifactEnvelopeFormatError):
+            self.decrypt(self.mutate(purpose="wrapped-key"))
+        tagged = bytearray(base64url_decode(json.loads(self.envelope)["ciphertext"]))
+        tagged[-1] ^= 1
+        with self.assertRaises(ArtifactAuthenticationError):
+            self.decrypt(self.mutate(ciphertext=base64url_encode(bytes(tagged))))
 
     def test_unknown_key_wrong_key_and_tampering_are_rejected(self):
         with self.assertRaises(UnknownArtifactKeyError):

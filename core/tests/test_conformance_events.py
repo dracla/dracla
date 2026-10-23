@@ -34,6 +34,8 @@ from dracla.conformance import (  # noqa: E402
 from dracla.conformance import events as event_module  # noqa: E402
 from dracla.conformance.artifacts import resolve_artifact_identity, segment  # noqa: E402
 
+from core.tests.corpus_consumption import CLAIMS
+
 
 VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "events-v1.json"
 HEAD = "b" * 40
@@ -55,6 +57,7 @@ class TestEventModel(unittest.TestCase):
                 self.assertEqual(event.canonical_bytes, canonical_json(value))
                 parsed = parse_event_jcs(event.canonical_bytes, expected_path=event.path)
                 self.assertEqual(parsed, event)
+            CLAIMS.case('events-v1.json', 'events', value)
 
 
     def test_precondition_declaration_matrix_is_exact_for_every_event(self):
@@ -85,6 +88,7 @@ class TestEventModel(unittest.TestCase):
                     self.assertTrue(descriptor.branch)
                     self.assertTrue(descriptor.path or descriptor.artifact_kind == "canonical-project-state")
                     self.assertTrue(descriptor.relation)
+            CLAIMS.case('events-v1.json', 'precondition_names', event.type)
 
 
     def test_precondition_descriptors_resolve_to_deterministic_artifact_paths(self):
@@ -573,6 +577,7 @@ class TestEventModel(unittest.TestCase):
         for case in self.corpus["negative_examples"]:
             with self.subTest(name=case["name"]), self.assertRaises(EventValidationError):
                 validate_event(case["input"])
+            CLAIMS.case('events-v1.json', 'negative_examples', case)
 
 
     def test_absolute_https_urls_reject_ambiguous_authority_and_escapes(self):
@@ -946,6 +951,7 @@ class TestEventModel(unittest.TestCase):
                     event = validate_event(self.rows[case["event_type"]])
                     self.assertEqual(event.actor["kind"], case["actor_kind"])
                 self.assertEqual(case["expect"], "accept")
+            CLAIMS.case('events-v1.json', 'authorization_cases', case)
 
         expected_jcs_ids = {"invalid_utf8", "noncanonical_whitespace", "duplicate_key", "unsafe_number"}
         self.assertEqual({case["id"] for case in self.corpus["jcs_negative_cases"]}, expected_jcs_ids)
@@ -955,3 +961,4 @@ class TestEventModel(unittest.TestCase):
             with self.subTest(category="jcs", case=case["id"]), self.assertRaises(EventValidationError):
                 parse_event_jcs(raw)
             self.assertEqual(case["expect"], "reject")
+            CLAIMS.case('events-v1.json', 'jcs_negative_cases', case)

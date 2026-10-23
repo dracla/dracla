@@ -33,6 +33,8 @@ from dracla.conformance import (  # noqa: E402
 )
 from dracla.conformance import events as event_module  # noqa: E402
 
+from core.tests.corpus_consumption import CLAIMS
+
 
 VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "events-v1.json"
 HEAD = "b" * 40
@@ -292,6 +294,8 @@ class TestSideArtifactPackages(unittest.TestCase):
             except (PreconditionValidationError, SideArtifactValidationError):
                 accepted = False
             self.assertEqual(accepted, case["expect"] == "accept", case["id"])
+            CLAIMS.case('events-v1.json', 'package_cases', case)
+        CLAIMS.contract("closed_schemas", "agreement-metadata")
 
     def test_agreement_metadata_rejects_noncanonical_and_private_shapes(self):
         event, snapshot, metadata = self._publication_fixture()
@@ -348,6 +352,7 @@ class TestSideArtifactPackages(unittest.TestCase):
             except (PreconditionValidationError, SideArtifactValidationError):
                 accepted = False
             self.assertEqual(accepted, case["expect"] == "accept", case["id"])
+            CLAIMS.case('events-v1.json', 'package_cases', case)
         with self.assertRaises(SideArtifactValidationError):
             validate_side_artifact_package(event, [SideArtifact(generations.kind, generations.path, b"{"), config], preconditions=self._preconditions(event), expected_head=HEAD)
         malformed = canonical_json({"generations_version": True, "derived_index": event.event_id, "status_detail": event.event_id, "reader_authority": event.event_id})
@@ -439,6 +444,7 @@ class TestSideArtifactPackages(unittest.TestCase):
             except (PreconditionValidationError, SideArtifactValidationError):
                 accepted = False
             self.assertEqual(accepted, case["expect"] == "accept", case["id"])
+            CLAIMS.case('events-v1.json', 'package_cases', case)
 
     def test_generation_derivation_and_public_head_boundaries(self):
         connected, _, _ = self._connection_fixture()

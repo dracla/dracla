@@ -1,0 +1,538 @@
+{
+  "schema_version": 1,
+  "description": "Source-test applicability only. A case claim follows successful semantic assertions. Integrity metadata is reported separately and never substitutes for semantic consumption. Python full replay histories have no edge-runtime replay applicability (LLD M1-6, M1-7, M1-19).",
+  "files": {
+    "action-form-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "format_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "oracle": {
+          "mode": "metadata",
+          "expected": "ASCII fixed vectors use independent Python json.dumps sort_keys/minimal separators and stdlib HMAC-SHA256; no action_forms implementation is imported. Terminal fixtures reference events-v1.json."
+        },
+        "domain_hex": {"mode": "value"},
+        "keys": {"mode": "cases"},
+        "context": {"mode": "value"},
+        "later_head": {"mode": "value"},
+        "golden": {"mode": "value"},
+        "actions": {"mode": "cases"},
+        "terminal_noops": {"mode": "cases"}
+      }
+    },
+    "artifact-envelope-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "source": {
+          "mode": "metadata",
+          "expected": "Node.js crypto AES-256-GCM"
+        },
+        "key_hex": {"mode": "value"},
+        "kid_hex": {"mode": "value"},
+        "nonce_hex": {"mode": "value"},
+        "project_id": {"mode": "value"},
+        "repository_role": {"mode": "value"},
+        "branch": {"mode": "value"},
+        "path": {"mode": "value"},
+        "plaintext_utf8": {"mode": "value"},
+        "aad_utf8": {"mode": "value"},
+        "ciphertext_base64url": {"mode": "value"},
+        "envelope_utf8": {"mode": "value"}
+      }
+    },
+    "artifact-identities-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "segments": {"mode": "cases"},
+        "override_key": {"mode": "value"},
+        "identities": {"mode": "cases"}
+      }
+    },
+    "authorization-vocabulary-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "timestamp": {"mode": "value"},
+        "operation_rows": {"mode": "cases"},
+        "pair_rejections": {"mode": "cases"},
+        "scope_operations": {"mode": "cases"},
+        "connection_cases": {"mode": "cases"},
+        "key_activation_cases": {"mode": "cases"},
+        "scope_cases": {"mode": "cases"},
+        "negative_examples": {"mode": "cases"}
+      }
+    },
+    "coverage-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "project_id": {"mode": "value"},
+        "note": {
+          "mode": "metadata",
+          "expected": "Independent plaintext and evaluation expectations; no keys, clocks, private provenance, network or envelope writes. Operational fixtures reuse M1-9 closed bytes."
+        },
+        "empty_files": {"mode": "cases"},
+        "active": {"mode": "value"},
+        "signed": {"mode": "value"},
+        "revoked": {"mode": "value"},
+        "unresolved": {"mode": "value"},
+        "operation_states": {"mode": "cases"},
+        "shard_cases": {"mode": "cases"},
+        "evaluation_cases": {"mode": "cases"},
+        "currency_cases": {"mode": "cases"},
+        "version_ordering_cases": {"mode": "cases"},
+        "combined_basis_cases": {"mode": "cases"}
+      }
+    },
+    "derived-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "recorded_at": {"mode": "value"},
+        "event_id": {"mode": "value"},
+        "active_agreement": {"mode": "value"},
+        "cases": {"mode": "cases"},
+        "empty_shards": {"mode": "cases"},
+        "source_kinds": {"mode": "cases"},
+        "source_shards": {"mode": "cases"},
+        "wire_goldens": {"mode": "cases"},
+        "bounded_read": {"mode": "value"}
+      }
+    },
+    "event-identities-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "random_nonce": {"mode": "value"},
+        "actors": {"mode": "cases"},
+        "event_types_v1": {"mode": "cases"},
+        "event_identity_common_input": {"mode": "value"},
+        "event_identity_vectors": {"mode": "cases"},
+        "automation_nonce": {"mode": "value"},
+        "github_retry_nonce": {"mode": "value"},
+        "scope_terminal_nonces": {"mode": "value"},
+        "deterministic_nonce_variants": {"mode": "cases"},
+        "scope_terminal_identity_variants": {"mode": "cases"},
+        "event_identity": {"mode": "value"},
+        "changed_payload": {"mode": "value"},
+        "negative_examples": {"mode": "cases"}
+      }
+    },
+    "events-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "source_first_add_paths": {"mode": "cases"},
+        "authorization_cases": {"mode": "cases"},
+        "jcs_negative_cases": {"mode": "cases"},
+        "precondition_cases": {"mode": "cases"},
+        "activation_cases": {"mode": "cases"},
+        "package_cases": {"mode": "cases"},
+        "shrink_only_cases": {"mode": "cases"},
+        "head_binding_cases": {"mode": "cases"},
+        "lifecycle_cases": {"mode": "cases"},
+        "cross_project_cases": {"mode": "cases"},
+        "precondition_names": {"mode": "cases"},
+        "events": {"mode": "cases"},
+        "negative_examples": {"mode": "cases"}
+      }
+    },
+    "incremental-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "oracle": {
+          "mode": "metadata",
+          "expected": "full canonical replay and full M1-10/M1-11 materializers"
+        },
+        "project_id": {"mode": "value"},
+        "base_commit_oid": {
+          "mode": "metadata",
+          "expected": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "cases": {"mode": "cases"},
+        "operational_cases": {"mode": "cases"},
+        "read_cases": {"mode": "cases"},
+        "publication_cases": {"mode": "cases"}
+      }
+    },
+    "operation-state-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "note": {
+          "mode": "metadata",
+          "expected": "ASCII JCS and SHA-256 goldens constructed independently with stdlib json/hashlib, not the operation implementation. No age-based recovery. Canonical append/projection observations are caller facts. The frozen project_connected event requires project-wide fence/marker scope; focused tests independently exercise subject-scoped canonical event families."
+        },
+        "profile": {"mode": "value"},
+        "project_id": {"mode": "value"},
+        "cells": {"mode": "cases"},
+        "fences": {"mode": "cases"},
+        "markers": {"mode": "cases"},
+        "append_claim": {"mode": "value"},
+        "check_identity": {"mode": "value"},
+        "crashes": {"mode": "cases"}
+      }
+    },
+    "replay-v1.json": {
+      "runtimes": ["python"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "contract": {
+          "mode": "metadata",
+          "expected": "canonical-replay-foundation"
+        },
+        "base_commit_oid": {
+          "mode": "metadata",
+          "expected": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "valid_cases": {"mode": "cases"},
+        "negative_cases": {"mode": "cases"}
+      },
+      "inapplicable_reason": "TypeScript implements incremental transitions and bounded reads, not full replay histories; those are Python reference cases under LLD M1-6/M1-7."
+    },
+    "wrapped-key-v1.json": {
+      "runtimes": ["python", "typescript"],
+      "fields": {
+        "schema_version": {
+          "mode": "metadata",
+          "expected": 1
+        },
+        "source": {
+          "mode": "metadata",
+          "expected": "Independent fixed-key AES-256-GCM vector"
+        },
+        "project_id": {"mode": "value"},
+        "capability": {"mode": "value"},
+        "wrapper_id": {"mode": "value"},
+        "wrapper_generation": {"mode": "value"},
+        "data_key_hex": {"mode": "value"},
+        "data_kid_hex": {"mode": "value"},
+        "wrapping_key_hex": {"mode": "value"},
+        "nonce_hex": {"mode": "value"},
+        "wrapped_key_base64url": {"mode": "value"},
+        "aad_utf8": {"mode": "value"},
+        "copy_utf8": {"mode": "value"},
+        "keyring_utf8": {"mode": "value"}
+      }
+    }
+  },
+  "contracts": {
+    "identity_rows": {
+      "project-config": [["artifact-identities-v1.json", "identities/0"]],
+      "materialization-generations": [["artifact-identities-v1.json", "identities/1"]],
+      "canonical-event": [["artifact-identities-v1.json", "identities/2"]],
+      "prepared-operation": [["artifact-identities-v1.json", "identities/3"]],
+      "derived-state": [["artifact-identities-v1.json", "identities/4"]],
+      "derived-index": [["artifact-identities-v1.json", "identities/5"]],
+      "status-detail": [["artifact-identities-v1.json", "identities/6"]],
+      "reader-authority": [["artifact-identities-v1.json", "identities/7"]],
+      "export-json": [["artifact-identities-v1.json", "identities/8"]],
+      "export-csv": [["artifact-identities-v1.json", "identities/9"]],
+      "coverage-source": [["artifact-identities-v1.json", "identities/10"]],
+      "inflight": [["artifact-identities-v1.json", "identities/11"]],
+      "decision-fence": [["artifact-identities-v1.json", "identities/12"]],
+      "coverage-shard": [["artifact-identities-v1.json", "identities/13"]],
+      "active-agreement": [["artifact-identities-v1.json", "identities/14"]],
+      "exemption-fold": [["artifact-identities-v1.json", "identities/15"]]
+    },
+    "wrapper_pairs": {
+      "records:portal-records": [["@contracts", "wrapper_pairs/records:portal-records"]],
+      "records:control": [["@contracts", "wrapper_pairs/records:control"]],
+      "records:recovery": [["@contracts", "wrapper_pairs/records:recovery"]],
+      "coverage:portal-coverage": [["@contracts", "wrapper_pairs/coverage:portal-coverage"]],
+      "coverage:enforcer-coverage": [["@contracts", "wrapper_pairs/coverage:enforcer-coverage"]],
+      "coverage:control": [["@contracts", "wrapper_pairs/coverage:control"]],
+      "coverage:recovery": [["@contracts", "wrapper_pairs/coverage:recovery"]]
+    },
+    "form_rows": {
+      "acceptance": [
+        ["action-form-v1.json", "actions/0"],
+        ["action-form-v1.json", "terminal_noops/acceptance-via-acceptance"]
+      ],
+      "revocation": [
+        ["action-form-v1.json", "actions/1"],
+        ["action-form-v1.json", "terminal_noops/revocation-via-revocation"]
+      ],
+      "project_connected": [
+        ["action-form-v1.json", "actions/2"],
+        ["action-form-v1.json", "terminal_noops/project_connected-via-project_connected"]
+      ],
+      "project_repository_owner_changed": [
+        ["action-form-v1.json", "actions/3"],
+        ["action-form-v1.json", "terminal_noops/project_repository_owner_changed-via-project_repository_owner_changed"]
+      ],
+      "project_succeeded": [
+        ["action-form-v1.json", "actions/4"],
+        ["action-form-v1.json", "terminal_noops/project_succeeded-via-project_succeeded"]
+      ],
+      "keyring_activated": [
+        ["action-form-v1.json", "actions/5"],
+        ["action-form-v1.json", "terminal_noops/keyring_activated-via-keyring_activated"]
+      ],
+      "agreement_published": [
+        ["action-form-v1.json", "actions/6"],
+        ["action-form-v1.json", "terminal_noops/agreement_published-via-agreement_published"]
+      ],
+      "agreement_activated": [
+        ["action-form-v1.json", "actions/7"],
+        ["action-form-v1.json", "terminal_noops/agreement_activated-via-agreement_activated"]
+      ],
+      "agreement_activation_restored": [
+        ["action-form-v1.json", "actions/8"],
+        ["action-form-v1.json", "terminal_noops/agreement_activation_restored-via-agreement_activated"],
+        ["action-form-v1.json", "terminal_noops/agreement_activation_restored-via-agreement_activation_restored"]
+      ],
+      "enforcement_scope_requested": [
+        ["action-form-v1.json", "actions/9"],
+        ["action-form-v1.json", "terminal_noops/enforcement_scope_requested-via-enforcement_scope_activated"]
+      ],
+      "exemption": [
+        ["action-form-v1.json", "actions/10"],
+        ["action-form-v1.json", "terminal_noops/exemption-via-exemption"]
+      ],
+      "exemption_snapshot": [
+        ["action-form-v1.json", "actions/11"],
+        ["action-form-v1.json", "terminal_noops/exemption_snapshot-via-exemption_snapshot"]
+      ],
+      "exemption_rule_configured": [
+        ["action-form-v1.json", "actions/12"],
+        ["action-form-v1.json", "terminal_noops/exemption_rule_configured-via-exemption_rule_configured"]
+      ],
+      "exemption_rule_withdrawn": [
+        ["action-form-v1.json", "actions/13"],
+        ["action-form-v1.json", "terminal_noops/exemption_rule_withdrawn-via-exemption_rule_withdrawn"]
+      ],
+      "exemption_source_withdrawn": [
+        ["action-form-v1.json", "actions/14"],
+        ["action-form-v1.json", "terminal_noops/exemption_source_withdrawn-via-exemption_source_withdrawn"]
+      ],
+      "records_reader_authorized": [
+        ["action-form-v1.json", "actions/15"],
+        ["action-form-v1.json", "terminal_noops/records_reader_authorized-via-records_reader_authorized"]
+      ],
+      "records_reader_snapshot_authorized": [
+        ["action-form-v1.json", "actions/16"],
+        ["action-form-v1.json", "terminal_noops/records_reader_snapshot_authorized-via-records_reader_snapshot_authorized"]
+      ],
+      "records_reader_withdrawn": [
+        ["action-form-v1.json", "actions/17"],
+        ["action-form-v1.json", "terminal_noops/records_reader_withdrawn-via-records_reader_withdrawn"]
+      ],
+      "records_reader_rule_configured": [
+        ["action-form-v1.json", "actions/18"],
+        ["action-form-v1.json", "terminal_noops/records_reader_rule_configured-via-records_reader_rule_configured"]
+      ],
+      "records_reader_rule_withdrawn": [
+        ["action-form-v1.json", "actions/19"],
+        ["action-form-v1.json", "terminal_noops/records_reader_rule_withdrawn-via-records_reader_rule_withdrawn"]
+      ],
+      "override": [
+        ["action-form-v1.json", "actions/20"],
+        ["action-form-v1.json", "terminal_noops/override-via-override"]
+      ],
+      "override_withdrawn": [
+        ["action-form-v1.json", "actions/21"],
+        ["action-form-v1.json", "terminal_noops/override_withdrawn-via-override_withdrawn"]
+      ],
+      "retry_requested": [["action-form-v1.json", "actions/22"]],
+      "config_updated": [
+        ["action-form-v1.json", "actions/23"],
+        ["action-form-v1.json", "terminal_noops/config_updated-via-config_updated"]
+      ]
+    },
+    "event_types": {
+      "acceptance": [
+        ["events-v1.json", "events/0"],
+        ["event-identities-v1.json", "event_identity_vectors/acceptance"]
+      ],
+      "revocation": [
+        ["events-v1.json", "events/1"],
+        ["event-identities-v1.json", "event_identity_vectors/revocation"]
+      ],
+      "agreement_published": [
+        ["events-v1.json", "events/2"],
+        ["event-identities-v1.json", "event_identity_vectors/agreement_published"]
+      ],
+      "agreement_activated": [
+        ["events-v1.json", "events/3"],
+        ["event-identities-v1.json", "event_identity_vectors/agreement_activated"]
+      ],
+      "agreement_activation_restored": [
+        ["events-v1.json", "events/4"],
+        ["event-identities-v1.json", "event_identity_vectors/agreement_activation_restored"]
+      ],
+      "project_connected": [
+        ["events-v1.json", "events/5"],
+        ["event-identities-v1.json", "event_identity_vectors/project_connected"]
+      ],
+      "project_repository_owner_changed": [
+        ["events-v1.json", "events/6"],
+        ["event-identities-v1.json", "event_identity_vectors/project_repository_owner_changed"]
+      ],
+      "project_succeeded": [
+        ["events-v1.json", "events/7"],
+        ["event-identities-v1.json", "event_identity_vectors/project_succeeded"]
+      ],
+      "config_updated": [
+        ["events-v1.json", "events/8"],
+        ["event-identities-v1.json", "event_identity_vectors/config_updated"]
+      ],
+      "keyring_activated": [
+        ["events-v1.json", "events/9"],
+        ["event-identities-v1.json", "event_identity_vectors/keyring_activated"]
+      ],
+      "enforcement_scope_requested": [
+        ["events-v1.json", "events/10"],
+        ["event-identities-v1.json", "event_identity_vectors/enforcement_scope_requested"]
+      ],
+      "enforcement_scope_activated": [
+        ["events-v1.json", "events/11"],
+        ["event-identities-v1.json", "event_identity_vectors/enforcement_scope_activated"]
+      ],
+      "enforcement_scope_abandoned": [
+        ["events-v1.json", "events/12"],
+        ["event-identities-v1.json", "event_identity_vectors/enforcement_scope_abandoned"]
+      ],
+      "override": [
+        ["events-v1.json", "events/13"],
+        ["event-identities-v1.json", "event_identity_vectors/override"]
+      ],
+      "override_withdrawn": [
+        ["events-v1.json", "events/14"],
+        ["event-identities-v1.json", "event_identity_vectors/override_withdrawn"]
+      ],
+      "retry_requested": [
+        ["events-v1.json", "events/15"],
+        ["event-identities-v1.json", "event_identity_vectors/retry_requested"]
+      ],
+      "exemption": [
+        ["events-v1.json", "events/16"],
+        ["event-identities-v1.json", "event_identity_vectors/exemption"]
+      ],
+      "exemption_snapshot": [
+        ["events-v1.json", "events/17"],
+        ["event-identities-v1.json", "event_identity_vectors/exemption_snapshot"]
+      ],
+      "exemption_source_withdrawn": [
+        ["events-v1.json", "events/18"],
+        ["event-identities-v1.json", "event_identity_vectors/exemption_source_withdrawn"]
+      ],
+      "exemption_rule_configured": [
+        ["events-v1.json", "events/19"],
+        ["event-identities-v1.json", "event_identity_vectors/exemption_rule_configured"]
+      ],
+      "exemption_rule_withdrawn": [
+        ["events-v1.json", "events/20"],
+        ["event-identities-v1.json", "event_identity_vectors/exemption_rule_withdrawn"]
+      ],
+      "exemption_materialized": [
+        ["events-v1.json", "events/21"],
+        ["event-identities-v1.json", "event_identity_vectors/exemption_materialized"]
+      ],
+      "records_reader_authorized": [
+        ["events-v1.json", "events/22"],
+        ["event-identities-v1.json", "event_identity_vectors/records_reader_authorized"]
+      ],
+      "records_reader_snapshot_authorized": [
+        ["events-v1.json", "events/23"],
+        ["event-identities-v1.json", "event_identity_vectors/records_reader_snapshot_authorized"]
+      ],
+      "records_reader_withdrawn": [
+        ["events-v1.json", "events/24"],
+        ["event-identities-v1.json", "event_identity_vectors/records_reader_withdrawn"]
+      ],
+      "records_reader_rule_configured": [
+        ["events-v1.json", "events/25"],
+        ["event-identities-v1.json", "event_identity_vectors/records_reader_rule_configured"]
+      ],
+      "records_reader_rule_withdrawn": [
+        ["events-v1.json", "events/26"],
+        ["event-identities-v1.json", "event_identity_vectors/records_reader_rule_withdrawn"]
+      ],
+      "records_reader_materialized": [
+        ["events-v1.json", "events/27"],
+        ["event-identities-v1.json", "event_identity_vectors/records_reader_materialized"]
+      ]
+    },
+    "closed_schemas": {
+      "coverage-source": [["coverage-v1.json", "empty_files/source.enc.json"]],
+      "active-agreement": [["coverage-v1.json", "empty_files/agreements/active.enc.json"]],
+      "exemption-fold": [["coverage-v1.json", "empty_files/exemptions.enc.json"]],
+      "coverage-shard": [["coverage-v1.json", "empty_files/users/00.enc.json"]],
+      "derived-index": [["derived-v1.json", "empty_shards/derived/index/00.enc.json"]],
+      "status-detail": [["derived-v1.json", "empty_shards/derived/status-detail/00.enc.json"]],
+      "reader-authority": [["derived-v1.json", "empty_shards/derived/reader-authority/00.enc.json"]],
+      "derived-state": [["derived-v1.json", "wire_goldens/assembled_state"]],
+      "decision-fence": [["operation-state-v1.json", "fences/idle"]],
+      "inflight": [["operation-state-v1.json", "markers/empty"]],
+      "prepared-operation": [["operation-state-v1.json", "cells/prepared"]],
+      "artifact-envelope": [["artifact-envelope-v1.json", "envelope_utf8"]],
+      "wrapped-key-copy": [["wrapped-key-v1.json", "copy_utf8"]],
+      "keyring": [["wrapped-key-v1.json", "keyring_utf8"]],
+      "action-form": [["action-form-v1.json", "golden"]],
+      "project-configuration": [
+        ["events-v1.json", "package_cases/configuration_exact"],
+        ["events-v1.json", "package_cases/configuration_mismatch"]
+      ],
+      "materialization-generations": [
+        ["events-v1.json", "package_cases/genesis_exact"],
+        ["events-v1.json", "package_cases/successor_generation_exact"],
+        ["events-v1.json", "package_cases/generations_missing_class"],
+        ["events-v1.json", "package_cases/generations_unknown_member"]
+      ],
+      "canonical-event": [
+        ["events-v1.json", "events/5"],
+        ["event-identities-v1.json", "event_identity_vectors/project_connected"]
+      ],
+      "agreement-metadata": [
+        ["events-v1.json", "package_cases/metadata_exact"],
+        ["events-v1.json", "package_cases/metadata_private_field"],
+        ["events-v1.json", "package_cases/metadata_ref_mismatch"],
+        ["events-v1.json", "package_cases/metadata_commit_mismatch"],
+        ["events-v1.json", "package_cases/metadata_authorizations_private"],
+        ["events-v1.json", "package_cases/metadata_operation_private"],
+        ["events-v1.json", "package_cases/metadata_timestamp_private"],
+        ["@contracts", "closed_schemas/agreement-metadata"]
+      ],
+      "release-profile": [
+        ["operation-state-v1.json", "profile"],
+        ["@contracts", "closed_schemas/release-profile"]
+      ]
+    }
+  }
+}
