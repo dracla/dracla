@@ -1,0 +1,6 @@
+github:
+  owner: ???
+project:
+  slug: ${github.owner}
+dry_run: false
+force: false

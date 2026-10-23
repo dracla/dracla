@@ -19,10 +19,13 @@ classifiers = [
   "Topic :: Software Development :: Version Control :: Git",
 ]
 
-# hydra-core returns with the CLI for client-side composition (design §6.9).
+# Client composition follows the release-tested Hydra 1.4 distribution (design §6.9).
 # Keep the conformance kernel's JCS and AES-GCM implementations exact and
 # release-tested.
-dependencies = ["cryptography==50.0.1", "rfc8785==0.1.4"]
+dependencies = ["cryptography==50.0.1", "rfc8785==0.1.4", "hydra-core==1.4.0.dev8", "packaging==26.3"]
+
+[project.scripts]
+dracla = "dracla.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/dracla/dracla"

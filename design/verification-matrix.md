@@ -130,3 +130,14 @@ Complete Python suite: `PYTHONPATH=core .venv/bin/python -m unittest discover -s
 M1 review completion does not imply that the stack has landed. Merges remain a
 maintainer action. Release obligations A2, A3 and A6 remain separately deferred;
 this source-test gate does not approve a production release or M2 implementation.
+
+## M2 CLI and administration evidence
+
+M2 rows record implemented seams. They do not assert that the M3/M5/M6
+installer engines or production publication pipeline exist.
+
+| Slice | Requirement / HLD contract | Automated evidence | Result |
+|---|---|---|---|
+| m2/1 | HLD §6.9 / REQ-OPS-4: scoped client-only Hydra composition; strict input, exact slug names, no resolver expansion or run directories | `core.tests.test_cli_planning.ConfigurationTests` | PASS |
+| m2/1 | HLD §6.9 B2: closed five-field bundled release declarations, installed version/digest/constraint closure, bounded packaged reads and local-only preflight before credentials | `core.tests.test_cli_planning.ReleaseTests`; `core.tests.test_cli_planning.CliTests` (includes installed wheel outside checkout) | PASS |
+| m2/1 | REQ-VERIFY-1..2: registered console/module commands, deterministic blocked initial plan, development evidence rejection, force fails closed, core imports exclude Hydra, no application writes | `core.tests.test_cli_planning.CliTests` (includes installed wheel outside checkout) | PASS |
