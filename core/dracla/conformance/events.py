@@ -2064,6 +2064,8 @@ def _validate_preconditions_impl(event: ValidatedEvent, preconditions: Any, expe
                     _string(grant_payload["instrument_ref"], "override instrument reference")
             except (EventValidationError, TypeError, ValueError):
                 _error("override grant event is malformed", PreconditionValidationError)
+            if any(auth.resource_id != grant_target["repository_id"] for auth in event.authorizations):
+                _error("override withdrawal authorization repository mismatch", PreconditionValidationError)
             continue
         if name.startswith("scope-terminal-"):
             if _validate_terminal_observation(evidence.value, requirement.path):

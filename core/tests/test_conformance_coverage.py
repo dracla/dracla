@@ -14,6 +14,8 @@ from dracla.conformance import (
 )
 from core.tests import test_conformance_replay as replay_fixtures
 
+from core.tests.corpus_consumption import CLAIMS
+
 
 VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "coverage-v1.json"
 
@@ -36,7 +38,7 @@ class TestCoverage(unittest.TestCase):
         return files
 
     def projection(self, **kwargs):
-        return CoverageProjection("project-1", self.files(**kwargs))
+        return CoverageProjection(self.v["project_id"], self.files(**kwargs))
 
     def pair(self, fence="idle", marker="empty", *, subjects=None):
         f = copy.deepcopy(self.v["operation_states"]["fences"][fence])
@@ -58,6 +60,14 @@ class TestCoverage(unittest.TestCase):
         return materialize_coverage(state, pair or self.pair(), canonical_oid=state.current_head_oid,
                                     built_at="2026-01-01T00:00:00Z", dracla_version="test-1")
 
+    def test_complete_operation_state_input_goldens(self):
+        from dracla.conformance.operations import decode_decision_fence, decode_inflight_marker
+        for field, decoder in (("fences", decode_decision_fence), ("markers", decode_inflight_marker)):
+            decoded = {key: decoder(canonical_json(value)).to_dict()
+                       for key, value in self.v["operation_states"][field].items()}
+            self.assertEqual(decoded, self.v["operation_states"][field])
+            CLAIMS.case("coverage-v1.json", "operation_states", field)
+
     def test_independent_empty_projection_and_all_shard_boundaries(self):
         state = ReplayState("project-1", "b" * 40, "b" * 40, project_state="active")
         actual = self.materialize(state)
@@ -66,6 +76,7 @@ class TestCoverage(unittest.TestCase):
         self.assertEqual(len(actual.plaintext_files()), 37)
         for case in self.v["shard_cases"]:
             self.assertEqual(coverage_shard(case["user"], shard_count=32), case["expected"])
+            CLAIMS.case('coverage-v1.json', 'shard_cases', case)
         self.assertEqual(coverage_shard(2**53 - 1, shard_count=32), 31)
         for value in [True, 0, -1, 2**53, "7", None]:
             with self.assertRaises(CoverageError):
@@ -73,12 +84,14 @@ class TestCoverage(unittest.TestCase):
         for count in [True, 0, 16, 64, "32"]:
             with self.assertRaises(CoverageError):
                 coverage_shard(7, shard_count=count)
+        CLAIMS.equal("coverage-v1.json", "empty_files", {k: json.loads(v) for k, v in actual.plaintext_files().items()})
 
     def test_fixed_effective_decisions_and_currency_restore_without_shard_changes(self):
         for case in self.v["evaluation_cases"]:
             with self.subTest(case=case["name"]):
                 d = evaluate_subject(self.projection(basis=case["basis"], exempt=case["exempt"]), 7, "agreement-1")
                 self.assertEqual([d.decision, d.reason_code], case["expected"])
+            CLAIMS.case('coverage-v1.json', 'evaluation_cases', case)
         before = self.projection(basis="signed")
         for case in self.v["currency_cases"]:
             files = before.to_dict()
@@ -88,8 +101,10 @@ class TestCoverage(unittest.TestCase):
             self.assertEqual([d.decision, d.reason_code], case["expected"])
             self.assertEqual(coverage_delta(before, after).shards, ())
             self.assertEqual(files["users/07.enc.json"], before.to_dict()["users/07.enc.json"])
+            CLAIMS.case('coverage-v1.json', 'currency_cases', case)
         self.assertEqual(coverage_delta(before, before).files, ())
         self.assertEqual(evaluate_subject(self.projection(active=False), 7, "agreement-1").reason_code, "not_signed")
+        CLAIMS.value('coverage-v1.json', 'project_id', 'active', 'signed', 'revoked', 'unresolved')
 
     def test_combined_basis_precedence_and_fail_closed_overlays(self):
         for case in self.v["combined_basis_cases"]:
@@ -98,6 +113,7 @@ class TestCoverage(unittest.TestCase):
                 files["agreements/active.enc.json"].update(case["active"])
                 decision = evaluate_subject(CoverageProjection("project-1", files), 7, "agreement-1")
                 self.assertEqual([decision.decision, decision.reason_code], case["expected"])
+            CLAIMS.case('coverage-v1.json', 'combined_basis_cases', case)
 
         signed_exempt = self.projection(basis="signed", exempt=True)
         files = signed_exempt.to_dict()
@@ -163,6 +179,7 @@ class TestCoverage(unittest.TestCase):
                     materialized.to_dict()["agreements/active.enc.json"][case["set"]],
                     values,
                 )
+            CLAIMS.case('coverage-v1.json', 'version_ordering_cases', case)
 
     def test_replay_activation_acceptance_revocation_resigning_and_source_advancement(self):
         helper = replay_fixtures.TestCanonicalReplay()

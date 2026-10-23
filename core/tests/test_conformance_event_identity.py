@@ -30,6 +30,8 @@ from dracla.conformance import (  # noqa: E402
     validate_authorizations,
 )
 
+from core.tests.corpus_consumption import CLAIMS
+
 IDENTITY_VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "event-identities-v1.json"
 AUTHORIZATION_VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "authorization-vocabulary-v1.json"
 
@@ -58,6 +60,7 @@ class TestEventIdentity(unittest.TestCase):
         self.assertEqual(identity.event_path, vector["event_path"])
         self.assertEqual(event_path(identity.event_id), vector["event_path"])
         self.assertFalse(hasattr(identity, "project_id"))
+        CLAIMS.value('event-identities-v1.json', 'event_identity')
 
     def test_scope_terminal_identity_vectors_are_pairwise_distinct(self):
         identities = []
@@ -88,6 +91,7 @@ class TestEventIdentity(unittest.TestCase):
             identities.append(identity)
             if vector["name"] == "activation":
                 activation_identity = identity
+            CLAIMS.case('event-identities-v1.json', 'scope_terminal_identity_variants', vector)
         self.assertEqual(len({identity.idempotency_key for identity in identities}), 3)
         self.assertEqual(len({identity.event_id for identity in identities}), 3)
         self.assertIsNotNone(activation_vector)
@@ -174,6 +178,7 @@ class TestEventIdentity(unittest.TestCase):
                 else:
                     with self.assertRaises(EventIdentityError):
                         derive_event_identity(**arguments)
+            CLAIMS.case('event-identities-v1.json', 'negative_examples', case)
 
     def test_vector_lists_the_complete_closed_event_type_set(self):
         vector = self.vectors["event_identity"]
@@ -211,6 +216,9 @@ class TestEventIdentity(unittest.TestCase):
                 self.assertEqual(identity.operation_sha256, expected["operation_sha256"])
                 self.assertEqual(identity.event_id, expected["event_id"])
                 self.assertEqual(identity.path, expected["event_path"])
+            CLAIMS.case('event-identities-v1.json', 'event_types_v1', event_type)
+            CLAIMS.case('event-identities-v1.json', 'event_identity_vectors', event_type)
+        CLAIMS.value('event-identities-v1.json', 'event_identity_common_input')
 
     def test_identity_and_actor_input_boundaries(self):
         vector = self.vectors["event_identity"]
@@ -253,6 +261,7 @@ class TestEventIdentity(unittest.TestCase):
     def test_stable_actor_identity_excludes_login_snapshot(self):
         for vector in self.vectors["actors"]:
             self.assertEqual(stable_actor_identity(vector["actor"]), vector["stable"])
+            CLAIMS.case('event-identities-v1.json', 'actors', vector)
         actor = self.vectors["actors"][0]["actor"]
         changed = {**actor, "login_snapshot": "renamed"}
         first = derive_event_identity("project-alpha", self.vectors["random_nonce"]["operation_nonce"], actor, "acceptance", {}, {}, None)
@@ -313,6 +322,8 @@ class TestEventIdentity(unittest.TestCase):
                         vector["request_event_id"], vector["terminal_type"]
                     )
                 self.assertEqual(actual, vector["nonce"])
+            CLAIMS.case('event-identities-v1.json', 'deterministic_nonce_variants', vector)
+        CLAIMS.value('event-identities-v1.json', 'random_nonce', 'automation_nonce', 'github_retry_nonce', 'scope_terminal_nonces')
 
     def test_scope_terminal_nonce_rejects_injected_child_digest_collision(self):
         class CollidingDigest:
@@ -369,6 +380,7 @@ class TestEventIdentity(unittest.TestCase):
 
     def test_changed_payload_reuses_key_but_changes_operation_fingerprint(self):
         vector = self.vectors["event_identity"]
+        self.assertEqual(self.vectors["changed_payload"]["same_operation_nonce"], vector["operation_nonce"])
         first = derive_event_identity(
             vector["project_id"], vector["operation_nonce"], vector["actor"], vector["event_type"],
             vector["target"], self.vectors["changed_payload"]["original_payload"], vector["confirmed_canonical_oid"],
@@ -380,6 +392,7 @@ class TestEventIdentity(unittest.TestCase):
         self.assertEqual(first.idempotency_key, changed.idempotency_key)
         self.assertEqual(first.event_id, changed.event_id)
         self.assertNotEqual(first.operation_sha256, changed.operation_sha256)
+        CLAIMS.value('event-identities-v1.json', 'changed_payload')
 
     def test_models_are_immutable_and_identity_relation_is_checked(self):
         vector = self.vectors["event_identity"]
@@ -429,6 +442,10 @@ class TestAuthorizationVocabulary(unittest.TestCase):
             with self.subTest(operation=operation):
                 with self.assertRaises(AuthorizationValidationError):
                     AuthorizationEvidence(operation, kind, 101, authority, "observed", True, self.vectors["timestamp"], None)
+            CLAIMS.case('authorization-vocabulary-v1.json', 'pair_rejections', list((operation, kind, authority)))
+        CLAIMS.value('authorization-vocabulary-v1.json', 'timestamp')
+        for operation, kind, authority in actual:
+            CLAIMS.case("authorization-vocabulary-v1.json", "operation_rows", [operation, kind, authority])
 
     def test_authorization_model_rejects_malformed_evidence_and_timestamps(self):
         valid = {
@@ -528,6 +545,7 @@ class TestAuthorizationVocabulary(unittest.TestCase):
                     case["event_type"], case["target"], case["payload"],
                     case["actor"], case["authorizations"], **kwargs,
                 )
+            CLAIMS.case('authorization-vocabulary-v1.json', 'negative_examples', case)
 
     def test_empty_authorization_actor_rules(self):
         for event_type in ("acceptance", "revocation"):
@@ -581,6 +599,7 @@ class TestAuthorizationVocabulary(unittest.TestCase):
                     [item.to_dict()["operation"] for item in result],
                     [row[0] for row in case["rows"]],
                 )
+            CLAIMS.case('authorization-vocabulary-v1.json', 'connection_cases', case)
 
     def test_connection_rows_reject_every_missing_or_mismatched_relation(self):
         case = self.vectors["connection_cases"][0]
@@ -847,6 +866,7 @@ class TestAuthorizationVocabulary(unittest.TestCase):
             ),
             tuple(values),
         )
+        CLAIMS.case("authorization-vocabulary-v1.json", "key_activation_cases", case)
 
     def test_vector_scope_cases_cover_every_repository_and_organization_alternative(self):
         def expected_selector(case):
@@ -876,6 +896,10 @@ class TestAuthorizationVocabulary(unittest.TestCase):
                     ),
                     (item,),
                 )
+            CLAIMS.case('authorization-vocabulary-v1.json', 'scope_cases', case)
+        self.assertEqual({case["operation"] for case in self.vectors["scope_cases"]}, set(self.vectors["scope_operations"]))
+        for operation in self.vectors["scope_operations"]:
+            CLAIMS.case("authorization-vocabulary-v1.json", "scope_operations", operation)
 
     def test_authorization_schema_order_duplicate_and_unknown_rejections(self):
         item = _evidence("agreement_publish", "repository", 5, "records_repository_admin")

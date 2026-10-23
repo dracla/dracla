@@ -67,6 +67,8 @@ BASE = "b" * 40
 
 from conformance.authoring.histories import History
 
+from core.tests.corpus_consumption import CLAIMS
+
 
 class TestCanonicalReplay(unittest.TestCase, History):
     @classmethod
@@ -104,6 +106,7 @@ class TestCanonicalReplay(unittest.TestCase, History):
                 if "expected_latest_decision" in case:
                     key = records[3].event.target["coverage_tuple"]
                     self.assertEqual(latest_contributor_tuple_decision(state, key).decision, case["expected_latest_decision"])
+            CLAIMS.case('replay-v1.json', 'valid_cases', case)
 
     def test_negative_vector_cases_execute_corruption_assertions(self):
         builders = {
@@ -137,6 +140,7 @@ class TestCanonicalReplay(unittest.TestCase, History):
                 self.assertIsNone(result.state)
                 self.assertIsNotNone(result.error)
                 self.assertIn(case["failure"], result.reason)
+            CLAIMS.case('replay-v1.json', 'negative_cases', case)
 
     def negative_result(self, records, project_id="project-1"):
         return replay_events(project_id, BASE, records)
