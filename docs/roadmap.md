@@ -1,6 +1,6 @@
 # Development milestones
 
-This roadmap follows the locked revision-13 requirements and the reviewed
+This roadmap follows the locked revision-14 requirements and the reviewed
 high-level design. The requirements and HLD are authoritative when this summary
 is incomplete; implementation does not silently resolve a design conflict.
 
@@ -17,7 +17,7 @@ reconstructed at the end.
 | **Status** | Design complete; external setup remains |
 | **Closes** | No release-scope item directly; every implementation track depends on it |
 
-- [x] Requirements locked at revision 13
+- [x] Requirements locked at revision 14
 - [x] High-level design locked, adversarially reviewed, and cleanly attested
 - [x] Legacy protocol and GitHub-transport spikes retained as experiments
 - [x] A1 edge platform, A4 merge-queue baseline, and A5 coordination model closed
@@ -25,9 +25,10 @@ reconstructed at the end.
 - [ ] Cloudflare account resources: Workers, Pages, Secrets, KV, and Durable Objects
 - [ ] Three GitHub Apps created per `docs/github-apps.md`
 
-The existing `core/` code is a plaintext protocol spike, not the revision-13
-implementation. Its transport and test techniques may be reused selectively;
-its event, projection, shard, and trust assumptions are not release code.
+The legacy `core/` modules outside `dracla.conformance` are plaintext protocol
+spikes, not the revision-14 implementation. Their transport and test techniques
+may be reused selectively; their event, projection, shard, and trust assumptions
+are not release code. The conformance package is the landed M1 implementation.
 
 ---
 
@@ -39,11 +40,15 @@ not claim that end-to-end installation or signing is available.
 
 ### M1 — Conformance kernel
 
+**Landed.** All slices through M1-19 are merged. The final stack landed on
+23 October 2026 at `41baf0cc796213947ab6a5ae3ee9544b15564c55`; the complete
+cross-runtime gate passed on the identical reviewed source tree.
+
 | | |
 |---|---|
 | **Needs** | M0 reviewed documents |
 
-- Revision-13 event schemas, semantic validation, replay, idempotency, and
+- Revision-14 event schemas, semantic validation, replay, idempotency, and
   authorization-operation vocabulary (§5.1–§5.4)
 - Canonical JSON, identity/AAD construction, authenticated envelopes, wrapped
   key files, prepared-operation cells, decision fences, and bounded shards (§4)
@@ -65,25 +70,25 @@ implementation is split.
 |---|---|---|---|---|
 | **M1-1** | Canonical JSON and artifact identities — **landed in #12** | M0 reviewed documents | Strict RFC 8785 parsing/encoding; the complete §4 repository/branch/path identity table; agreement, event, shard, export, and override tokens; checked-in positive and rejection vectors | Encryption, plaintext schemas, repository transport |
 | **M1-2** | Version 1 encrypted-artifact envelope — **landed in #13** | M1-1 | Exact AAD and canonical envelope bytes; AES-256-GCM round trips; strict project, purpose, path, schema, key-ID, encoding, JSON, and formula-neutralized CSV rejection; fixed-key vectors | Wrapped keyrings, semantic payload schemas, hosted key custody |
-| **M1-3** | Wrapped-key copies and canonical keyrings | M1-1, M1-2 | Exact wrap AAD and 32-byte key wrapping; the closed wrapper/capability vocabulary; canonical keyring ordering; duplicate and wrong project/capability/generation rejection; fixed-key rotation and multi-wrapper vectors | Hosted wrapping services, bootstrap orchestration, root rotation, recovery UI |
-| **M1-4** | Event identity and authorization vocabulary | M1-1 | Stable actor identity; exact operation/resource/required-authority pairs; canonical set ordering; random, automation, retry, and scope-terminal nonce derivation; idempotency key, operation fingerprint, event ID, and event path vectors | Event target/payload schemas, replay, GitHub authorization calls |
-| **M1-5** | Closed revision-13 event schema and semantic validation | M1-2, M1-4 | Every §5.1 v1 event type and named nested object; exact actor, authorization, scalar, set, target, and payload rules; recomputed identity/fingerprint/path agreement; required side-artifact declarations; valid vectors for every type and rejection of unknown, cross-row, malformed, and reserved Entity values | Chronological replay, append transport, projection materialization |
-| **M1-6** | Canonical replay foundation and project/contributor lifecycle | M1-5 | Ordered replay with corruption and idempotency conflict detection; project connection/succession, configuration, key activation, agreement publication/activation, acceptance, revocation, supersession, and recipient/tuple invariants; deterministic replay-state vectors | Scope transitions, overrides, exemptions, readers, projection bytes |
-| **M1-7** | Administrative, scope, exemption, reader, and override replay | M1-6 | Three stacked review commits (scope/override/audit; exemptions; readers/closure) complete the remaining v1 fold; at most one scope terminal, so a request awaiting its activation or abandonment replays as a valid pending state; authorization-operation consistency; source-union addition/withdrawal; continuous-team materialization evidence; override lifecycle; succeeded-project closure; full-replay equivalence and rejection vectors | Live GitHub authority or membership checks, derived artifact encoding, writes |
-| **M1-8** | Authenticated action forms and replay-stable no-op bindings | M1-4, M1-5, M1-7 | Exact JCS payload and one-dot base64url/HMAC encoding; active and eligible-predecessor key handling; session, actor, project, operation, digest, and absolute-expiry binding; the closed Table 5.4-A action/terminal registry; immutable terminal-event validation; vectors proving an old no-op cannot become a later write | OAuth/session storage, portal rendering, authorization acquisition, mutation writes |
-| **M1-9** | Prepared-operation, in-flight, and decision-fence contracts | M1-2, M1-5, M1-8 | Closed idle/prepared/appending/terminal operation states; exact frozen side-artifact package and append claim; closed idle/mutation/success-reserved fence; one-operation marker and cross-binding rules; pure transition and crash/race vectors proving that age never clears state | GitHub CAS transport, Worker/reconciler drivers, routing-gate or check-run publication |
-| **M1-10** | Coverage projection contracts and bounded shards | M1-7, M1-9 | Closed source, active-agreement, exemption, in-flight, fence, and user-shard schemas; exactly 32 deterministic packed shards; tuple cutoff and accepted-version fold; override-key validation; generic-reason-only/PII exclusion; deterministic materialization and fail-closed vectors | GitHub branch writes, check publication, routing, records-private derivatives |
-| **M1-11** | Records-derived contracts, generations, and release profile | M1-7, M1-9, M1-10 | Closed project config, materialization generations, derived state, index, status-detail, and reader-authority schemas; replay-derived stored statuses with live `indeterminate` overlaid at read time, never persisted; exactly 32 bounded shards per class; canonical/derived generation and envelope-digest agreement; source-union detail and checked-in numeric profile limits bounding only the records-derived classes, never coverage, so acceptance and revocation stay uncapped; affected-shard and incomplete-bulk fail-closed vectors | Export rendering/streaming, private-read proofs, hosted jobs, reconciler repair |
-| **M1-12** | Shared conformance corpus and vector generator | M1-3, M1-5, M1-8, M1-10, M1-11 | Corpus relocated unchanged to `conformance/vectors/` with a digest manifest; deterministic Python generator with a `--check` mode that fails on a mutated vector or implementation; before/input/after triples emitted from the reference materializers as the sole oracle for the incremental edge path | TypeScript, packaging changes, any contract change |
-| **M1-13** | TypeScript byte foundations and artifact envelopes | M1-12 | Edge RFC 8785, unpadded base64url, complete §4 identity table, artifact AAD, A256GCM over Web Crypto, closed release-profile parsing; read-only decoders for every projection plaintext, which M1-15's precondition checks need before the incremental slices exist; deterministic `typecheck` and `test:conformance` scripts consuming only the checked-in corpus | Keyrings, events, forms, routing, Worker wiring; projection update and decision logic, which M1-17 and M1-18 own |
-| **M1-14** | TypeScript wrapped-key creation, unwrap, and keyrings | M1-13 | Edge wrap AAD, `wrap_key_copy`, unwrap, and keyring parse/encode; creation included because §6.10.2 has the portal and enforcer services return wrapped copies; no raw key in output or error text | Bootstrap orchestration, root storage, network endpoints, rotation transactions |
-| **M1-15** | TypeScript event and side-artifact package validation | M1-13 | Edge write-path validation of all 27 event types, nested objects, actor and authorization rules, identity recomputation, and side-artifact package validation that derives event-determined bytes, recomputes every content digest from the exact bytes, and binds all evidence to one expected head rather than trusting a self-consistent hash, because §5.4 makes the portal Worker the canonical writer and §9 leaves no Python boundary to call; registry-agreement test against Python; verifies each named precondition against the authenticated artifact that decides it rather than accepting a caller assertion | The replay fold itself, transport, append, encryption orchestration; the edge verifies named preconditions without reconstructing history |
-| **M1-16** | TypeScript action forms and operation-state contracts | M1-13, M1-15 | Edge action-form verification over the closed Table 5.4-A registry, terminal no-op binding, and prepared-cell/marker/fence validation and transitions | OAuth, session store, HTML, GitHub CAS transport, retry drivers |
-| **M1-17** | TypeScript incremental coverage updates and subject decision | M1-13, M1-16 | Edge coverage schemas, shard selection, subject decision, and the §5.3 read-modify-write update defined by equivalence to M1-10's reference materializer; malformed before-state is never partially preserved | GitHub reads or writes, subject resolution, routing, check output |
-| **M1-18** | TypeScript incremental records-derived updates and portal reads | M1-14, M1-17 | Edge incremental index/status/reader-source updates with bounded bulk fan-out that fails closed until the final generation, plus §6.10.4 read validation of state, all 32 reader shards, generations, digests, and profile limits, and read-time overlay of live coverage marker/fence state so a stale `current` or `revoked` row is never served and no mutation leaves the dashboard stuck | Proof issuance, live membership checks, export rendering, hosted jobs |
-| **M1-19** | Cross-runtime conformance gate and M1 closure | M1-15, M1-18 | One gate runs both runtimes over the complete corpus and fails on any unconsumed case; manifest coverage proves every identity row, wrapper pair, Table 5.4-A row, event type, and edge-owned schema is claimed by both; mutation cases rejected by both; wheel smoke test; complete M1 traceability | Worker webhooks, routing, OAuth, portal, GitHub API, deploy configuration |
+| **M1-3** | Wrapped-key copies and canonical keyrings — **landed** | M1-1, M1-2 | Exact wrap AAD and 32-byte key wrapping; the closed wrapper/capability vocabulary; canonical keyring ordering; duplicate and wrong project/capability/generation rejection; fixed-key rotation and multi-wrapper vectors | Hosted wrapping services, bootstrap orchestration, root rotation, recovery UI |
+| **M1-4** | Event identity and authorization vocabulary — **landed** | M1-1 | Stable actor identity; exact operation/resource/required-authority pairs; canonical set ordering; random, automation, retry, and scope-terminal nonce derivation; idempotency key, operation fingerprint, event ID, and event path vectors | Event target/payload schemas, replay, GitHub authorization calls |
+| **M1-5** | Closed revision-14 event schema and semantic validation — **landed** | M1-2, M1-4 | Every §5.1 v1 event type and named nested object; exact actor, authorization, scalar, set, target, and payload rules; recomputed identity/fingerprint/path agreement; required side-artifact declarations; valid vectors for every type and rejection of unknown, cross-row, malformed, and reserved Entity values | Chronological replay, append transport, projection materialization |
+| **M1-6** | Canonical replay foundation and project/contributor lifecycle — **landed** | M1-5 | Ordered replay with corruption and idempotency conflict detection; project connection/succession, configuration, key activation, agreement publication/activation, acceptance, revocation, supersession, and recipient/tuple invariants; deterministic replay-state vectors | Scope transitions, overrides, exemptions, readers, projection bytes |
+| **M1-7** | Administrative, scope, exemption, reader, and override replay — **landed** | M1-6 | Three stacked review commits (scope/override/audit; exemptions; readers/closure) complete the remaining v1 fold; at most one scope terminal, so a request awaiting its activation or abandonment replays as a valid pending state; authorization-operation consistency; source-union addition/withdrawal; continuous-team materialization evidence; override lifecycle; succeeded-project closure; full-replay equivalence and rejection vectors | Live GitHub authority or membership checks, derived artifact encoding, writes |
+| **M1-8** | Authenticated action forms and replay-stable no-op bindings — **landed** | M1-4, M1-5, M1-7 | Exact JCS payload and one-dot base64url/HMAC encoding; active and eligible-predecessor key handling; session, actor, project, operation, digest, and absolute-expiry binding; the closed Table 5.4-A action/terminal registry; immutable terminal-event validation; vectors proving an old no-op cannot become a later write | OAuth/session storage, portal rendering, authorization acquisition, mutation writes |
+| **M1-9** | Prepared-operation, in-flight, and decision-fence contracts — **landed** | M1-2, M1-5, M1-8 | Closed idle/prepared/appending/terminal operation states; exact frozen side-artifact package and append claim; closed idle/mutation/success-reserved fence; one-operation marker and cross-binding rules; pure transition and crash/race vectors proving that age never clears state | GitHub CAS transport, Worker/reconciler drivers, routing-gate or check-run publication |
+| **M1-10** | Coverage projection contracts and bounded shards — **landed** | M1-7, M1-9 | Closed source, active-agreement, exemption, in-flight, fence, and user-shard schemas; exactly 32 deterministic packed shards; tuple cutoff and accepted-version fold; override-key validation; generic-reason-only/PII exclusion; deterministic materialization and fail-closed vectors | GitHub branch writes, check publication, routing, records-private derivatives |
+| **M1-11** | Records-derived contracts, generations, and release profile — **landed** | M1-7, M1-9, M1-10 | Closed project config, materialization generations, derived state, index, status-detail, and reader-authority schemas; replay-derived stored statuses with live `indeterminate` overlaid at read time, never persisted; exactly 32 bounded shards per class; canonical/derived generation and envelope-digest agreement; source-union detail and checked-in numeric profile limits bounding only the records-derived classes, never coverage, so acceptance and revocation stay uncapped; affected-shard and incomplete-bulk fail-closed vectors | Export rendering/streaming, private-read proofs, hosted jobs, reconciler repair |
+| **M1-12** | Shared conformance corpus and vector generator — **landed** | M1-3, M1-5, M1-8, M1-10, M1-11 | Corpus relocated unchanged to `conformance/vectors/` with a digest manifest; deterministic Python generator with a `--check` mode that fails on a mutated vector or implementation; before/input/after triples emitted from the reference materializers as the sole oracle for the incremental edge path | TypeScript, packaging changes, any contract change |
+| **M1-13** | TypeScript byte foundations and artifact envelopes — **landed** | M1-12 | Edge RFC 8785, unpadded base64url, complete §4 identity table, artifact AAD, A256GCM over Web Crypto, closed release-profile parsing; read-only decoders for every projection plaintext, which M1-15's precondition checks need before the incremental slices exist; deterministic `typecheck` and `test:conformance` scripts consuming only the checked-in corpus | Keyrings, events, forms, routing, Worker wiring; projection update and decision logic, which M1-17 and M1-18 own |
+| **M1-14** | TypeScript wrapped-key creation, unwrap, and keyrings — **landed** | M1-13 | Edge wrap AAD, `wrap_key_copy`, unwrap, and keyring parse/encode; creation included because §6.10.2 has the portal and enforcer services return wrapped copies; no raw key in output or error text | Bootstrap orchestration, root storage, network endpoints, rotation transactions |
+| **M1-15** | TypeScript event and side-artifact package validation — **landed** | M1-13 | Edge write-path validation of all 28 event types, nested objects, actor and authorization rules, identity recomputation, and side-artifact package validation that derives event-determined bytes, recomputes every content digest from the exact bytes, and binds all evidence to one expected head rather than trusting a self-consistent hash, because §5.4 makes the portal Worker the canonical writer and §9 leaves no Python boundary to call; registry-agreement test against Python; verifies each named precondition against the authenticated artifact that decides it rather than accepting a caller assertion | The replay fold itself, transport, append, encryption orchestration; the edge verifies named preconditions without reconstructing history |
+| **M1-16** | TypeScript action forms and operation-state contracts — **landed** | M1-13, M1-15 | Edge action-form verification over the closed Table 5.4-A registry, terminal no-op binding, and prepared-cell/marker/fence validation and transitions | OAuth, session store, HTML, GitHub CAS transport, retry drivers |
+| **M1-17** | TypeScript incremental coverage updates and subject decision — **landed** | M1-13, M1-16 | Edge coverage schemas, shard selection, subject decision, and the §5.3 read-modify-write update defined by equivalence to M1-10's reference materializer; malformed before-state is never partially preserved | GitHub reads or writes, subject resolution, routing, check output |
+| **M1-18** | TypeScript incremental records-derived updates and portal reads — **landed** | M1-14, M1-17 | Edge incremental index/status/reader-source updates with bounded bulk fan-out that fails closed until the final generation, plus §6.10.4 read validation of state, all 32 reader shards, generations, digests, and profile limits, and read-time overlay of live coverage marker/fence state so a stale `current` or `revoked` row is never served and no mutation leaves the dashboard stuck | Proof issuance, live membership checks, export rendering, hosted jobs |
+| **M1-19** | Cross-runtime conformance gate and M1 closure — **landed** | M1-15, M1-18 | One gate runs both runtimes over the complete corpus and fails on any unconsumed case; manifest coverage proves every identity row, wrapper pair, Table 5.4-A row, event type, and edge-owned schema is claimed by both; mutation cases rejected by both; wheel smoke test; complete M1 traceability | Worker webhooks, routing, OAuth, portal, GitHub API, deploy configuration |
 
-The implementation order is `M1-3` through `M1-19`. M1-3 and M1-4 are
+The completed implementation order was `M1-3` through `M1-19`. M1-3 and M1-4 are
 logically independent after the landed foundations but remain sequential PRs
 in one review stack.
 
@@ -102,6 +107,11 @@ passing a Python-only vector suite does not close M1-19.
 
 ### M2 — CLI and administration seams
 
+Detailed design: [`design/lld/m2-cli-administration.md`](../design/lld/m2-cli-administration.md).
+Status: locked; release-manifest correction B1 is owner-approved and its HLD
+amendment is reviewed. Implementation has not started. Validate the design's
+current attestation before `deliver-design-stack`.
+
 | | |
 |---|---|
 | **Needs** | M1 artifact contracts |
@@ -117,6 +127,19 @@ passing a Python-only vector suite does not close M1-19.
   idempotent resume state, and collision refusal
 - Cross-module tests proving every generated CLI command exists and every
   emitted artifact satisfies the shared contracts
+
+#### M2 execution slices
+
+| ID | Boundary | Needs | Acceptance |
+|---|---|---|---|
+| `m2/1` | Packaged no-write CLI and validated install plans | Landed M1; locked M2 design; B1 closed | Installed command, release/dependency checks, exact naming, zero-write planning or honest prerequisite failure |
+| `m2/2` | Live administration discovery and collision-aware planning | `m2/1` | Real read-adapter mapping through CLI, account/repository IDs, privacy, permissions, pagination and uncertainty |
+| `m2/3` | Guarded GitHub administration mutations | `m2/2` | Exact public protocol operations, sealed-box secrets, readback and uncertain-write refusal; no install executor |
+| `m2/4` | Fresh-evidence resume planning and complete CLI seam gate | `m2/3` | Deterministic reruns, stale/foreign evidence rejection, installed-package and command-registration seams, unchanged M1 gate |
+
+Each exact heading and machine-readable intent is owned by the M2 LLD. Commit
+and PR titles carry its full slice ID, for example `[m2/1] ...`. A future
+remapping preserves issued IDs and requires a reviewed design change.
 
 This milestone builds the CLI framework and repeatable provisioning planner.
 It does not call a placeholder reconciler or pretend the hosted key-wrap and
@@ -192,7 +215,7 @@ challenge paths exist.
   or routable project
 
 The installer is integrated here rather than treated as the first independent
-component: revision 13 requires it to verify real control code and live hosted
+component: revision 14 requires it to verify real control code and live hosted
 wrapping paths, not placeholders.
 
 ### M7 — Product surfaces and release verification
@@ -221,8 +244,8 @@ M1 -> M2 -> M3 -> M4 -> M5 -> M6 -> M7
 Cloudflare + Apps --+------+
 ```
 
-The M1 implementation stack began with the landed canonical-artifact and
-encrypted-envelope foundations and continues through the execution map above.
+The M1 implementation stack is landed, including the complete cross-runtime
+gate. Its execution map above records the completed boundaries.
 The first CLI stack follows with the administration protocol and a no-write
 planner; repository mutation arrives only after the M1 contracts are tested.
 

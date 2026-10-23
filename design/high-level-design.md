@@ -2,6 +2,7 @@
 
 Status: Locked
 Date: 31 August 2026
+Release-manifest amendment: 23 October 2026 (owner approved)
 Requirements baseline: `design/requirements.md` (Locked, revision 14, 31 August 2026)
 
 This document proposes an implementation architecture for the locked
@@ -2645,16 +2646,28 @@ Python, distributed on PyPI, run without installation:
 
 `<version>` is a concrete released version such as `0.1.0`, never `latest`, a
 range, or an omitted selector. Release notes publish that version's source
-commit, PyPI provenance identity, and canonical allowed-artifact manifest. The
-manifest lists every release distribution filename and SHA-256 and has its own
-SHA-256 identity. The package carries an identical release-declared copy.
+commit, PyPI provenance identity, and canonical allowed-artifact manifest.
+Each distribution bundles the same release policy: exact package version,
+source commit, release-workflow identity, dependency constraints and their
+identity, and the canonical public HTTPS manifest locator for that exact
+version. Finalize the distributions first, then publish the external manifest
+listing every release distribution filename and SHA-256 and binding them to
+that policy's SHA-256 identity. The distributions do not embed this final
+manifest or its digest; doing so would change the bytes it hashes.
+
 Before requesting GitHub authorization or creating anything, the installer
-displays and records in the three bootstrap manifests its exact package
-version, source commit, release-workflow identity, allowed-artifact-manifest
-identity, and dependency-constraint identity; the operator confirms that
-release-declared identity with the repository plan. Runtime dependencies are
-constrained to the release-tested set, and the installer validates its resolved
-distribution versions against those bundled constraints before authorization.
+retrieves the external manifest from that bundled exact-version locator,
+validates its closed schema and version/source/workflow/policy/constraint
+bindings, and computes its SHA-256 identity from the actual canonical manifest
+bytes. Retrieval uses no GitHub credential. Missing, malformed or mismatched
+release evidence stops installation before authorization. The installer
+displays its exact package version, source commit, release-workflow identity,
+verified allowed-artifact-manifest identity, and dependency-constraint identity;
+the operator confirms that release-declared identity with the repository plan.
+The completed installer records those same identities in the three bootstrap
+manifests. Runtime dependencies are constrained to the release-tested set, and
+the installer validates its resolved distribution versions against those bundled
+constraints before authorization.
 
 This contract does **not** claim that the already-running DraCLA child can
 discover whether its parent `uvx` invocation downloaded a wheel, built an
@@ -2948,8 +2961,9 @@ authority. Initial Connect compares all three copies before appending the first
 event; recovery compares them against the backed-up refs.
 
 `release.package_version` is the normalized exact version displayed by §6.9;
-`allowed_artifacts_sha256` identifies the exact release-published canonical
-manifest of permitted PyPI filenames and SHA-256 values, without claiming
+`allowed_artifacts_sha256` is the digest computed from the external canonical
+manifest retrieved and validated by §6.9. It identifies the exact
+release-published permitted PyPI filenames and SHA-256 values, without claiming
 which artifact the parent resolver used. `source_commit_oid` is the release's
 Git source commit, `provenance_identity`
 is the non-empty published workflow/subject identity the package reports, and
@@ -3116,8 +3130,10 @@ the cheapest failures first.
 
 ```
 1. preflight the owner and release   resolve org or personal account; require
-                                     an exact package version; display and record
-                                     allowed-artifact-manifest, source/provenance,
+                                     an exact package version; retrieve and validate
+                                     the external allowed-artifact manifest before
+                                     authorization; display and retain its digest,
+                                     source/provenance,
                                      and dependency-constraint identity;
                                      verify three private repos and real reconciler
                                      exist
