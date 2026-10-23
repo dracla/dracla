@@ -2,6 +2,7 @@
 
 Status: Locked
 Date: 31 August 2026
+Release-integrity amendment: 24 October 2026 (owner approved; current review required)
 Requirements baseline: `design/requirements.md` (Locked, revision 14, 31 August 2026)
 
 This document proposes an implementation architecture for the locked
@@ -2645,30 +2646,45 @@ Python, distributed on PyPI, run without installation:
 
 `<version>` is a concrete released version such as `0.1.0`, never `latest`, a
 range, or an omitted selector. Release notes publish that version's source
-commit, PyPI provenance identity, and canonical allowed-artifact manifest. The
-manifest lists every release distribution filename and SHA-256 and has its own
-SHA-256 identity. The package carries an identical release-declared copy.
+commit and standard PyPI publishing/build provenance. Each distribution bundles
+the same release policy: exact package version, source commit, release-workflow
+identity, and the SHA-256 identity of its exact tested dependency constraints.
+The policy is fixed before distribution assembly and its identity hashes only
+its own canonical bytes. It contains no distribution digest or external
+allowed-artifact-manifest locator. DraCLA maintains no separate downloaded
+release-file list or dedicated signing key for such a list.
+
 Before requesting GitHub authorization or creating anything, the installer
-displays and records in the three bootstrap manifests its exact package
-version, source commit, release-workflow identity, allowed-artifact-manifest
-identity, and dependency-constraint identity; the operator confirms that
-release-declared identity with the repository plan. Runtime dependencies are
-constrained to the release-tested set, and the installer validates its resolved
-distribution versions against those bundled constraints before authorization.
+validates the installed policy's closed schema, package-version binding and
+dependency-constraint identity, and computes the policy's SHA-256 identity.
+Missing, malformed or mismatched declarations stop installation before
+authorization. The installer displays its exact package version, declared
+source commit and release-workflow identity, policy identity, and constraint
+identity with the repository plan. M6 records those same declarations in the
+three bootstrap manifests. Runtime dependencies are constrained to the
+release-tested set, and the installer checks its resolved runtime dependency
+closure against those bundled versions before authorization. This local
+preflight performs no release-metadata download.
 
-This contract does **not** claim that the already-running DraCLA child can
-discover whether its parent `uvx` invocation downloaded a wheel, built an
-sdist, or reused a cached environment. Plain `uvx dracla@<version>` supplies no
-stable selected-artifact receipt to the child. The bootstrap therefore records
-the release-declared allowed set, not a filename or digest purportedly observed
-at runtime.
+These are declarations from the executing package, not proof of its origin or
+bytes. An already-running child cannot make itself trusted by checking its own
+metadata. Plain `uvx dracla@<version>` does not pass a stable receipt identifying
+whether it selected a wheel, built an sdist, or reused a cached environment.
+The bootstrap records the bundled policy identity, never a purportedly observed
+distribution fingerprint or verified-publisher claim.
 
-This is a proportionate one-time local-install contract, not a claim that the
-shell can cryptographically enforce what the operator typed. Independent
-artifact/provenance verification is documented as an optional higher-assurance
-step before `uvx`; the mandatory digest pin and provenance verification remain
-on the recurring key-bearing control workflow (§9), where a later mutable
-download could affect every adopter repeatedly.
+The ordinary one-time command relies on the selected Python package channel
+and launcher. Its standard download-integrity checks are distinct from signed
+provenance verification; ordinary `uvx` does not automatically verify PyPI
+attestations. Document an optional external procedure using existing package
+hash and PyPI/Sigstore verification tools before executing DraCLA. It must
+verify the exact artifact and expected source/publisher claims and execute that
+same artifact without a new unconstrained resolution. It must not claim
+verification merely from a version selector, a checksum fetched beside a file,
+or a publisher signature without the required source/build evidence.
+This adds no mandatory wrapper to the normal command. The recurring production
+key-bearing control workflow retains mandatory pre-execution artifact,
+dependency and provenance verification under §9 and `REQ-SEC-10`.
 
 The CLI is not merely an installer. It is the service-independent recovery and
 reporting surface. It reads ciphertext repositories directly with the
@@ -2926,7 +2942,7 @@ closed schema:
   "install_generation": "opaque-generation-id",
   "release": {
     "package_version": "0.1.0",
-    "allowed_artifacts_sha256": "sha256:lowercase-hex",
+    "release_policy_sha256": "sha256:lowercase-hex",
     "source_commit_oid": "Git object ID",
     "provenance_identity": "release-workflow identity",
     "dependency_constraints_sha256": "sha256:lowercase-hex"
@@ -2948,15 +2964,16 @@ authority. Initial Connect compares all three copies before appending the first
 event; recovery compares them against the backed-up refs.
 
 `release.package_version` is the normalized exact version displayed by §6.9;
-`allowed_artifacts_sha256` identifies the exact release-published canonical
-manifest of permitted PyPI filenames and SHA-256 values, without claiming
-which artifact the parent resolver used. `source_commit_oid` is the release's
-Git source commit, `provenance_identity`
-is the non-empty published workflow/subject identity the package reports, and
+`release_policy_sha256` hashes the exact canonical bundled policy validated by
+§6.9. It identifies the installed package's release declarations, not an
+external file list or the distribution selected by the parent resolver.
+`source_commit_oid` is the declared Git source commit, `provenance_identity`
+is the non-empty workflow/subject identity the package reports, and
 `dependency_constraints_sha256` hashes the exact bundled constraint bytes.
-Connect treats these as pinned install provenance, not as independent proof
-that a compromised package told the truth; optional external verification is
-what raises that assurance for the one-time local installer.
+Connect treats these as pinned install declarations, not independent proof of
+the running package's origin. Optional external pre-execution verification
+raises assurance for the one-time installer; §9 separately requires verified
+production execution before project keys are supplied.
 
 A records reader with no prior canonical state bootstraps as follows:
 
@@ -3116,9 +3133,11 @@ the cheapest failures first.
 
 ```
 1. preflight the owner and release   resolve org or personal account; require
-                                     an exact package version; display and record
-                                     allowed-artifact-manifest, source/provenance,
-                                     and dependency-constraint identity;
+                                     an exact package version; validate bundled
+                                     policy and runtime dependency versions before
+                                     authorization; display and retain policy,
+                                     declared source/publisher,
+                                     and dependency-constraint identities;
                                      verify three private repos and real reconciler
                                      exist
 2. confirm with the operator         unless force=true or dry_run=true
@@ -3151,7 +3170,7 @@ repository this command made: records must carry its `events` branch rooted at
 the exact DraCLA genesis README plus `keys` and `operations` branches descended
 from that root, with a schema-valid idle or recoverable prepared-operation
 cell; coverage must carry its `coverage` genesis and encrypted empty
-projection, and control the exact release manifest plus pinned workflow. The
+projection, and control the exact release provenance plus pinned workflow. The
 three bootstrap copies bind
 all repository numeric IDs, `K`, and one install generation; the control install
 provenance additionally records the resulting initial `keys` head `B`. The
@@ -3545,11 +3564,11 @@ any of them, so these properties are asserted across modules:
   denies only the action
 - release-documentation checks reject an omitted or floating package selector;
   installer integration tests display and persist the exact release-declared
-  version/allowed-artifact-manifest/source/provenance/dependency-constraint
-  identity before authorization, never label one artifact as runtime-observed,
-  and
-  keep external artifact verification an optional local-install hardening step
-  rather than a bootstrap dependency
+  version/policy/source/publisher/dependency-constraint identities before
+  authorization without a release-metadata download; never label package
+  declarations as authenticated origin or one artifact as runtime-observed;
+  keep external artifact verification an optional pre-execution local-install
+  procedure and mandatory for recurring production key-bearing execution
 - `agreement_published` exposes its event, exact snapshot, and matching metadata
   in one commit or none; `project_connected`, `config_updated`, and every event
   that changes a derived class expose their event plus the matching config or
@@ -5044,8 +5063,16 @@ Therefore:
 
 - The seeded workflow pins actions and the core by **digest**, never by branch
   or floating tag.
-- Releases are signed, publish provenance attestation, and the workflow verifies
-  it before running.
+- M3 publishes signed standard package provenance through PyPI/Sigstore
+  tooling. Before running DraCLA or supplying project keys, the control
+  workflow verifies the exact artifact digest and the expected repository,
+  workflow, reviewed source commit and declared build inputs. A publish-only
+  signature is insufficient for source/build claims it does not contain.
+  Executable dependencies and verification tooling are pinned by immutable
+  artifact or commit identity; their verification also precedes key access.
+  The workflow executes the verified artifact without resolving it again by
+  version. Missing, invalid or mismatched evidence fails closed. This is an
+  external execution gate, never a self-check inside the downloaded package.
 - The key-bearing process imports no module, command, dependency, workflow
   fragment, or control configuration from records or coverage. Decrypted
   repository content is schema-validated business data consumed only by the
