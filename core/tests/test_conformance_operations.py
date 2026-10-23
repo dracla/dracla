@@ -20,6 +20,8 @@ from dracla.conformance import (
     reserve_success, terminal_operation, validate_operation_cross_bindings, validate_event,
 )
 
+from core.tests.corpus_consumption import CLAIMS
+
 
 VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "operation-state-v1.json"
 ERRORS = (OperationConflict, OperationCorruption)
@@ -143,11 +145,14 @@ class TestOperationStates(unittest.TestCase):
         for name, obj in self.corpus["cells"].items():
             with self.subTest(cell=name):
                 self.assertEqual(encode_prepared_operation(self.decode(obj), max_prepared_operation_bytes=self.limit), canonical_json(obj))
+            CLAIMS.case('operation-state-v1.json', 'cells', name)
         for mapping, decoder, encoder in (("fences", decode_decision_fence, encode_decision_fence),
                                           ("markers", decode_inflight_marker, encode_inflight_marker)):
             for name, obj in self.corpus[mapping].items():
                 with self.subTest(mapping=mapping, name=name):
                     self.assertEqual(encoder(decoder(wire(obj))), canonical_json(obj))
+                CLAIMS.case('operation-state-v1.json', mapping, name)
+        CLAIMS.value('operation-state-v1.json', 'profile', 'project_id', 'append_claim', 'check_identity')
 
     def test_prepare_and_all_state_retries_preserve_exact_package(self):
         prepared = self.prepare(self.cell("idle"))
@@ -373,6 +378,7 @@ class TestOperationStates(unittest.TestCase):
             expected = set(vector["allowed"])
             with self.subTest(crash=vector["id"]):
                 self.assertEqual(set(accepted), expected)
+            CLAIMS.case('operation-state-v1.json', 'crashes', vector)
 
     def test_closed_state_schemas_reject_missing_extra_and_invalid_scalars(self):
         for mapping, decoder in (("cells", self.decode),
@@ -393,6 +399,7 @@ class TestOperationStates(unittest.TestCase):
                     for value in ("unknown", {}, [], 1, None):
                         with self.subTest(mapping=mapping, name=name, state=value), self.assertRaises(OperationCorruption):
                             decoder(obj | {"state": value})
+                CLAIMS.case('operation-state-v1.json', mapping, name)
         for decoder in (decode_decision_fence, decode_inflight_marker,
                         lambda data: decode_prepared_operation(data, expected_project_id=self.project, max_prepared_operation_bytes=self.limit)):
             for raw in (b'[]', b'null', b' {"state":"idle","generation":0}', b'\xff',

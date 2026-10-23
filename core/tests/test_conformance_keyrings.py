@@ -34,6 +34,9 @@ from dracla.conformance import (  # noqa: E402
 VECTORS = Path(__file__).resolve().parents[2] / "conformance" / "vectors" / "wrapped-key-v1.json"
 
 
+from core.tests.corpus_consumption import CLAIMS
+
+
 class TestWrappedKeys(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -112,6 +115,7 @@ class TestWrappedKeys(unittest.TestCase):
         decoded = self.decode(self.vector["keyring_utf8"].encode())
         self.assertEqual(decoded.keys, (copy,))
         self.assertEqual(decoded.canonical_bytes, self.vector["keyring_utf8"].encode())
+        CLAIMS.value('wrapped-key-v1.json', 'project_id', 'capability', 'wrapper_id', 'wrapper_generation', 'data_key_hex', 'data_kid_hex', 'wrapping_key_hex', 'nonce_hex', 'wrapped_key_base64url', 'aad_utf8', 'copy_utf8', 'keyring_utf8')
 
     def test_public_type_and_length_boundaries_fail_closed(self):
         for project_id in ("", None, 123):
@@ -287,6 +291,7 @@ class TestWrappedKeys(unittest.TestCase):
                         ),
                         self.data_key,
                     )
+                CLAIMS.contract("wrapper_pairs", capability + ":" + wrapper_id)
 
     def test_rotation_and_canonical_order_are_deterministic(self):
         first = self.wrap()
