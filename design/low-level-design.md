@@ -1,9 +1,9 @@
 # DraCLA low-level design index
 
 Status: Locked
-Date: 29 August 2026
-Requirements baseline: `design/requirements.md` (Locked, revision 13)
-Architecture baseline: `design/high-level-design.md` (Locked, 29 August 2026)
+Date: 24 October 2026
+Requirements baseline: `design/requirements.md` (Locked, revision 14)
+Architecture baseline: `design/high-level-design.md` (Locked, 31 August 2026)
 
 This document is the implementation index for the locked DraCLA design. It
 maps the complete HLD into milestone-sized low-level designs without repeating
@@ -21,8 +21,8 @@ implementation and returns to design review.
 | Milestone | LLD | Maturity | Implementation status |
 |---|---|---|---|
 | M0 — reviewed baseline and owner prerequisites | This index and `docs/github-apps.md` | Operational checklist; no implementation LLD | Reviewed design complete; Cloudflare resources and three GitHub Apps remain external prerequisites |
-| M1 — conformance kernel | [`design/lld/m1-conformance-kernel.md`](lld/m1-conformance-kernel.md) | Locked | M1-1 and M1-2 landed; M1-3 through M1-19 planned |
-| M2 — CLI and administration seams | `design/lld/m2-cli-administration.md` | Planned | Not started |
+| M1 — conformance kernel | [`design/lld/m1-conformance-kernel.md`](lld/m1-conformance-kernel.md) | Locked | All M1 slices through M1-19 landed; complete cross-runtime gate passed |
+| M2 — CLI and administration seams | [`design/lld/m2-cli-administration.md`](lld/m2-cli-administration.md) | Locked; approved release-integrity amendment needs current review | M2/1 drafted in PR #48; design PR #47 and implementation await remote approval |
 | M3 — pinned control workflow and reconciler | `design/lld/m3-control-reconciler.md` | Planned | Not started |
 | M4 — enforcement and routing | `design/lld/m4-enforcement-routing.md` | Planned | Not started |
 | M5 — portal, Connect, signing, and administration | `design/lld/m5-portal-connect.md` | Planned | Not started |
@@ -36,7 +36,7 @@ path in this table is not an instruction to infer missing detail from its name.
 
 When two artifacts differ, use this order:
 
-1. locked revision-13 requirements;
+1. locked revision-14 requirements;
 2. locked and cleanly attested HLD;
 3. the milestone LLD governing the selected task;
 4. `docs/roadmap.md` for sequencing and status;
@@ -215,9 +215,14 @@ and the LLD/roadmap boundary is reviewed before code is split.
 
 ## 6. Current next step
 
-Review and lock the M1 LLD, then deliver M1-3 through M1-19 in order. M1-3 and
-M1-4 are logically independent after the landed foundations but remain
-sequential commits in one review stack. M1-3 through M1-11 author the contracts
-in Python, M1-12 freezes the corpus, M1-13 through M1-18 implement the edge
-subset in TypeScript, and M1-19 closes the milestone. M1 closes only after the
-shared Python and TypeScript conformance gate passes.
+M1 is landed through `41baf0cc796213947ab6a5ae3ee9544b15564c55`, including
+M1-19 and the complete Python/TypeScript gate. The M1 LLD's original delivery
+status rows are historical planning labels; this index and the roadmap record
+the verified landed state.
+
+Use the locked `design/lld/m2-cli-administration.md` after validating its current
+design attestation. Its four slices are `m2/1` through
+`m2/4`; they cover CLI/preflight, discovery, guarded administration writes and
+fresh-evidence resume planning. Do not dispatch `deliver-design-stack` until
+the design is locked and its current attestation is verified. Do not introduce
+placeholder reconciler or hosted installer behavior to make M2 look complete.
