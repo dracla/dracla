@@ -2022,8 +2022,8 @@ closed object with `state_version` fixed to 1 and exactly these members:
   whose value is that shard's encrypted-envelope digest as
   `sha256:<64 lowercase hexadecimal characters>`. The prefixed-hex form is the
   design's convention for a digest over exact bytes — §5.1's
-  `operation_sha256`, §5.4's side-artifact `sha256`, and §9's
-  `allowed_artifacts_sha256` all use it — while unpadded base64url is reserved
+  `operation_sha256`, §5.4's side-artifact `sha256`, and §6.10.2's
+  `release_policy_sha256` all use it — while unpadded base64url is reserved
   for identifiers such as event IDs. Every class carries all 32 keys, and an
   unchanged shard's digest is carried forward;
 - `standing_rules`, a map keyed by `rule_event_id` whose value is the closed
