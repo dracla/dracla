@@ -20,7 +20,8 @@ from dracla.cli.app import main
 from dracla.cli.config import ConfigError, compose_install
 from dracla.cli.release import ReleaseError, ReleaseIdentity, load_release_policy
 from dracla.conformance.canonical import canonical_json
-from dracla.provisioning import InstallInput, initial_plan
+from dracla.provisioning import InstallInput, administration_scope, plan_install
+from dracla.administration import AccountObservation, Discovery
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -63,9 +64,10 @@ class ConfigurationTests(unittest.TestCase):
                 config = compose_install([f"github.owner={owner}"])
                 self.assertEqual(config, InstallInput(owner, owner))
         config = compose_install(["github.owner=Acme", "project.slug=Acme-CLA", "dry_run=true", "force=true"])
-        plan = initial_plan(config)
+        discovery = Discovery(AccountObservation(None), (), False)
+        plan = plan_install(config, ReleaseFixture().load(), discovery)
         self.assertEqual([r.name for r in plan.repositories], [f"acme-cla-cla-{r}" for r in ("records", "coverage", "control")])
-        self.assertEqual(plan, initial_plan(config))
+        self.assertEqual(plan, plan_install(config, ReleaseFixture().load(), discovery))
         self.assertFalse(plan.complete)
         self.assertFalse(compose_install(["github.owner=acme"]).dry_run)
 
@@ -198,11 +200,12 @@ class CliTests(unittest.TestCase):
         for extra in ([], ["dry_run=true"], ["force=true"], ["dry_run=true", "force=true"]):
             out = io.StringIO()
             with patch.dict(os.environ, {"GH_TOKEN": "SECRET", "GITHUB_TOKEN": "SECRET"}):
-                self.assertEqual(main(["install", "github.owner=acme"] + extra, output=out, release_loader=f.load), 2)
+                self.assertEqual(main(["install", "github.owner=acme"] + extra, output=out, release_loader=f.load,
+                                      credential_provider=lambda: None), 2)
             text = out.getvalue()
             self.assertIn("acme/acme-cla-records", text)
             self.assertIn("blocked", text)
-            self.assertIn("Live account", text)
+            self.assertIn("Account identity unavailable", text)
             self.assertIn("This deploy key is an integrity credential", text)
             self.assertIn("hosted operator", text)
             self.assertNotIn("SECRET", text)
@@ -214,7 +217,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(main(["install", "github.owner=acme"], output=out,
             release_loader=lambda: (_ for _ in ()).throw(ReleaseError("Unavailable release evidence"))), 2)
 
-    def test_no_application_files_network_processes_or_credential_reads(self):
+    def test_no_application_files_or_processes_with_missing_credentials(self):
         # Initialize imported client libraries before installing operation spies.
         compose_install(["github.owner=acme"])
         out = io.StringIO()
@@ -236,7 +239,8 @@ class CliTests(unittest.TestCase):
              patch("urllib.request.urlopen", side_effect=AssertionError("unexpected HTTP")), \
              patch("os.getenv", side_effect=AssertionError("credential read before discovery")):
             # Hydra reads packaged YAML through io.open, never writes a run/config.
-            self.assertEqual(main(["install", "github.owner=acme", "dry_run=true"], output=out, release_loader=f.load), 2)
+            self.assertEqual(main(["install", "github.owner=acme", "dry_run=true"], output=out,
+                                  release_loader=f.load, credential_provider=lambda: None), 2)
         self.assertIn("Declared release:", out.getvalue())
         self.assertNotIn("Final artifact manifest:", out.getvalue())
 
@@ -305,19 +309,36 @@ class CliTests(unittest.TestCase):
             (target / "dracla/release-policy.json").write_bytes(canonical_json(fixture.policy))
             (target / "dracla/dependency-constraints.txt").write_bytes(fixture.constraints)
             positive = '''from unittest.mock import patch
+import json
 from dracla.cli.app import main
+from dracla.github_admin import GitHubAdministration, HttpResponse
+calls=[]
+def sender(method,url,headers,timeout):
+    assert method == "GET"
+    calls.append(url)
+    if url.endswith("/user") or url.endswith("/users/acme"):
+        return HttpResponse(200,{"X-OAuth-Scopes":"repo"},json.dumps({"login":"acme","id":7,"type":"User","public_repos":0,"owned_private_repos":0}).encode())
+    if "/user/repos?" in url:
+        return HttpResponse(200,{},b"[]")
+    return HttpResponse(404,{},b"{}")
+def factory(scope):
+    return GitHubAdministration(scope,credential_provider=lambda:"SECRET",sender=sender)
 with patch("urllib.request.urlopen", side_effect=AssertionError("unexpected HTTP")), \
      patch("urllib.request.build_opener", side_effect=AssertionError("unexpected HTTP")), \
      patch("socket.create_connection", side_effect=AssertionError("unexpected network")):
-    result = main(["install","github.owner=acme","dry_run=true"])
+    result = main(["install","github.owner=acme","dry_run=true"],admin_factory=factory)
+assert len(calls)==6
 raise SystemExit(result)
 '''
             result = subprocess.run([sys.executable, "-c", positive], cwd=work,
                                     env=env, text=True, capture_output=True)
-            self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             self.assertIn("Declared release:", result.stdout)
             self.assertNotIn("Final artifact manifest:", result.stdout)
             self.assertIn("acme/acme-cla-records", result.stdout)
+            self.assertIn("Owner ID: 7", result.stdout)
+            self.assertIn("M6; blocked", result.stdout)
+            self.assertNotIn("SECRET", result.stdout + result.stderr)
             self.assertEqual(sorted(str(p.relative_to(work)) for p in work.rglob("*")), before)
             probe = '''import importlib,sys,pathlib
 sys.path.insert(0,sys.argv[1])
