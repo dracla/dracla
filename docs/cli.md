@@ -120,6 +120,23 @@ No local progress journal or credential store is created. `force=true` never
 clears a blocker or enables missing installation engines. Non-dry M2 execution
 always exits 2 before mutations.
 
+The library's `plan_resume(previous_plan, fresh_observations)` recomputes the
+same owner, slug and release intent. Callers supply fresh configuration,
+release checks and discovery in `FreshObservations`. Old step states and
+completion flags are ignored. A changed or lost known owner/repository ID,
+changed intent, or changed release/policy requires an explicit new plan.
+Unchanged observations produce the same plan.
+
+`InstallationVerifier` is the owning M6 port. Its `VerifiedInstallation` result
+means M6 has checked complete per-repository provenance, canonical manifests,
+root ancestry, common project and generation, keyring candidate K and initial
+keys head B. The pure planner checks that result against the exact fresh
+owner, slug, release and repository IDs. Missing, partial or mismatched results
+cannot authorize reuse. Production M2 supplies no verifier or positive result;
+the installed CLI continues to block existing names. This is an in-process
+planning contract, with no resume command, journal or persisted schema. A
+verified planning result still leaves later installer steps blocked.
+
 Exit codes: 0 is help or a complete collision-free read-only plan; 2 is rejected
 input, unavailable/invalid release evidence or a blocked plan; 1 is an unexpected
 internal failure with a fixed redacted diagnostic. A successful plan never means
@@ -138,3 +155,10 @@ actual public protocol and HTTP sender with isolated fixtures. It covers
 account-specific creation, ID/role/privacy/permission rejection, response loss
 for every write, exact readback, genuine fixture sealed-box decryption and
 secret redaction. Ordinary validation provisions no live infrastructure.
+`core.tests.test_provisioning_resume.ResumeTests` covers deterministic reruns,
+stale flags, fixed intent, identity/release drift and fixture verifier bindings.
+`core.tests.test_cli_integration.InstalledCliIntegrationTests` runs the complete
+installed dispatcher/release/read/planner/resume seam outside the checkout,
+checks the named mutation protocol and documented commands, and rejects
+application file writes, child processes and unmocked network effects across
+positive, collision, denied, resolver-injection and release-failure paths.
