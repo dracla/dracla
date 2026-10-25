@@ -1,28 +1,29 @@
 ---
 artifact: swe-design-review-attestation
-schema_version: 5
-scope_key: 77059b9f4e6819ad6450d85ad14e8f2f8cfdc71f0fdf9cdf2529403853b0e773
-scope: {"kind": "path", "primary_target": "design/lld/m2-cli-administration.md", "repository": ".", "selector": "design/lld/m2-cli-administration.md"}
-review_content_identity_sha256: 3b12e160bc6b4df347637056013c91d9b4a52c23cd008c53c3989fe40ad32c37
-target_content_identity_sha256: e6a431d71ec20f81e0ef20481f50e281eab3e04b5f854d322219d72f72320458
-baseline_content_identity_sha256: 81a308ef847729aa1af085b5026529a05a5fe1af2e9d0d56872638b788e7d2c0
-target_documents: [{"executable": false, "path": "design/lld/m1-conformance-kernel.md", "repository": ".", "sha256": "f29e26200dca12869aee89609d7136138992f34454697be95f1cbd70ed949e6a"}, {"executable": false, "path": "design/lld/m2-cli-administration.md", "repository": ".", "sha256": "ddcf89e5d64b710c8deabb09838989b085b90da526b14b272809255f39d595e6"}, {"executable": false, "path": "design/low-level-design.md", "repository": ".", "sha256": "88bdf4563731ed396009d02a7f77111d85dedea80ee7bd34b1d727510aced567"}, {"executable": false, "path": "docs/roadmap.md", "repository": ".", "sha256": "0d700a1542cf96eb4adb235ae7dc98d187edeec9cf07eed888844eff456749a1"}]
-baseline_documents: [{"executable": false, "path": "design/high-level-design.md", "repository": ".", "sha256": "02ef179692b97603f3dc2874da0b3ad59d8e8bd2b951a52455f4383846fcaeae"}, {"executable": false, "path": "design/requirements.md", "repository": ".", "sha256": "eb04181fabcade4a8bc807795b1fba70a012eb935dca2a6d84eca952b3c067df"}]
-design_dependency_documents: [{"executable": false, "path": "design/high-level-design.md", "repository": ".", "sha256": "02ef179692b97603f3dc2874da0b3ad59d8e8bd2b951a52455f4383846fcaeae"}, {"executable": false, "path": "design/requirements.md", "repository": ".", "sha256": "eb04181fabcade4a8bc807795b1fba70a012eb935dca2a6d84eca952b3c067df"}]
-plan_binding: {"base_revision": "16cb3d645eb8e0bbf2732369482ccd55162d7196", "documents": [{"executable": false, "path": "design/lld/m2-cli-administration.md", "plan_key": "m2", "sha256": "ddcf89e5d64b710c8deabb09838989b085b90da526b14b272809255f39d595e6", "slice_convention": "hierarchical-v1"}], "predecessors": [{"executable": false, "path": "design/lld/m2-cli-administration.md", "sha256": "5fff3410c11ccf7cb0dfd4f410307fb5e27dba00e256649e455581fc88b073ab"}]}
+schema_version: 6
+scope_key: 202f0bb5683e170f68f1ef7a879d35208c809c529b0d397d2dcbc26cd6e54d01
+scope: {"kind": "path", "primary_target": "design/lld/m3-control-reconciler.md", "repository": ".", "selector": "design/lld/m3-control-reconciler.md"}
+review_content_identity_sha256: 905e6c034cef7b204cfe8a1a93154f02d4f695446933c7c570ed8482c283435f
+target_content_identity_sha256: 229ba496dcac6704546e37ee98f29cc03f963e5179835c0ba3329aaad57f47f7
+baseline_content_identity_sha256: c62ce6fdadcf52b28cf727e03ba2a0b79e9efc3c8075b81f75cb969ed8b33345
+target_documents: [{"executable": false, "path": "design/lld/m3-control-reconciler.md", "repository": ".", "sha256": "bec912f0157f4db1439819dcf68aa20491d9d497c5819afe5e13f517785763c9"}, {"executable": false, "path": "design/low-level-design.md", "repository": ".", "sha256": "74a8b4c247105622cfe13cec9231299f9c15d32cc8996d222b83475683f85f23"}, {"executable": false, "path": "docs/roadmap.md", "repository": ".", "sha256": "c10c31ccd1f5a8be48af68fd51ade7b412bd075a1284f7b43801db9611dfd6e9"}]
+baseline_documents: [{"executable": false, "path": "design/high-level-design.md", "repository": ".", "sha256": "bfc83562c67edabf716240b71d060d1fb9ae2e963487624b4c7d37c87c8e4378"}, {"executable": false, "path": "design/requirements.md", "repository": ".", "sha256": "eb04181fabcade4a8bc807795b1fba70a012eb935dca2a6d84eca952b3c067df"}]
+design_dependency_documents: [{"executable": false, "path": "design/high-level-design.md", "repository": ".", "sha256": "bfc83562c67edabf716240b71d060d1fb9ae2e963487624b4c7d37c87c8e4378"}, {"executable": false, "path": "design/requirements.md", "repository": ".", "sha256": "eb04181fabcade4a8bc807795b1fba70a012eb935dca2a6d84eca952b3c067df"}]
+plan_binding: {"base_revision": "3f9101fed6e1c519cabce30395b30de4bda0e335", "documents": [{"executable": false, "path": "design/lld/m3-control-reconciler.md", "plan_key": "m3", "sha256": "bec912f0157f4db1439819dcf68aa20491d9d497c5819afe5e13f517785763c9", "slice_convention": "hierarchical-v1"}], "predecessors": [{"executable": false, "path": "design/lld/m3-control-reconciler.md", "sha256": "0a8e52b831b5b41bdbc1581d20aa99d4906f64ccafbb46e79af5979124f734ba"}]}
+security_review: {"actual": "dbb", "binding_identity_sha256": "1f434a916927c802a741ec7788cc37853ea981be99c5ba19b14678a1fd34005a", "requested": "dbb", "reviewer": "/root/m3_pr53_design_restart1_dbb", "schema_version": 1}
 document_repository: "."
 document_path: "design/low-level-design.md"
-document_revision_provenance: "16cb3d645eb8e0bbf2732369482ccd55162d7196"
-document_sha256: 88bdf4563731ed396009d02a7f77111d85dedea80ee7bd34b1d727510aced567
+document_revision_provenance: "3f9101fed6e1c519cabce30395b30de4bda0e335"
+document_sha256: 74a8b4c247105622cfe13cec9231299f9c15d32cc8996d222b83475683f85f23
 verdict: clean
-attested_at: 2026-10-23T19:47:38Z
+attested_at: 2026-10-26T07:25:45Z
 ---
-<!-- swe-design-review-attestation:v5 -->
+<!-- swe-design-review-attestation:v6 -->
 
 # SWE design-review attestation
 
 Review freshness binds target and baseline document bytes and executable state
-listed in the version-5 header. Revisions are provenance only.
+listed in the version-6 header. Revisions are provenance only.
 
 ## Durable review state
 

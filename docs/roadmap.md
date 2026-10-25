@@ -23,12 +23,14 @@ reconstructed at the end.
 - [x] A1 edge platform, A4 merge-queue baseline, and A5 coordination model closed
 - [x] Hosted shell/API origin selected: `https://dracla.cli.dev`
 - [ ] Cloudflare account resources: Workers, Pages, Secrets, KV, and Durable Objects
-- [ ] Three GitHub Apps created per `docs/github-apps.md`
+- [ ] Three service GitHub Apps created per `docs/github-apps.md`
+- [ ] Adopter-owned private transport App configured and live scope/lifecycle probes passed
 
-The legacy `core/` modules outside `dracla.conformance` are plaintext protocol
-spikes, not the revision-14 implementation. Their transport and test techniques
-may be reused selectively; their event, projection, shard, and trust assumptions
-are not release code. The conformance package is the landed M1 implementation.
+The conformance package is the landed M1 implementation; CLI, provisioning and
+administration are the landed M2 seams. Legacy `githost.py`, `github.py`,
+`append.py`, `events.py` and `projection.py` remain plaintext experiments.
+Their transport techniques may be reused selectively, while their protocol and
+trust assumptions are not revision-14 defaults.
 
 ---
 
@@ -108,10 +110,10 @@ passing a Python-only vector suite does not close M1-19.
 ### M2 — CLI and administration seams
 
 Detailed design: [`design/lld/m2-cli-administration.md`](../design/lld/m2-cli-administration.md).
-Status: locked; release-integrity simplification B2 was owner-approved on
-24 October 2026 and requires current HLD/M2 review. M2/1 is drafted in PR #48;
-the design prerequisite PR #47 and implementation await remote approval.
-Validate current attestations before continuing `deliver-design-stack`.
+Status: complete. All four M2 slices and their reviewed design prerequisite
+were merged by the owner. The M3 design task inspected main at
+`11e8d0f07ef3406451dc954ecda504c3f3854877`. M2 delivered CLI planning and
+administration seams; installation remains blocked on later real engines.
 
 | | |
 |---|---|
@@ -147,6 +149,26 @@ It does not call a placeholder reconciler or pretend the hosted key-wrap and
 challenge paths exist.
 
 ### M3 — Pinned control workflow and reconciler
+
+Detailed design: [`design/lld/m3-control-reconciler.md`](../design/lld/m3-control-reconciler.md).
+Status: locked after clean general and DBB review; the owner approved the full
+M3 design and six delivery slices on 25 October 2026. This design checkpoint
+does not authorize implementation. The transport-App
+direction was owner-approved on 25 October 2026. Production use still requires
+live least-privilege, lifecycle and release-provenance evidence.
+
+| ID | Behavior | Stack prerequisite |
+|---|---|---|
+| `m3/1.1` | Authenticated encrypted history and read-only verify | Merged M2 |
+| `m3/2` | Durable canonical mutation and conditional projection writes | `m3/1.1` |
+| `m3/3` | Reconcile and recover persisted operations | `m3/2` |
+| `m3/4` | Portable and explicit encrypted exports | `m3/3` (reader dependency `m3/1.1`) |
+| `m3/5` | Verified production workflow and transport lifecycle | `m3/3`, `m3/4` |
+| `m3/6` | Recovery integration and M3 evidence closure | `m3/5` |
+
+The LLD owns exact scope and acceptance. Approve each implementation slice
+before admitting the next, retain full IDs in titles, and record unmet
+M4/M5/M6 integration separately from M3 engine completion.
 
 | | |
 |---|---|
@@ -233,8 +255,8 @@ wrapping paths, not placeholders.
   through configuration rather than source edits
 - Complete traceability matrix and every required acceptance scenario
 - Close A2 encrypted-path/continuous-team/Durable Object measurements, update
-  the A3 model with measured dimensions, and run the A6 write-deploy-key reach
-  and recovery probe before release
+  the A3 model with measured dimensions, and run the A6 transport-App reach,
+  all-token containment and recovery probe before release
 
 ---
 
@@ -248,8 +270,9 @@ Cloudflare + Apps --+------+
 
 The M1 implementation stack is landed, including the complete cross-runtime
 gate. Its execution map above records the completed boundaries.
-The first CLI stack follows with the administration protocol and a no-write
-planner; repository mutation arrives only after the M1 contracts are tested.
+M2's CLI and administration stack is also merged. M3 design review and owner
+approval are complete. All six approved M3 slices remain planned; implementation
+requires the design checkpoint and a later delivery request.
 
 ## Pre-release gates still open
 
@@ -257,5 +280,6 @@ planner; repository mutation arrives only after the M1 contracts are tested.
   export, continuous-team, and Durable Object paths on real accounts.
 - **A3:** add measured Durable Object and final workload dimensions to the
   capacity model and reproduce the published envelope.
-- **A6:** probe write-deploy-key integrity reach and complete the exposure,
-  rotation, restore, replay, repair, and open-PR recheck exercise.
+- **A6:** probe dedicated/shared transport-App integrity reach, key/token
+  exposure, all-token containment before restoration, rotation, authenticated
+  restore/replay, projection repair and open-PR recheck.
