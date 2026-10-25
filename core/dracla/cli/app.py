@@ -10,7 +10,6 @@ from dracla.provisioning import administration_scope, plan_install
 from .config import ConfigError, compose_install
 from .release import ReleaseError, ReleaseIdentity, load_release_policy
 
-_COMMANDS = frozenset({"install"})
 _HELP = "Usage: dracla install github.owner=LOGIN [project.slug=SLUG] [dry_run=true] [force=true]"
 
 
@@ -28,8 +27,14 @@ def main(argv: list[str] | None = None, *, release_loader: Callable[[], ReleaseI
     if args[1:] in (["--help"], ["-h"]):
         print(_HELP, file=out)
         return 0
+    return _COMMANDS[args[0]](args[1:], out, release_loader, credential_provider, admin_factory)
+
+
+def _install(args: list[str], out: TextIO, release_loader: Callable[[], ReleaseIdentity],
+             credential_provider: Callable[[], str | None],
+             admin_factory: Callable[[AdminScope], Administration] | None) -> int:
     try:
-        config = compose_install(args[1:])
+        config = compose_install(args)
         release = release_loader()
         scope = administration_scope(config)
         admin = (admin_factory(scope) if admin_factory is not None else
@@ -56,3 +61,7 @@ def main(argv: list[str] | None = None, *, release_loader: Callable[[], ReleaseI
     except Exception:
         print("Internal failure; no installation was performed.", file=out)
         return 1
+
+
+# Keep the public command surface tied to actual handlers.
+_COMMANDS = {"install": _install}
