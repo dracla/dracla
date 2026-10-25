@@ -70,12 +70,45 @@ Long rate limits return a typed retry time rather than sleep indefinitely.
 Discovery allows ten pages of up to 100 repositories by default; its library
 caller can select a budget of 1–100 pages. Repeated/inconsistent pages,
 unexpected next links, missing permissions, identity drift and incomplete reads
-produce blocked plans. All adapter requests in this slice are GET requests.
+produce blocked plans. The CLI planning path uses only GET requests.
 The [GitHub version contract](https://docs.github.com/en/rest/about-the-rest-api/api-versions),
 [repository endpoints](https://docs.github.com/en/rest/repos/repos),
 [organization membership endpoint](https://docs.github.com/en/rest/orgs/members)
 and [scope definitions](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)
 govern the tested mappings. Scope declarations alone never grant user authority.
+
+The `m2/3` administration library also provides named mutation methods for later
+engines. Each method requires the frozen scope and current repository identity;
+the caller must resolve the account first. Repository creation additionally
+requires fresh complete discovery proving the exact name absent. It uses the
+personal or organization endpoint, creates an empty private repository and
+binds its numeric ID from the successful create response and exact readback.
+An existing name, a concealed name or a lost creation acknowledgement never
+authorizes adoption.
+
+`set_private` only changes visibility toward private. Records branch rename
+targets `events` from the observed initial default branch, preserves its head
+and rejects an existing target. Deploy keys are restricted to records/coverage;
+the caller supplies a public key and explicit `read_only` permission. Matching
+uses normalized key material and ID, never a title alone. The adapter generates
+no transport private key.
+
+Actions secrets and workflow dispatch are restricted to control. Secret PUT
+reads the current repository public key and uses pinned `PyNaCl==1.6.2`
+[sealed boxes](https://pynacl.readthedocs.io/en/latest/public/#nacl-public-sealedbox).
+Only ciphertext and key ID enter its HTTP body. A successful acknowledgement is
+`accepted`: GitHub cannot return the stored plaintext for verification. A lost
+acknowledgement is `uncertain`; any explicitly authorized repeat obtains a fresh
+public key. Dispatch binds the explicit workflow ID or filename, ref and inputs;
+acceptance does not identify a particular run or establish completion.
+
+Each library call makes at most one write attempt. Visibility, branch and deploy
+key operations can return `applied-and-readback-verified` only from their exact
+postconditions. Unknown or conflicting readback stays uncertain or conflicting.
+Creation never repeats POST to adopt a resulting name. Secret PUT and dispatch
+never turn a timeout into success. Pagination, ID checks, redaction, fixed API
+origin and redirect refusal also apply to these library operations. These
+methods are not exposed by the CLI dispatcher.
 
 The ordered plan keeps later execution steps visibly blocked under their owning
 M3/M5/M6 engines. A ready read-only plan means current discovery found no
@@ -100,3 +133,8 @@ the checkout. Its temporary release fixture also runs the actual installed
 read adapter through the dispatcher with an isolated HTTP sender.
 `conformance/gate.py` retains the complete M1
 Python/TypeScript, shared-vector and installed-conformance gate.
+`core.tests.test_admin_mutations.AdministrationMutationTests` exercises the
+actual public protocol and HTTP sender with isolated fixtures. It covers
+account-specific creation, ID/role/privacy/permission rejection, response loss
+for every write, exact readback, genuine fixture sealed-box decryption and
+secret redaction. Ordinary validation provisions no live infrastructure.
