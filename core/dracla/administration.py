@@ -1,9 +1,9 @@
 """Identity-bound administration observations. No transport or client imports."""
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 import re
-from typing import Protocol
+from typing import Mapping, Protocol
 
 _LOGIN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?", re.ASCII)
 _NAME = re.compile(r"[A-Za-z0-9_.-]{1,100}", re.ASCII)
@@ -147,11 +147,105 @@ class RepositoryPage:
     rate_limit: RateLimit = RateLimit()
 
 
+def branch_name(value: str) -> str:
+    """Validate a Git branch/tag name before putting it in an encoded path."""
+    if (type(value) is not str or not value or len(value) > 1024
+            or value == "@" or value.startswith(("-", "/")) or value.endswith(("/", "."))
+            or ".." in value or "@{" in value
+            or any(ord(c) < 33 or ord(c) == 127 or c in "~^:?*[\\" for c in value)
+            or any(not part or part.startswith(".") or part.endswith(".lock") for part in value.split("/"))):
+        raise ValueError("Invalid branch or tag name")
+    try:
+        if len(value.encode("utf-8")) > 1024:
+            raise ValueError("Invalid branch or tag name")
+    except UnicodeError:
+        raise ValueError("Invalid branch or tag name") from None
+    return value
+
+
+def public_ssh_key(value: str) -> str:
+    """Compare key material, not a user-controlled comment or title."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.exceptions import UnsupportedAlgorithm
+    if type(value) is not str or not value.isascii() or len(value) > 16384 or "\n" in value or "\r" in value:
+        raise ValueError("Invalid SSH public key")
+    try:
+        key = serialization.load_ssh_public_key(value.encode("ascii"))
+        return key.public_bytes(serialization.Encoding.OpenSSH, serialization.PublicFormat.OpenSSH).decode("ascii")
+    except (ValueError, TypeError, UnicodeError, UnsupportedAlgorithm):
+        raise ValueError("Invalid SSH public key") from None
+
+
+@dataclass(frozen=True)
+class BranchRef:
+    repository: RepositoryRef
+    name: str
+    head: str
+    default_branch: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.repository, RepositoryRef) or type(self.head) is not str or not re.fullmatch(r"[0-9a-f]{40}", self.head):
+            raise ValueError("Invalid branch identity")
+        branch_name(self.name)
+        branch_name(self.default_branch)
+
+
+@dataclass(frozen=True)
+class DeployKey:
+    id: int
+    title: str
+    key: str
+    read_only: bool
+
+    def __post_init__(self) -> None:
+        numeric_id(self.id)
+        if type(self.title) is not str or len(self.title) > 1024 or type(self.read_only) is not bool:
+            raise ValueError("Invalid deploy key metadata")
+        object.__setattr__(self, "key", public_ssh_key(self.key))
+
+
+@dataclass(frozen=True)
+class ActionsPublicKey:
+    repository: RepositoryRef
+    key_id: str
+    key: bytes = field(repr=False)
+
+    def __post_init__(self) -> None:
+        if (not isinstance(self.repository, RepositoryRef) or type(self.key_id) is not str
+                or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", self.key_id)
+                or type(self.key) is not bytes or len(self.key) != 32):
+            raise ValueError("Invalid Actions public key")
+
+
+@dataclass(frozen=True)
+class AdministrationResult:
+    status: str
+    repository: RepositoryRef | None = None
+    reason: str = ""
+    branch: BranchRef | None = None
+    deploy_keys: tuple[DeployKey, ...] = ()
+    public_key: ActionsPublicKey | None = None
+    rate_limit: RateLimit = RateLimit()
+
+    def __post_init__(self) -> None:
+        if self.status not in {"observed", "applied-and-readback-verified", "accepted", "uncertain", "conflict", "missing", "denied"}:
+            raise ValueError("Invalid administration result")
+
+
 class Administration(Protocol):
     def resolve_account(self, owner: str) -> AccountObservation: ...
     def get_repository(self, owner: str, name: str, *, expected: RepositoryRef | None = None) -> RepositoryObservation: ...
     def list_repositories(self, account: AccountRef, cursor: int = 1) -> RepositoryPage: ...
     def read_visibility(self, repository: RepositoryRef) -> RepositoryObservation: ...
+    def create_private_repository(self, account: AccountRef, name: str) -> AdministrationResult: ...
+    def set_private(self, repository: RepositoryRef) -> AdministrationResult: ...
+    def read_branch(self, repository: RepositoryRef, name: str) -> AdministrationResult: ...
+    def rename_branch(self, repository: RepositoryRef, observed: BranchRef, new_name: str) -> AdministrationResult: ...
+    def list_deploy_keys(self, repository: RepositoryRef, *, page_budget: int = 10) -> AdministrationResult: ...
+    def add_deploy_key(self, repository: RepositoryRef, title: str, key: str, *, read_only: bool) -> AdministrationResult: ...
+    def get_actions_public_key(self, repository: RepositoryRef) -> AdministrationResult: ...
+    def put_actions_secret(self, repository: RepositoryRef, name: str, value: bytes) -> AdministrationResult: ...
+    def dispatch_workflow(self, repository: RepositoryRef, workflow: int | str, ref: str, inputs: Mapping[str, str | bool | int]) -> AdministrationResult: ...
 
 
 @dataclass(frozen=True)
