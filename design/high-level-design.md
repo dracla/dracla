@@ -3,6 +3,7 @@
 Status: Locked
 Date: 31 August 2026
 Release-integrity amendment: 24 October 2026 (owner approved; current review required)
+Repository-transport amendment: 25 October 2026 (owner approved; current review required)
 Requirements baseline: `design/requirements.md` (Locked, revision 14, 31 August 2026)
 
 This document proposes an implementation architecture for the locked
@@ -18,7 +19,7 @@ deviates from or defers.
 |----|----------|-----------|
 | D1 | Pull request enforcement runs in the GitHub App's serverless handler, not GitHub Actions | Fork-triggered workflows receive no secrets, so they cannot read a private records repo. Deviates from `REQ-OPS-2`. See §2. |
 | D2 | Three project-controlled private repositories per project: canonical records, an encrypted coverage projection, and a control repository for the key-bearing reconciler | The enforcer must not read canonical signer evidence, and the event-appending App must not be able to modify code that runs with unwrapped project keys. Repository separation makes both boundaries enforceable on GitHub Free. |
-| D3 | Three narrowly scoped GitHub Apps: `dracla-records`, `dracla-enforcer`, and `dracla-reconciler-trigger` | Records and enforcement require separate data and credentials. The third App can dispatch only the protected control workflow; it has no contents, administration, workflow-file, or secrets write. It is not the rejected provisioning App of D11. |
+| D3 | Three narrowly scoped service GitHub Apps: `dracla-records`, `dracla-enforcer`, and `dracla-reconciler-trigger`; adopter-owned repository transport is separate (D19) | Records and enforcement require separate data and credentials. The trigger App can dispatch only the protected control workflow; it has no contents, administration, workflow-file, or secrets write. None is the rejected provisioning App of D11. |
 | D4 | All three repositories remain private and project-controlled, and may live in an existing organization or personal account | `REQ-CONFIG-1`, `REQ-REC-1`, `REQ-OPS-6`, and principle 6 require project custody but not a dedicated organization. Auto-provisioning removes setup friction. |
 | D4a | Authenticated application-layer encryption, not repository readership, is the private-record confidentiality boundary | Repository privacy and narrow GitHub permissions remain defense in depth. Ordinary repository readers and read-only Apps without a decryption capability see ciphertext and are not DraCLA records readers. |
 | D5 | Coverage state is materialized into the projection repo synchronously by the signing path; Actions replays canonical to verify it | Gives O(1) coverage lookup with no Actions latency on the hot path, while keeping the projection strictly derived (`REQ-REC-6`). |
@@ -32,7 +33,8 @@ deviates from or defers.
 | D16 | The key-bearing reconciler runs from the separate private control repository, never from an App-writable branch | Private-repository branch rules are not available on the GitHub Free baseline. Physical repository separation prevents both event Apps and the trigger-only App from modifying executable inputs while keeping adopter-controlled upgrade and rollback. |
 | D17 | Successful authoritative merge-group publication is serialized against coverage mutations by one CAS-updated decision-fence file in the project's existing coverage repository and against routing transitions by a publication reservation in the existing strongly consistent routing gate | A check may evaluate optimistically, but it can publish success only while holding both reservations. The gate's `reserve_publication` method atomically validates the route and blocks `begin_pending` until GitHub completion under that identity is independently confirmed, so completion order matches `REQ-CHECK-3` and the strict routing barrier without another provider-managed subsystem. See §5.4 and §7.2. |
 | D18 | Every mutation freezes its complete authorized operation in one encrypted records-repository cell before acquiring the coverage decision fence | A crash before canonical append must be recoverable without the original browser request, while records plaintext must not enter the coverage capability. The prepared/appending CAS is also the append right, so terminal recovery cannot race a delayed writer. See §5.4. |
-| D11 | Provisioning runs in the `dracla` CLI with the administrator's own credentials, not a third GitHub App | A provisioning App would hold `administration`, `workflows`, and `secrets` write in the adopter's org. `workflows: write` retained is a code-execution channel into their PII repo (DR-011), and an uninstall that fails to fire leaves it. An exact `uvx dracla@<version>` invocation keeps the adoption cost to one versioned command against three consent screens. |
+| D11 | Provisioning runs in the `dracla` CLI with the administrator's own credentials, never a provisioning GitHub App | A provisioning App would hold `administration`, `workflows`, and `secrets` write in the adopter's org. Retained `workflows: write` is a code-execution channel into an adopter's PII repo (DR-011). The adopter-owned transport App has only data-repository contents access; an administrator still creates or selects it and approves its installation. |
+| D19 | The control job uses an adopter-owned private transport App, assigned to one or more CLA arrangements, with contents write only on their selected records and coverage repositories | Installation tokens support the REST/GraphQL primitives in §5.2/§5.4 without enabling deploy keys organization-wide. The App has no control-repository access or provisioning permissions. Sharing reduces setup but shares repository-integrity exposure across its assignments; data keys and legal acceptances remain separate (§6.10.2). |
 | D12 | The CLI is the reporting and read-out surface, not just an installer | Gives maintainers a zero-infrastructure path for common queries and demonstrates `REQ-REC-5` directly: the records are readable with the same tool an auditor would use. |
 | D10 | Agreement currency changes are explicit: ordinary activation declares whether it invalidates prior acceptances, while restore names one prior activation state | A typo fix, a new patent grant, and recovery from a bad activation are different acts. `REQ-AGR-4` forbids inferring legal meaning from agreement text, so DraCLA records each choice as an attributable event. Implemented by `REQ-AGR-2`. |
 
@@ -108,7 +110,7 @@ opens would be acceptable. The credential boundary is the disqualifier.
         │ events + private derived │   │ user_id -> coverage      │
         └───────────────▲──────────┘   └───────────▲───────┬──────┘
                         │                          │       │ read-only
-               read/write deploy keys             │       ▼
+               scoped App installation tokens     │       ▼
                         │                 checks on acme/widget
         ┌───────────────┴──────────┐      (public contributing repo)
         │ …-cla-control PRIVATE    │
@@ -189,9 +191,10 @@ provisioning privilege never belongs to DraCLA at all (`REQ-REC-2`).
 - Generates the records and coverage data keys, per-project control wrapping
   key, wrapped service copies, and adopter recovery material; proves both
   actual data keys recoverable before enabling the first private write
-- Provisions repository-scoped canonical and coverage deploy keys in the
-  control repository and rotates them through `dracla rotate-key`; DraCLA's
-  hosted Apps never receive repository-administration or secret-write access
+- Guides administrator creation or reuse of an adopter-owned transport App,
+  validates its selected data-repository grants, and stores its private key
+  only in the assigned control repositories; DraCLA's hosted Apps never
+  receive that key, repository-administration, or secret-write access
 - Reporting surface thereafter (§6.9)
 
 An earlier draft used a third **provisioning** App for this, holding org `administration`,
@@ -210,8 +213,9 @@ read repository content, or manage secrets.
   against what the signing path wrote (§5.4)
 - Verifies and repairs the sharded dashboard index, exact-status detail, and
   reader-authority state; produces JSON/CSV only for an explicit export request
-- Reads/writes canonical and writes coverage through separate repository-scoped
-  deploy keys held only as control-repository Actions secrets
+- Reads/writes canonical and writes coverage with short-lived installation
+  tokens from the adopter-owned transport App; data-operation tokens are
+  explicitly restricted to the current arrangement's repository IDs
 - Unwraps records and coverage data keys with a per-project control wrapping
   key held as an Actions secret; the corresponding wrapped keyring is data, not
   executable configuration
@@ -1659,7 +1663,7 @@ path; neither executes code from canonical or coverage.
 `worker-enforce` uses the enforcer App installation to find in-scope pull
 requests with absent checks and to re-evaluate checks left `in_progress`. This
 is deliberately not an Actions duty: the control reconciler has only
-records/coverage transport keys and cannot enumerate contributing repositories or write
+records/coverage transport credentials and cannot enumerate contributing repositories or write
 their check runs.
 
 *Scheduled, in the portal service.* A daily Cron Trigger in `worker-portal`
@@ -2869,36 +2873,91 @@ contains no CLA event or derived plaintext.
 The control reconciler needs repository transport credentials and both project
 data keys, but neither event App may control its code or secrets.
 
-**Repository transport.** The CLI creates a write-capable deploy key for the
-records repository and another for coverage. Their public halves are scoped to
-one repository each; private halves are Actions secrets in control. A manifest
-in control records key ID, public fingerprint, repository numeric ID,
-capability, creation time, and a successful challenge commit OID. The pinned
-control workflow proves each key by writing a fixed non-private challenge to a
-generation-specific temporary probe branch, reading it back, and deleting that
-ref. It never adds a non-event commit to the records `events` branch or mutates
-coverage state. Rotation adds and verifies the successor before deleting the
-predecessor. A missing or mismatched manifest forces rotation rather than
-trusting secret metadata.
+**Repository transport (D19).** The administrator creates or selects a private
+GitHub App owned by the account holding the project's data repositories. It has
+only repository `contents: write` and implicit `metadata: read`: no organization
+or account permissions, `administration`, `secrets`, `workflows`, `actions`,
+checks, user authorization, or webhook processing. The administrator installs
+it on explicitly selected records and coverage repositories only. No control
+repository or contributing source repository is included. Installer repository
+creation, workflow seeding and secret writes still use the administrator's own
+credentials; the transport App has no provisioning authority.
 
-Immediately before generating either private half, install and transport-key
-rotation display the repository name and numeric ID, the key's write
-capability, where its private half will be stored, and this warning:
+One App may serve one or more explicitly assigned CLA arrangements in its
+owning GitHub account. Each arrangement retains its own repository set, legal
+recipient, agreement, evidence, data keys and recovery material. The protected
+control configuration records the App/client, owner and installation identities,
+the approved arrangement-to-repository-ID assignments, and the successful
+transport challenge identities. The installation grants exactly the approved
+union of records/coverage repositories, never `all repositories`. The complete
+grants and selected IDs are verified before any project-key access or write;
+unexpected permissions, installations, missing or extra repositories, any
+control access, or identity/privacy drift stop the job. Changes to a shared
+assignment are explicit administrator actions and require updating the affected
+protected configurations; stale configurations fail closed during that change.
 
-> This deploy key is an integrity credential. Anyone who obtains it can read
-> encrypted repository data and can rewrite, delete, roll back, or replay that
-> data, which may affect CLA check results. This deploy key cannot decrypt CLA
-> records by itself.
+The App private key is handled transiently on the administrator's machine and
+stored as an Actions secret only in assigned control repositories. A hosted
+DraCLA service never receives that key, a registration-conversion code, or a
+conversion response containing it. GitHub owner confirmation is required for
+registration and installation; an installer may prefill the flow but must not
+claim fully unattended registration. Contributors neither install nor authorize
+this transport App and gain no additional App-terms acceptance step. Existing
+portal login and explicit CLA acceptance remain separate; sharing the App
+does not combine agreements or acceptances.
 
-The same screen explains that people or workflows able to read or execute with
-the control Actions secret are integrity controllers. `force=true` may suppress
-the interactive confirmation but never the warning; `dry_run=true` prints it
-without creating a key. The completion summary repeats the repository, key ID,
-fingerprint, capability, integrity reach, secret location, and the
-exposure-response command and runbook link. Installer documentation and the FAQ
-repeat the warning. The confidentiality qualification is narrow: the deploy
-key cannot edit the separate control repository or unwrap a project data key,
-but pairing it with control-workflow or wrapping-key access changes that result.
+After the external execution gate in §9 succeeds, the pinned control job
+authenticates with its App key and mints short-lived installation tokens for
+the exact current arrangement's data repositories and required permissions.
+An installation-inventory credential may read the full approved selected set
+to validate scope; data-operation credentials do not inherit that full set.
+Tokens remain process-local, never persisted in Git, logs, URLs, command-line
+arguments, Actions outputs or artifacts. Renewal uses the returned expiry;
+uncertain writes are reconciled before any retry. The existing REST Git
+Database/non-forced append protocol (§5.2) and GraphQL exact-head CAS (§5.4)
+remain unchanged. There is no automatic SSH or personal-token fallback.
+
+The control workflow proves restricted access through fixed non-private
+challenge commits on generation-specific temporary probe branches, with exact
+readback and conditional cleanup. It never adds a non-event commit to `events`
+or mutates live coverage for a challenge. A missing or mismatched transport
+binding requires administrator revalidation, not trust in a secret's name.
+Stage and prove a successor App key before retiring its predecessor. For a
+shared App, coordinate every affected control secret and verify each assignment.
+Revoking a signing key is not assumed to revoke already issued tokens.
+Incident recovery uses the all-token containment barrier in §8.1.2: no affected
+route returns until further minting is prevented and every potentially exposed
+token is inactive. Token revocation, installation suspension/removal and expiry
+behavior must be tested; temporary suspension alone is not proof that an old
+token stays inactive after the installation is re-enabled.
+
+Install, rotation, completion output, the guide and FAQ identify the App,
+installation, assigned arrangements and repositories, control-secret locations,
+and this integrity warning:
+
+> Anyone who obtains this App private key can obtain repository credentials
+> for every arrangement assigned to the App. They can read encrypted data and
+> may rewrite, delete, roll back, or replay it, affecting CLA checks. The App
+> key alone cannot decrypt CLA records or edit an excluded control repository.
+
+The guide explains both choices: a dedicated App limits repository-credential
+exposure to one arrangement; sharing reduces setup and rotation work but shares
+exposure, rotation, and suspension/removal across all assignments. Distinct
+private key pairs for the same App do not isolate those assignments. Compromise
+of one control job holding a shared App key exposes that shared repository
+reach even when its routine tokens are narrowly scoped. It does not grant the
+other arrangements' data-decryption keys. People able to read or execute with
+the App secret are integrity controllers for all its assignments. `force=true`
+may suppress an execution confirmation but never these disclosures or GitHub's
+required approvals; `dry_run=true` reports them without creating an App or key.
+
+The owner approved this credential change on 25 October 2026. Documentation
+and read-only schema checks establish feasibility, not live acceptance. M3 must
+prove restricted App authentication, REST/GraphQL writes, stale-head rejection,
+control exclusion, dedicated/shared scopes, token renewal/revocation and key
+rotation before production use; M6 must prove the actual installer/key-custody
+flow. The earlier deploy-key experiment was rejected by organization policy
+before any secret or workflow was installed; it proves none of these App paths.
 
 **Initial project keys and recovery.** Before any private record or derived
 artifact is written:
@@ -3150,8 +3209,8 @@ the cheapest failures first.
 6. seed control                      pinned workflow and provenance manifest;
                                      no event App is installed with contents access
 7. provision transport credentials  show the mandatory integrity warning;
-                                     records and coverage deploy keys live only
-                                     in control Actions secrets; verify them and
+                                     administrator creates or selects its transport App;
+                                     App key lives only in assigned control secrets; verify it and
                                      repeat their reach in the completion summary
 8. generate and verify project keys display hosted trust disclosure; complete
                                      recovery, service-wrap, and control proofs;
@@ -4241,9 +4300,10 @@ wrapping-key rotation that merely rewraps retained project keys is a routine
 migration and does not revoke the old holder's access. A departure or suspected
 compromise of a wrapping-key controller requires successor project data keys
 for every affected capability plus a rebuild of current mutable coverage and
-records-derived state under those keys. Repository deploy keys do not expire
-and rotate on a fixed schedule and on any departure of a principal able to read
-the corresponding control secret. `dracla rotate-key` runs with the
+records-derived state under those keys. Transport App private keys do not expire
+automatically and rotate on a fixed schedule and on departure of a principal
+able to read an assigned control secret. Shared-App rotation covers every
+assigned arrangement; short-lived token expiry does not revoke a stolen App key. `dracla rotate-key` runs with the
 administrator's own authority and stages each successor transaction defined in
 §6.10.2.
 
@@ -4257,12 +4317,12 @@ requires:
 | Hosted records and coverage wrapping roots | Separate `worker-portal`/`worker-enforce` secret bindings by environment and capability | Routine migration: add successor, rewrap and verify every project key, then retire the predecessor live path | Departure or suspected exposure rotates each affected root **and every affected project's matching data key**, then rebuilds current mutable state | An old records root can retain historical records access; an old coverage root can retain historical coverage access. Only data-key successors cut off future/current-state access |
 | Per-project control wrapping key | Control-repository Actions secret | Routine migration stages a successor, rewraps both project key families, verifies a pinned control run, and retires the predecessor live path | A controller departure rotates the control key and both project data keys, then rebuilds current mutable state | A retained old control key can recover historical records and coverage keys; rewrapping alone does not revoke that reach |
 | Adopter recovery wrapping key | Adopter password manager or other safe offline storage | Routine migration generates a successor, verifies every retained data key through it, then retires the predecessor live path | Recovery-custodian departure rotates the recovery key and both project data keys, then rebuilds current mutable state | A retained old recovery key can decrypt historical project keys and bootstrap from an old backup; that historical reach cannot be revoked |
-| Records and coverage deploy keys | Control-repository Actions secrets, one repository scope each | Administrator stages and tests a successor, then removes predecessor | Departure of anyone able to read or execute with one of those secrets rotates each affected key | Read ciphertext; create, delete, or force-update refs; roll back history; or replay old authenticated ciphertext. The records key can alter the apparent canonical source and the coverage key can alter merge-check inputs. Neither deploy key decrypts records by itself; paired control-workflow or wrapping-key access adds that capability |
+| Adopter-owned transport App private key | Assigned control-repository Actions secrets; selected records/coverage repositories across one or more arrangements | Administrator stages a successor, verifies all assigned jobs, retires predecessor and reconciles issued tokens (§6.10.2) | Departure of anyone able to read or execute with the secret rotates it across every assignment | Mint tokens for all granted data repositories; read ciphertext, rewrite/delete refs, roll back or replay data and affect CLA results. It cannot decrypt records alone or write excluded control repositories; compromise of the key-bearing job adds its own arrangement’s decryption capability |
 | Session AEAD keys | `worker-portal` secrets, identified by `kid` | Add a successor, encrypt new cookies with it, accept the predecessor only until its last absolute session expiry (at most 7 h 55 min), then remove it | DraCLA **operator** departure rotates it and invalidates outstanding sessions at the end of that bounded overlap | Decrypt and forge every hosted portal session issued under that key |
 | Action-form HMAC keys | Separate `worker-portal` secrets, identified by `kid` | Add a successor, sign new forms with it, accept the predecessor only until its last parent-session-bounded form expires (at most 7 h 55 min), then remove it | DraCLA **operator** departure rotates it; outstanding forms under the predecessor fail closed and must be rendered again | Forge contributor or administrative form state, but not satisfy the required live parent session, matching actor, current authority, exact Table 5.4-A type/event mapping, or exact-head checks |
 | Private-read proof HMAC keys | `worker-portal` secrets, identified by `kid` | Add a successor, sign new proofs with it, accept the predecessor only until its last proof expires (at most 5 min), then remove it | DraCLA **operator** departure rotates it and invalidates outstanding proofs at the end of that bounded overlap | Forge a scoped reader proof, but not bypass its parent-session, canonical-generation, or continuous-team live-membership checks |
 | GitHub App OAuth client secret | `dracla-records` App config and `worker-portal` secrets | Add a successor at GitHub, deploy it alongside the predecessor, complete a test OAuth exchange, then revoke the predecessor | DraCLA **operator** departure rotates it | Complete or interfere with OAuth exchanges; it does not mint installation tokens without the App private key |
-| App private keys, all three Apps | DraCLA operators | GitHub Apps hold two keys concurrently: add successor, redeploy, revoke predecessor — no downtime | DraCLA **operator** departure rotates every key the operator could read | Records: append encrypted evidence and invoke records decryption; enforcer: write checks and decrypt coverage; trigger: dispatch, rerun, cancel, or disable Actions in project control repos and inspect non-PII run metadata, but cannot change code or read contents/secrets |
+| Service App private keys, all three service Apps | DraCLA operators | Stage a successor key, redeploy, then revoke predecessor — no downtime | DraCLA **operator** departure rotates every key the operator could read | Records: append encrypted evidence and invoke records decryption; enforcer: write checks and decrypt coverage; trigger: dispatch, rerun, cancel, or disable Actions in project control repos and inspect non-PII run metadata, but cannot change code or read contents/secrets |
 | Webhook secrets, per webhook-receiving App | App config + Worker secrets | Stage the new secret beside the old on the same App's route, update App config, then drop the old; never try different Apps' secrets on one route | Operator departure rotates every secret they could read | Forge webhook deliveries to that App's route |
 | KV entry signing key | `worker-portal` secrets; public verification keys in `worker-enforce` configuration | Add the new key beside the retiring one and verify against either; re-sign and revalidate every stable route entry, whose unsigned-payload digest and gate remain unchanged, then drop the retiring key (§7.2) | Operator departure rotates it | Forge cross-project routing consumed by the honest enforcer and therefore misapply one project's coverage to another repository; token/repository binding still prevents access outside the named installation and repository |
 | Cloudflare deployment, KV, and Durable Objects API tokens | DraCLA deployment secret store, scoped separately by environment and capability | Issue a least-privilege successor, deploy and reconcile KV and gate state with it, then revoke the predecessor | DraCLA **operator** or CI administrator departure rotates every token they could read | Deploy Worker code or read/write the bindings, KV namespaces, and routing gates permitted by that token |
@@ -4271,9 +4331,9 @@ The last column is the reach documentation `REQ-SEC-9` requires. A holder of
 only a repository credential can read or write ciphertext but cannot decrypt
 it; a holder that also controls the matching workflow secret or wrapping key is
 a key controller and can cause trusted code to reveal or forge plaintext.
-Every write-deploy-key holder, and every person or workflow able to exfiltrate
-its private half from the control Actions secret, is nevertheless an
-**integrity controller** for that repository. Authenticated encryption prevents
+Every transport-App private-key holder, and every person or workflow able to
+exfiltrate that key from an assigned control Actions secret, is nevertheless an
+**integrity controller** for every data repository assigned to that App. Authenticated encryption prevents
 undetected invention or modification of a ciphertext payload without its data
 key; it does not prevent deletion, ref rewriting, whole-history rollback, or
 replay of ciphertext that was valid at an older point.
@@ -4290,15 +4350,31 @@ that copied old keys, ciphertext, or plaintext cannot be recalled. With a
 shared hosted root, this procedure fans out to every project wrapped by that
 root; projects return independently as their cutoff completes.
 
-For exposure limited to a records or coverage deploy key, make the affected
-route fail closed, revoke and replace that deploy key immediately, and compare
-the live repository identity and replacement-key fingerprint with the control
-transport manifest. Compare every live ref and its ancestry with the latest
+For exposure limited to a transport App credential, make every affected
+arrangement’s route fail closed and stage a verified successor. An App-key
+exposure affects all assignments; a token-only exposure follows its actual
+granted scope. Before final repair or route restoration, pass an **all-token
+containment barrier**: prevent any further credential minting with the exposed
+key, including outstanding signed authentication requests, and prove every
+possibly issued token inactive. Either use a live-tested installation-wide
+invalidation that remains effective after service resumes (uninstallation
+invalidates associated tokens), or wait through the documented maximum token
+lifetime after the last possible issuance, plus the clock/propagation margin
+established by the live probe. Unknown attacker-minted tokens count; revoking
+only known tokens is insufficient after App-key exposure. If the last possible
+issuance or permanent invalidation cannot be established, routes remain closed.
+For exposure of one token without a minting credential, revoke that exact token
+and verify inactivity, or wait for its proven expiry plus the same margin.
+Temporary suspension is containment, not proof of permanent token invalidation.
+
+After that barrier, compare live App/installation/repository identities and
+successor credentials with each protected control transport binding. Compare
+every live ref and its ancestry with the latest
 trusted backup-manifest heads. Preserve newer descendants only when full replay
 authenticates them; otherwise restore the last adopter-verified heads. Then run
 coverage/derived-state rebuild, sweep and re-run open pull-request checks, and
 only then restore the route. Project data-key rotation is not required merely
-because a deploy key leaked, but it becomes required if the matching decryption
+because a transport credential leaked, but it becomes required if the matching decryption
 or wrapping capability may also have been exposed. The incident report
 distinguishes integrity exposure from confirmed plaintext exposure.
 
@@ -4657,7 +4733,7 @@ Pages          static portal + dashboard shell
 Secrets        App keys, capability-separated wrapping roots, session,
                action-form, and private-read proof keys
 Actions        pinned Python core in private control repos; project wrapping
-               keys and repository-scoped deploy keys
+               keys and adopter-owned transport App secrets
 ```
 
 The Worker tier is deliberately thin: it authenticates, compares each routed
@@ -4932,8 +5008,8 @@ surfaces also state that removing a key controller cannot revoke historical
 access, that a future-access cutoff requires project data-key rotation and a
 current-state rebuild, and that compromise of a shared hosted root triggers that
 work for every affected hosted project. The install warning, completion summary,
-and FAQ separately identify each repository deploy key as an integrity
-credential: it cannot decrypt CLA records by itself, but it can rewrite,
+and FAQ separately identify each transport App secret and its complete
+arrangement/repository assignment as an integrity credential: it cannot decrypt CLA records by itself, but it can rewrite,
 delete, roll back, or replay encrypted repository state and may thereby affect
 CLA checks. They identify the exact repository, control-secret location, who is
 an integrity controller, and the immediate rotate/verify/rebuild procedure in
@@ -4950,7 +5026,7 @@ an integrity controller, and the immediate rotate/verify/rebuild procedure in
         rename the records default branch to `events`, initialize coverage, and
         seed the pinned control workflow (§6.10.1)
      -> generate records and coverage data keys, control wrapping material,
-        repository-scoped deploy keys, and adopter recovery material; prove the
+        adopter-owned transport App credentials, and recovery material; prove the
         actual two data keys recoverable through every initial path before
         enabling private writes (§6.10.2)
      -> recommend storing the recovery key in a password manager or other safe
@@ -5161,7 +5237,7 @@ signed checkpoints remain optional future hardening.
    replay activation events, then unwrap every retained records and coverage
    key and authenticate a recovery challenge for each current key
 4. create replacement portal, enforcer, and control wrapped copies; provision
-   replacement deploy keys and verify each live path before activating it
+   replacement transport App credentials and verify each live path before activating it
 5. run the pinned control reconciler in full-replay mode to rebuild encrypted
    coverage and the sharded derived index, status detail, and reader authority
    from encrypted canonical events; generate an export only if explicitly
@@ -5607,15 +5683,23 @@ affected IDs, and what it does not resolve, as section 19 requires.
   their own entries through separate attributable actions (§7). No actor's
   permission is reused for another owner, and routing changes only after each
   independently authorized event lands.
-- **A6 — Write-deploy-key integrity reach and recovery probe required before
-  release.** In a disposable private repository on GitHub Free, the release
-  test creates the same write-capable deploy key as install, records which ref
+- **A6 — Transport-App integrity reach and recovery probe required before
+  release.** In disposable private repositories on GitHub Free, the release
+  test uses the same restricted adopter-owned App as install, records which ref
   deletion, force-update, rollback, and replay operations GitHub permits on
   that baseline, and verifies that the installer warning describes the observed
-  reach. It then treats the key as exposed, makes the route fail closed, rotates
-  the key, compares refs with recorded backup-manifest heads, restores verified
-  state, runs full replay and projection repair, and rechecks open pull requests.
-  The test also confirms that the key alone cannot modify the separate control
+  reach for both dedicated and shared assignments. It treats a token and then
+  the App key as exposed, makes all affected routes fail closed, revokes and
+  rotates the credentials, and verifies §8.1.2's all-token containment barrier.
+  Mint an intentionally untracked token before key revocation: routes must stay
+  closed while it remains usable, including after any suspension is lifted.
+  Prove installation-wide permanent invalidation or wait from the last possible
+  issuance through the maximum lifetime plus the measured margin. Repeat for
+  token-only and App-key exposure, dedicated and shared assignments. Only after
+  the barrier compare refs with backup-manifest heads, restore verified state,
+  run full replay and projection repair, recheck open pull requests, and restore
+  routes.
+  The test also confirms that no App token or key can modify any excluded control
   repository or decrypt a records envelope. Any stronger protection available
   only on a paid plan is documented as optional hardening, not assumed by the
   Free baseline.

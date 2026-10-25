@@ -1,7 +1,7 @@
 # DraCLA low-level design index
 
 Status: Locked
-Date: 24 October 2026
+Date: 25 October 2026
 Requirements baseline: `design/requirements.md` (Locked, revision 14)
 Architecture baseline: `design/high-level-design.md` (Locked, 31 August 2026)
 
@@ -20,10 +20,10 @@ implementation and returns to design review.
 
 | Milestone | LLD | Maturity | Implementation status |
 |---|---|---|---|
-| M0 — reviewed baseline and owner prerequisites | This index and `docs/github-apps.md` | Operational checklist; no implementation LLD | Reviewed design complete; Cloudflare resources and three GitHub Apps remain external prerequisites |
+| M0 — reviewed baseline and owner prerequisites | This index and `docs/github-apps.md` | Operational checklist; no implementation LLD | Reviewed design complete; Cloudflare resources, service Apps and adopter transport setup remain external prerequisites |
 | M1 — conformance kernel | [`design/lld/m1-conformance-kernel.md`](lld/m1-conformance-kernel.md) | Locked | All M1 slices through M1-19 landed; complete cross-runtime gate passed |
-| M2 — CLI and administration seams | [`design/lld/m2-cli-administration.md`](lld/m2-cli-administration.md) | Locked; approved release-integrity amendment needs current review | M2/1 drafted in PR #48; design PR #47 and implementation await remote approval |
-| M3 — pinned control workflow and reconciler | `design/lld/m3-control-reconciler.md` | Planned | Not started |
+| M2 — CLI and administration seams | [`design/lld/m2-cli-administration.md`](lld/m2-cli-administration.md) | Locked | All four slices merged; inspected main `11e8d0f07ef3406451dc954ecda504c3f3854877` |
+| M3 — pinned control workflow and reconciler | [`design/lld/m3-control-reconciler.md`](lld/m3-control-reconciler.md) | Locked; owner-approved 25 October 2026 | Six approved slices; implementation not started |
 | M4 — enforcement and routing | `design/lld/m4-enforcement-routing.md` | Planned | Not started |
 | M5 — portal, Connect, signing, and administration | `design/lld/m5-portal-connect.md` | Planned | Not started |
 | M6 — end-to-end installer | `design/lld/m6-installer.md` | Planned | Not started |
@@ -43,10 +43,11 @@ When two artifacts differ, use this order:
 5. `docs/architecture.md` for orientation;
 6. existing implementation and historical review findings as evidence only.
 
-The code under `core/dracla/conformance/` is implementation evidence for the
-landed M1 slices. The other current `core/dracla` modules are pre-revision-13
-protocol and transport experiments. They may supply a tested technique, but
-their plaintext event, projection, shard, and trust models are not defaults.
+The code under `core/dracla/conformance/` is the landed M1 implementation.
+The CLI, provisioning and administration modules are the landed M2 seams.
+Legacy `githost.py`, `github.py`, `append.py`, `events.py` and `projection.py`
+are pre-revision-13 experiments. Their techniques may be useful, but their
+plaintext protocol and trust models are not defaults.
 `design/review-findings.md` is a historical rationale and regression register,
 not a source of new requirements.
 
@@ -155,7 +156,7 @@ same locked section rather than restating it.
 
 | HLD area | Primary milestone | Dependent milestones | Implementation responsibility |
 |---|---|---|---|
-| §1 design decisions | M1–M7, by component | All | Preserve D1–D18, including D4a, as cross-cutting constraints; each milestone lists the decisions it realizes |
+| §1 design decisions | M1–M7, by component | All | Preserve D1–D19, including D4a, as cross-cutting constraints; each milestone lists the decisions it realizes |
 | §2 deviation from `REQ-OPS-2` | M4 | M3, M7 | Serverless enforcement, fail-closed behavior, and release verification of the declared deviation |
 | §3 system context | M4/M5 | M2, M3, M6 | Runtime boundaries, trust flow, project repository set, hosted and self-hosted topology |
 | §4 principals and permissions | M5 | M2, M3, M4, M6 | Live service credentials and permission surfaces |
@@ -220,9 +221,10 @@ M1-19 and the complete Python/TypeScript gate. The M1 LLD's original delivery
 status rows are historical planning labels; this index and the roadmap record
 the verified landed state.
 
-Use the locked `design/lld/m2-cli-administration.md` after validating its current
-design attestation. Its four slices are `m2/1` through
-`m2/4`; they cover CLI/preflight, discovery, guarded administration writes and
-fresh-evidence resume planning. Do not dispatch `deliver-design-stack` until
-the design is locked and its current attestation is verified. Do not introduce
-placeholder reconciler or hosted installer behavior to make M2 look complete.
+M2 is merged at the inspected main revision
+`11e8d0f07ef3406451dc954ecda504c3f3854877`. The owner approved the reviewed
+`design/lld/m3-control-reconciler.md` and all six `m3/1`–`m3/6` boundaries on
+25 October 2026. The 26 October ownership correction retains `m3/1` as
+replaced by `m3/1.1` with the same behavior and its existing CLI integration
+test; the other five boundaries are unchanged. After the design checkpoint,
+a separate delivery request may select M3. This design task authorizes no implementation or merge.
