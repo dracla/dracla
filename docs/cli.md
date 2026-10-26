@@ -4,7 +4,7 @@ M2 provides planning and independently tested administration seams. It does
 not install a project. The reconciler, hosted challenge service and complete
 installer arrive in M3, M5 and M6.
 
-The registered command is:
+The installation planning command is:
 
 ```sh
 dracla install github.owner=Acme dry_run=true
@@ -12,8 +12,9 @@ python -m dracla.cli install github.owner=Acme project.slug=Example dry_run=true
 ```
 
 Both entrypoints call the same dispatcher. `--help` lists the supported input.
-`verify`, `reconcile`, `export` and rotation commands are not registered.
-Only `github.owner`, `project.slug`, `dry_run` and `force` overrides are accepted.
+`verify` also has a real read-only handler described below. `reconcile`, `export`
+and rotation commands remain later delivery work.
+Installation accepts only `github.owner`, `project.slug`, `dry_run` and `force` overrides.
 The booleans accept `true` or `false` and default to `false`. An owner is required.
 The slug defaults to the ASCII case-folded owner and follows the revision-14
 project grammar. Input is not trimmed, and a `-cla` suffix is retained:
@@ -162,3 +163,39 @@ installed dispatcher/release/read/planner/resume seam outside the checkout,
 checks the named mutation protocol and documented commands, and rejects
 application file writes, child processes and unmocked network effects across
 positive, collision, denied, resolver-injection and release-failure paths.
+
+## Read-only verification
+
+Use the exact project identity and the numeric owner and repository identities
+from protected installation records. Select operator mode explicitly through the
+local command. It uses your own `GH_TOKEN` or `GITHUB_TOKEN`; it does not require
+an administrator credential or fall back from a failed control App check.
+
+```sh
+dracla verify project.id=project-1 github.owner=acme github.owner_id=10 records.name=records records.id=11 coverage.name=coverage coverage.id=12 control.name=control control.id=13
+```
+
+The command validates the installed release declarations, authenticates your
+numeric GitHub identity and checks both data repositories before requesting any
+recovery material. It then prompts without echo for a JSON object mapping each
+retained recovery generation to its 64 hexadecimal wrapping-key characters.
+Pass recovery material through that prompt or an explicitly injected local
+secret provider. Never put it in command arguments. A non-private prompt fails
+closed. The control repository is identified but is never accessed with the
+data transport. This maintenance command returns only source OIDs and generic
+failure categories; repository/key access does not grant plaintext-export
+reader authority.
+
+Verification authenticates the complete single-parent event history, bootstrap
+and key activation chain, and compares all coverage and private-derived shards
+with the existing M1 reference materializers. It checks the operation cell,
+mutation marker and fence together. It makes no repository writes and acquires
+no mutation fence. A later activation must advance along the keys history and
+select a new data key; retired key IDs and retired key bytes remain decrypt-only.
+Verified wrapper-only descendants can supply retained keys through successor
+wrapping material after the old wrapping path is retired. They cannot select
+current data keys or change the authenticated bootstrap.
+Success exits 0; unavailable, corrupt or divergent data exits
+2; an unexpected internal failure exits 1. A pending operation is non-clean;
+recovery is owned by the reconcile slice. Live App permission/lifecycle probes
+and authentic release-provenance acceptance remain production gates.

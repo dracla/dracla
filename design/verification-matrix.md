@@ -1,7 +1,7 @@
-# M1 Conformance Verification Matrix
+# Conformance and milestone verification matrix
 
-This matrix records the automated evidence for the M1
-conformance-kernel slices. A row is passing only when the referenced test
+This matrix records automated evidence for the M1 conformance kernel and
+the operational milestone seams below. A row is passing only when the referenced test
 command passes against the checked-in implementation.
 
 M1-10 coverage plaintext retains the latest signature basis in user shards;
@@ -150,3 +150,27 @@ installer engines or production publication pipeline exist.
 | m2/4 | Fresh deterministic resume ignores old completion flags; fixed owner/slug, known IDs and every release/policy binding reject drift or disappearance | `core.tests.test_provisioning_resume.ResumeTests.test_unchanged_observations_reproduce_plan`; `core.tests.test_provisioning_resume.ResumeTests.test_old_completion_flags_and_reasons_have_no_authority`; `core.tests.test_provisioning_resume.ResumeTests.test_known_identity_drift_and_disappearance_conflict`; `core.tests.test_provisioning_resume.ResumeTests.test_every_release_binding_and_intent_change_requires_new_plan` | Required gate |
 | m2/4 | Owning-verifier fixture permits exact identity-bound classification only; missing, partial, failed and mismatched provenance or current permission/privacy/inventory failures block, including force | `core.tests.test_provisioning_resume.ResumeTests.test_fresh_exact_verifier_result_allows_classification_only`; `core.tests.test_provisioning_resume.ResumeTests.test_missing_partial_or_failed_provenance_stays_blocked`; `core.tests.test_provisioning_resume.ResumeTests.test_mismatched_or_incomplete_verifier_binding_blocks`; `core.tests.test_provisioning_resume.ResumeTests.test_force_and_verifier_cannot_bypass_fresh_read_guards_or_engines` | Required gate |
 | m2/4 | Installed wheel outside checkout exercises real dispatcher, packaged release reads, read adapter, planner/resume and mutation protocol; documented commands have handlers, failures and force make no application writes | `core.tests.test_cli_integration.InstalledCliIntegrationTests.test_01_development_wheel_failure_precedes_credentials`; `core.tests.test_cli_integration.InstalledCliIntegrationTests.test_02_documented_invocations_and_registered_handlers`; `core.tests.test_cli_integration.InstalledCliIntegrationTests.test_03_complete_installed_fixture_seam_has_zero_writes`; `conformance/gate.py` | Required gate |
+
+## M3 authenticated repository reader
+
+These rows cover `m3/1.1`, the same first approved M3 behavior with the existing
+CLI integration-test ownership correction. They do not close later mutation,
+reconciliation, export, production-workflow or live transport obligations.
+
+| Slice | Requirement / HLD contract | Automated evidence | Result |
+|---|---|---|---|
+| m3/1.1 | HLD §§3–4, 8.1.2: explicit operator/control principals, RSA App identity, exact grants and full selected private-repository union, separate read-scoped arrangement token; no control access or fallback | `core.tests.test_records_1.TestRecordsCredentials`; `TestCredentialRenewalAndBounds`; `TestControlHistory` | Focused tests pass |
+| m3/1.1 | HLD §§4, 5.2, 6.10.2: immutable complete ancestry, K/B and first-event bootstrap binding, wrapped generation/capability checks, retained historical keys and canonical current activation | `core.tests.test_records_1.TestEncryptedHistory`; `TestHistoricalPackages`; `TestHistoryRejections`; `TestImmutableTransport`; `TestTransportResponseRejection` | Focused tests pass |
+| m3/1.1 | HLD §§6.9, 6.10.2: forward key activation rejects retired IDs/raw bytes and unchanged generations; wrapper-only successors preserve history after old recovery/control wrapping paths retire without selecting current data keys | `core.tests.test_records_1.TestKeyLifecycle` | Required regression gate |
+| m3/1.1 | HLD §§5.2, 5.4, 6.6: exact event-specific agreement/configuration/generation files, M1 replay for historical first-add membership, continuous-source withdrawal and repeatable generation no-ops | `core.tests.test_records_1.TestContinuousHistoricalRelations`; `TestHistoricalPackages`; `TestHistoryRejections` | Focused tests pass |
+| m3/1.1 | HLD §§5.3–5.4, 6.6: compare every coverage and private-derived shard with reference materializers; authenticate envelope digests/generations and operation/marker/fence bindings; pending/corrupt state is non-clean | `core.tests.test_records_1.TestEncryptedHistory.test_full_encrypted_bootstrap_replay_and_all_stored_projections`; `TestHistoryRejections.test_all_projection_classes_shards_and_operational_cells_are_checked` | Focused tests pass |
+| m3/1.1 | REQ-REC-1 / HLD §6.9: stable numeric local identity and current individual/snapshot/continuous reader-union decision; recovery material is not reader authorization | `core.tests.test_records_1.TestReaderAuthorization`; `TestHistoricalPackages` | Focused tests pass |
+| m3/1.1 | HLD §6.9: real installed `verify`, closed non-secret inputs, private recovery prompt after scope checks, generic diagnostics/OIDs, no repository writes or mutation fence | `core.tests.test_records_1.TestVerifyCommand`; `TestVerifyInputAndFailures`; `core.tests.test_cli_integration.InstalledCliIntegrationTests.test_03_complete_installed_fixture_seam_has_zero_writes` | Focused tests pass |
+| m3/1.1 | Existing Python, vector/cross-runtime, type checking and installed-wheel regressions remain required | `.venv/bin/python conformance/gate.py`; focused branch coverage of records and CLI modules | Required before acceptance |
+
+The deterministic App fixture checks actual request/response mapping and RSA
+JWT signatures. It proves neither live GitHub permissions nor production
+readiness. Dedicated/shared App reach, token revocation/rotation/containment,
+real REST/GraphQL writes and release-provenance acceptance remain explicit live
+production gates. M3/3 owns pending-operation recovery; M3/4 owns plaintext
+export and its sink-time authorization; M3/5 owns external verified execution.
