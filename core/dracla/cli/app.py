@@ -7,15 +7,18 @@ from typing import Callable, TextIO
 from dracla.administration import Administration, AdminScope, discover
 from dracla.github_admin import GitHubAdministration, credentials_from_environment
 from dracla.provisioning import administration_scope, plan_install
-from .config import ConfigError, compose_install
+from .config import ConfigError, compose_install, compose_verify, prompt_recovery_keys
 from .release import ReleaseError, ReleaseIdentity, load_release_policy
 
-_HELP = "Usage: dracla install github.owner=LOGIN [project.slug=SLUG] [dry_run=true] [force=true]"
+_HELP = ("Usage: dracla install github.owner=LOGIN [project.slug=SLUG] [dry_run=true] [force=true]\n"
+         "       dracla verify project.id=ID github.owner=LOGIN github.owner_id=ID "
+         "records.name=NAME records.id=ID coverage.name=NAME coverage.id=ID control.name=NAME control.id=ID")
 
 
 def main(argv: list[str] | None = None, *, release_loader: Callable[[], ReleaseIdentity] = load_release_policy,
          output: TextIO | None = None, credential_provider: Callable[[], str | None] = credentials_from_environment,
-         admin_factory: Callable[[AdminScope], Administration] | None = None) -> int:
+         admin_factory: Callable[[AdminScope], Administration] | None = None,
+         verify_factory: Callable | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     out = sys.stdout if output is None else output
     if not args or args in (["--help"], ["-h"]):
@@ -27,12 +30,13 @@ def main(argv: list[str] | None = None, *, release_loader: Callable[[], ReleaseI
     if args[1:] in (["--help"], ["-h"]):
         print(_HELP, file=out)
         return 0
-    return _COMMANDS[args[0]](args[1:], out, release_loader, credential_provider, admin_factory)
+    return _COMMANDS[args[0]](args[1:], out, release_loader, credential_provider, admin_factory,
+                             verify_factory=verify_factory)
 
 
 def _install(args: list[str], out: TextIO, release_loader: Callable[[], ReleaseIdentity],
              credential_provider: Callable[[], str | None],
-             admin_factory: Callable[[AdminScope], Administration] | None) -> int:
+             admin_factory: Callable[[AdminScope], Administration] | None, *, verify_factory=None) -> int:
     try:
         config = compose_install(args)
         release = release_loader()
@@ -63,5 +67,33 @@ def _install(args: list[str], out: TextIO, release_loader: Callable[[], ReleaseI
         return 1
 
 
+def _verify(args, out, release_loader, credential_provider, admin_factory, *, verify_factory=None):
+    from dracla.records import OperatorCredentials, RecordsError, RepositoryTransport, WrappedKeys, verify_project
+
+    try:
+        binding = compose_verify(args)
+        release_loader()
+        keys, transport = (verify_factory(binding) if verify_factory is not None else
+                           (WrappedKeys('recovery', prompt_recovery_keys),
+                            RepositoryTransport(OperatorCredentials(credential_provider))))
+        report = verify_project(binding, keys, transport)
+        print(f'Events: {report.source_oid}; coverage: {report.coverage_oid}; '
+              f'derived: {report.derived_oid}; operations: {report.operations_oid}', file=out)
+        if report.valid:
+            print('Verification passed; no repository changes made.', file=out)
+            return 0
+        print('Verification incomplete: '+', '.join(report.discrepancies), file=out)
+        return 2
+    except (ConfigError, ReleaseError) as error:
+        print(str(error), file=out)
+        return 2
+    except RecordsError as error:
+        print('Verification unavailable: '+error.category, file=out)
+        return 2
+    except Exception:
+        print('Verification unavailable.', file=out)
+        return 1
+
+
 # Keep the public command surface tied to actual handlers.
-_COMMANDS = {"install": _install}
+_COMMANDS = {"install": _install, "verify": _verify}

@@ -46,3 +46,55 @@ def compose_install(overrides: list[str]) -> InstallInput:
     except Exception:
         # Hydra errors may contain the original override. Keep them out of output.
         raise ConfigError("Install configuration is incomplete or invalid") from None
+
+
+def compose_verify(overrides: list[str]):
+    """Resolve only non-secret identifiers; recovery material is never an override."""
+    from dracla.administration import RepositoryRef, numeric_id
+    from dracla.records import ProjectBinding
+
+    names = {'project.id', 'github.owner', 'github.owner_id'} | {
+        role + '.' + field for role in ('records', 'coverage', 'control') for field in ('name', 'id')}
+    values = {}
+    try:
+        for override in overrides:
+            if type(override) is not str or '=' not in override:
+                raise ValueError()
+            key, value = override.split('=', 1)
+            if key not in names or key in values or not value:
+                raise ValueError()
+            values[key] = value
+        if set(values) != names:
+            raise ValueError()
+        def number(text):
+            if re.fullmatch(r'[1-9][0-9]{0,15}', text) is None:
+                raise ValueError()
+            return numeric_id(int(text))
+        repos = tuple(RepositoryRef(role, values['github.owner'], values[role+'.name'],
+                                    number(values[role+'.id'])) for role in ('records', 'coverage', 'control'))
+        return ProjectBinding(values['project.id'], number(values['github.owner_id']), repos)
+    except Exception:
+        raise ConfigError('Verify requires exact project, owner and three repository identities') from None
+
+
+def prompt_recovery_keys():
+    """Prompt only after repository authorization; never echo the secret input."""
+    from getpass import getpass
+    from getpass import GetPassWarning
+    import warnings
+    from dracla.records.credentials import unique_json
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', GetPassWarning)
+            raw = getpass('Recovery wrapping keys (JSON: generation to 64 hex characters): ')
+        if len(raw) > 65536:
+            raise ValueError()
+        value = unique_json(raw.encode())
+        if type(value) is not dict or not value or any(
+                not generation or type(key) is not str or re.fullmatch(r'[0-9a-fA-F]{64}', key) is None
+                for generation, key in value.items()):
+            raise ValueError()
+        return {generation: bytes.fromhex(key) for generation, key in value.items()}
+    except Exception:
+        raise ConfigError('Recovery material is unavailable or invalid') from None
