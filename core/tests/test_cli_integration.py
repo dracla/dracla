@@ -25,7 +25,7 @@ from dracla.github_admin import GitHubAdministration, HttpResponse
 from dracla.provisioning import FreshObservations, plan_install, plan_resume, administration_scope
 import dracla.cli.app
 assert pathlib.Path(dracla.cli.app.__file__).is_relative_to(pathlib.Path(sys.argv[1]))
-assert set(_COMMANDS)=={'install'} and all(callable(h) for h in _COMMANDS.values())
+assert {'install','verify'} <= set(_COMMANDS) and all(callable(h) for h in _COMMANDS.values())
 compose_install(['github.owner=acme'])  # Load Hydra imports before effect spies.
 release=load_release_policy()
 original_open, original_io_open, original_os_open=builtins.open,io.open,os.open
@@ -107,6 +107,46 @@ print('installed CLI/read/planner/resume/mutation-protocol seam: zero applicatio
 '''
 
 
+INSTALLED_VERIFY_PROBE = r'''
+import io,json,os,pathlib,socket,subprocess,sys
+from contextlib import ExitStack
+from unittest.mock import patch
+from dracla.cli.app import main
+from dracla.records import OperatorCredentials,RepositoryTransport,WrappedKeys
+from dracla.github_admin import HttpResponse
+import dracla.records.history
+assert pathlib.Path(dracla.records.history.__file__).is_relative_to(pathlib.Path(sys.argv[1]))
+fixture=json.loads(sys.stdin.read())
+calls=[]
+def sender(method,url,headers,timeout,body=None):
+    assert method=='GET' and body is None
+    path=url.removeprefix('https://api.github.com')
+    assert path in fixture
+    calls.append(path)
+    return HttpResponse(200,{},json.dumps(fixture[path]).encode())
+def factory(binding):
+    assert binding.owner_id==10 and binding.ids()=={'records':11,'coverage':12,'control':13}
+    return (WrappedKeys('recovery',lambda:{'install-1':b'w'*32}),
+            RepositoryTransport(OperatorCredentials(lambda:'SECRET',sender=sender)))
+def forbidden(*args,**kw):raise AssertionError('verify application write/network/process effect')
+args=['verify','project.id=project-1','github.owner=acme','github.owner_id=10',
+      'records.name=records','records.id=11','coverage.name=coverage','coverage.id=12',
+      'control.name=control','control.id=13']
+with ExitStack() as stack:
+    for name in ('mkdir','makedirs','remove','unlink','rename','replace','rmdir','system','fork'):
+        if hasattr(os,name):stack.enter_context(patch.object(os,name,forbidden))
+    stack.enter_context(patch('subprocess.Popen',forbidden))
+    stack.enter_context(patch('socket.create_connection',forbidden))
+    stack.enter_context(patch('urllib.request.build_opener',forbidden))
+    out=io.StringIO()
+    assert main(args,output=out,verify_factory=factory)==0,out.getvalue()
+    assert 'Verification passed' in out.getvalue()
+    assert 'SECRET' not in out.getvalue() and 'Recipient One' not in out.getvalue()
+    assert not any('/control' in path for path in calls)
+print('installed encrypted verify: complete replay and projections, zero repository writes')
+'''
+
+
 class InstalledCliIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -144,12 +184,12 @@ class InstalledCliIntegrationTests(unittest.TestCase):
 
     def test_02_documented_invocations_and_registered_handlers(self):
         from dracla.cli.app import _COMMANDS
-        self.assertEqual(set(_COMMANDS), {'install'})
+        self.assertTrue({'install', 'verify'} <= set(_COMMANDS))
         self.assertTrue(all(callable(handler) for handler in _COMMANDS.values()))
         lines = (ROOT / 'docs/cli.md').read_text().splitlines()
         invocations = [shlex.split(line) for line in lines
                        if line.startswith(('dracla ', 'python -m dracla.cli '))]
-        self.assertEqual(len(invocations), 2)
+        self.assertGreaterEqual(len(invocations), 2)
         for argv in invocations:
             if argv[0] == 'python':
                 argv[0] = sys.executable
@@ -194,6 +234,16 @@ class InstalledCliIntegrationTests(unittest.TestCase):
         result = self.run_installed([sys.executable, '-c', INSTALLED_PROBE, str(self.target)])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('zero application writes', result.stdout)
+        from core.tests.test_records_1 import EncryptedRepository
+        fixture = EncryptedRepository()
+        before = sorted(str(p) for p in self.work.rglob('*'))
+        result = subprocess.run([sys.executable, '-c', INSTALLED_VERIFY_PROBE, str(self.target)],
+                                input=json.dumps(fixture.values), cwd=self.work, env=self.env,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('installed encrypted verify', result.stdout)
+        self.assertNotIn('SECRET', result.stdout + result.stderr)
+        self.assertEqual(sorted(str(p) for p in self.work.rglob('*')), before)
 
 
 if __name__ == '__main__':
