@@ -334,7 +334,8 @@ class RepositoryTransport:
         adapter verifies transport identity and the complete resulting tree;
         it does not turn a blob SHA into a branch-head precondition.
         """
-        if (repo.role, branch) not in (('records', 'operations'), ('coverage', 'coverage')):
+        if (repo.role, branch) not in (('records', 'operations'), ('records', 'derived'),
+                                       ('coverage', 'coverage')):
             raise RecordsError('scope-mismatch')
         from dracla.conformance import resolve_artifact_identity
         files = self._write_files(files)
