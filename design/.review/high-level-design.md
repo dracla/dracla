@@ -10,13 +10,13 @@ target_documents: [{"executable": false, "path": "design/high-level-design.md", 
 baseline_documents: [{"executable": false, "path": "design/requirements.md", "repository": ".", "sha256": "eb04181fabcade4a8bc807795b1fba70a012eb935dca2a6d84eca952b3c067df"}]
 design_dependency_documents: [{"executable": false, "path": "design/requirements.md", "repository": ".", "sha256": "eb04181fabcade4a8bc807795b1fba70a012eb935dca2a6d84eca952b3c067df"}]
 plan_binding: null
-security_review: {"actual": "dbb", "binding_identity_sha256": "3c44f81fc64fa0a441acf8d5aa63c85ff4b003693f02a004c29b6c2476360920", "requested": "dbb", "reviewer": "/root/m3_hld_refresh_dbb", "schema_version": 1}
+security_review: {"actual": "dbb", "binding_identity_sha256": "647323c2f1d665c3c0a0060b72ffd6d5e078f58928fd93e907be7563882eee83", "requested": "dbb", "reviewer": "/root/m3_hld_current_proof_dbb", "schema_version": 1}
 document_repository: "."
 document_path: "design/high-level-design.md"
-document_revision_provenance: "4090315d26eadd6739fd5f8b147dd5d2ba58d854"
+document_revision_provenance: "2617fa3e8ed17d30f848e4b6a6960d70670eb8df"
 document_sha256: bfc83562c67edabf716240b71d060d1fb9ae2e963487624b4c7d37c87c8e4378
 verdict: clean
-attested_at: 2026-10-25T15:51:10Z
+attested_at: 2026-10-27T05:24:29Z
 ---
 <!-- swe-design-review-attestation:v6 -->
 
