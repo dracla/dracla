@@ -12,8 +12,8 @@ python -m dracla.cli install github.owner=Acme project.slug=Example dry_run=true
 ```
 
 Both entrypoints call the same dispatcher. `--help` lists the supported input.
-`verify` also has a real read-only handler described below. `reconcile`, `export`
-and rotation commands remain later delivery work.
+`verify` and `reconcile` have real handlers described below. Export and rotation
+commands remain later delivery work.
 Installation accepts only `github.owner`, `project.slug`, `dry_run` and `force` overrides.
 The booleans accept `true` or `false` and default to `false`. An owner is required.
 The slug defaults to the ASCII case-folded owner and follows the revision-14
@@ -199,3 +199,50 @@ Success exits 0; unavailable, corrupt or divergent data exits
 2; an unexpected internal failure exits 1. A pending operation is non-clean;
 recovery is owned by the reconcile slice. Live App permission/lifecycle probes
 and authentic release-provenance acceptance remain production gates.
+
+## Persisted-operation reconciliation
+
+Use the same protected project and repository identities as verification:
+
+```sh
+dracla reconcile project.id=project-1 github.owner=acme github.owner_id=10 records.name=records records.id=11 coverage.name=coverage coverage.id=12 control.name=control control.id=13
+```
+
+This command writes to the records and coverage repositories. It authenticates
+the numeric operator and repository identities before requesting recovery
+material. Recovery keys use the same private prompt as `verify`; never supply
+keys or tokens as command arguments. The control repository is not accessed.
+
+The command resumes an authenticated frozen operation without its original
+request. It acquires or confirms that operation's mutation fence, discovers an
+already-landed event before appending, and rebuilds complete coverage and private
+projections. It writes private shards in batches of at most 32 and publishes the
+final generation/digest state only after all 96 shards. Exact branch-head CAS
+and immutable readback protect each transition. A competing canonical append
+causes fresh verification. Canonical history is never forced, merged or rewritten.
+
+After projection verification, recovery closes the marker, terminalizes the
+operation, releases the exact fence and clears the exact terminal cell. A crash
+after fence release requires proof from immutable coverage ancestry; an idle
+fence by itself is insufficient. A clean idle project performs no writes.
+
+The default evidence reader uses actual authenticated stored versions, including
+inherited canonical files encrypted under retired keys. It does not invent a
+past writer observation from today's canonical state. Missing historical facts
+remain blocked. Live validation uses the current observed branch heads; an older
+clean version cannot hide current corruption. Registry, cross-project and initialization facts require their
+own authenticated integration. A trusted control host can provide its M1
+precondition reader through the Python API.
+
+An overflowing private class remains unavailable and retains the operation's
+guards; it does not truncate or cap canonical acceptance or revocation evidence.
+An idle project with corrupt or divergent projections requires the later
+route-unavailable repair integration. A success reservation requires M4's exact
+check-publication confirmation. This command has no Checks permission and cannot
+clear those states from a timeout or a local assertion.
+
+Success exits 0. Missing evidence, uncertainty or a blocked repair exits 2 with
+a fixed reason; an unexpected internal failure exits 1. Output contains only
+source OIDs and redacted status. Local recovery material does not grant reader
+authority or plaintext export permission. Live scoped-write and release-provenance
+tests remain production gates.

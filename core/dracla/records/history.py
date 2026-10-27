@@ -17,6 +17,7 @@ from dracla.conformance import (
 from dracla.administration import numeric_id
 from .credentials import ProjectBinding, RecordsError
 from .github import RepositoryTransport, object_id
+from .key_bindings import KEY_BINDINGS_PATH, verify_key_bindings
 
 _GENERATIONS = 'config/materialization-generations.enc.json'
 _CONFIGURATION = 'config/project.enc.json'
@@ -181,6 +182,15 @@ def _keyring_metadata(binding, transport, oid):
         raise RecordsError('invalid-key') from None
 
 
+def _check_key_bindings(binding, transport, oid, ring, keys, kids):
+    try:
+        verify_key_bindings(transport.read(binding.repo('records'), oid, KEY_BINDINGS_PATH),
+            project_id=binding.project_id, pairs={(copy.capability, copy.data_kid) for copy in ring.keys},
+            keys=keys, selected=kids)
+    except Exception:
+        raise RecordsError('invalid-key') from None
+
+
 def _package(transport, binding, before_oid, commit, event, prior, state, keys, kid, generations):
     """Read exact event files; use authenticated replay for historical relations.
 
@@ -276,6 +286,7 @@ def open_history(binding: ProjectBinding, key_provider: WrappedKeys, transport: 
         kids = manifest['current_kids']
         if any(kids[cap] not in keys[cap] for cap in ('records', 'coverage')):
             raise RecordsError('invalid-key')
+        _check_key_bindings(binding, transport, key_commit, initial_ring, keys, kids)
         prior = initial_replay_state(binding.project_id, root.oid)
         records, generations = [], {}
         key_positions = {c.oid: number for number, c in enumerate(key_history)}
@@ -306,9 +317,10 @@ def open_history(binding: ProjectBinding, key_provider: WrappedKeys, transport: 
                 if (key_positions.get(candidate, -1) <= activated_position
                         or transport.read(repo, candidate, _MANIFEST) != raw_manifest):
                     raise RecordsError('invalid-key')
-                candidate_ids = {(copy.capability, copy.data_kid)
-                                 for copy in _keyring_metadata(binding, transport, candidate).keys}
+                candidate_ring = _keyring_metadata(binding, transport, candidate)
+                candidate_ids = {(copy.capability, copy.data_kid) for copy in candidate_ring.keys}
                 successors = state.current_kids
+                _check_key_bindings(binding, transport, candidate, candidate_ring, keys, successors)
                 if all(successors[cap] == kids[cap] for cap in ('records', 'coverage')):
                     raise RecordsError('invalid-key')
                 for cap in ('records', 'coverage'):

@@ -150,6 +150,13 @@ challenge paths exist.
 
 ### M3 — Pinned control workflow and reconciler
 
+28 October 2026 amendment: bind actual data-key bytes to bootstrap/activation
+candidates while preserving retired wrapping secrets. The existing published
+`m3/3.1` receives the reviewed central-reader correction before approval;
+`m3/1.1` and `m3/2` remain accepted. No additional functional slice is added.
+M5/M6 still own live rotation/Connect and initial installer proof production.
+The correction is designed, not implemented or admitted by this status note.
+
 Detailed design: [`design/lld/m3-control-reconciler.md`](../design/lld/m3-control-reconciler.md).
 Status: locked after clean general and DBB review; the owner approved the full
 M3 design and six delivery slices on 25 October 2026. This design checkpoint

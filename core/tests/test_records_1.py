@@ -107,6 +107,25 @@ class AppFixture:
                         self.links.get(path, links))
 
 
+def control_reader(fixture, ring, *, generation='install-1', wrapping=None):
+    """Exercise the real protected-control provider with the same fixture transport."""
+    app = AppFixture()
+    owner = fixture.binding.owner_id
+    app.protected = InstallationBinding(17, 'client-id', 19, owner,
+                                       (('project-1', (11, 12)),), (13,))
+    app.patch['/app'] = lambda v: {**v, 'owner': {'id': owner}}
+    app.patch['/app/installations/19'] = lambda v: {**v, 'account': {'id': owner}, 'target_id': owner}
+    for repo in app.repositories:
+        repo['owner']['id'] = owner
+    def sender(method, url, headers, timeout, body=None):
+        return (fixture.send if '/repos/' in url or url.endswith('/graphql') else app.send)(
+            method, url, headers, timeout, body)
+    credentials = InstallationCredentials(app.protected, lambda: app.pem, sender=sender, clock=lambda: app.now)
+    keys = WrappedKeys('control', lambda: {generation: fixture.wrapping if wrapping is None else wrapping},
+                       protected_keyrings=lambda _: ring)
+    return keys, RepositoryTransport(credentials)
+
+
 class TestRecordsCredentials(unittest.TestCase):
     def test_app_checks_grants_then_mints_exact_arrangement_token(self):
         fixture = AppFixture()
@@ -533,6 +552,25 @@ class EncryptedRepository:
         self.state=apply_event(self.state,CanonicalEventRecord(event,self.e,parent))
 
     def commit(self,repo,files,parent=None):
+        # Fixture producers must create the proof before the candidate is pinned.
+        # Install-generation candidates are shared by the reader, append and
+        # recovery suites. Rewrap-only candidates preserve their existing proof.
+        keyring_path = '.dracla/recovery/keyring.json'
+        if repo == 'records' and keyring_path in files:
+            from dracla.conformance import decode_keyring, unwrap_key_copy
+            from dracla.records.key_bindings import KEY_BINDINGS_PATH, encode_key_bindings
+            value = json.loads(files[keyring_path])
+            if all(c['wrapper_generation'] == 'install-1' and c['project_id'] == self.binding.project_id
+                   for c in value['keys']):
+                ring = decode_keyring(files[keyring_path], expected_project_id=self.binding.project_id,
+                    allowed_capabilities={'records', 'coverage'}, allowed_wrappers={'recovery'},
+                    known_generations={'recovery': ('install-1',)})
+                keys = {'records': {}, 'coverage': {}}
+                for wrapped in ring.keys:
+                    keys[wrapped.capability][wrapped.data_kid] = unwrap_key_copy(wrapped,
+                        expected_project_id=self.binding.project_id, expected_capability=wrapped.capability,
+                        wrapping_keys={('recovery', 'install-1'): self.wrapping})
+                files = {**files, KEY_BINDINGS_PATH: encode_key_bindings(self.binding.project_id, keys)}
         self.serial+=1;oid=f'{self.serial:040x}';tree=f'{self.serial+10000:040x}'
         prefix=f'/repos/acme/{repo}/git/'
         self.files[repo,oid]=copy.deepcopy(files)
@@ -1018,6 +1056,125 @@ class TestWrappedKeysScope(unittest.TestCase):
         self.assertEqual(result['records'][f.kids['records']],f.data_keys['records'])
         self.assertEqual(result['coverage'][f.kids['coverage']],f.data_keys['coverage'])
         self.assertEqual(provider_calls,[True]);self.assertEqual(protected_calls,[True])
+
+
+class TestKeyBindings(unittest.TestCase):
+    EXPECTED = (b'{"bindings":[{"capability":"coverage","data_kid":"Y2NjY2NjY2NjY2NjY2NjYw",'
+        b'"fingerprint":"sha256:1e7f25d936df96a5ab465d29355c26a4884fbfb4a7fe7f0178636d90d2d98775"},'
+        b'{"capability":"records","data_kid":"cnJycnJycnJycnJycnJycg",'
+        b'"fingerprint":"sha256:37d0d0d7168d406195bb7a2c75e47b9f8116a510af42b95dd0e3613a7d28db82"}],'
+        b'"bindings_version":1,"project_id":"project-1"}')
+
+    def inputs(self):
+        from dracla.conformance import base64url_encode
+        return {cap: {base64url_encode(raw * 16): raw * 32}
+                for cap, raw in [('records', b'r'), ('coverage', b'c')]}
+
+    def test_known_answer_bytes_and_context_separation(self):
+        from dracla.records.key_bindings import encode_key_bindings, key_fingerprint, verify_key_bindings
+        keys = self.inputs()
+        self.assertEqual(encode_key_bindings('project-1', keys), self.EXPECTED)
+        selected = {cap: next(iter(values)) for cap, values in keys.items()}
+        pairs = {(cap, kid) for cap, kid in selected.items()}
+        verify_key_bindings(self.EXPECTED, project_id='project-1', pairs=pairs, keys=keys, selected=selected)
+        cap, kid, key = 'records', selected['records'], b'r' * 32
+        values = [key_fingerprint('project-1', cap, kid, key),
+                  key_fingerprint('project-2', cap, kid, key),
+                  key_fingerprint('project-1', 'coverage', kid, key),
+                  key_fingerprint('project-1', cap, selected['coverage'], key)]
+        self.assertEqual(len(set(values)), 4)
+        for bad in (b'r' * 31, b'r' * 33, 'PRIVATE KEY'):
+            with self.assertRaises(RecordsError) as caught:
+                key_fingerprint('project-1', cap, kid, bad)
+            self.assertEqual(str(caught.exception), 'invalid-key')
+
+    def test_closed_canonical_proof_rejects_malformed_and_cross_context_bytes(self):
+        from dracla.conformance import canonical_json
+        from dracla.records.key_bindings import decode_key_bindings
+        value = json.loads(self.EXPECTED)
+        pairs = {(e['capability'], e['data_kid']) for e in value['bindings']}
+        cases = [b'{}', b'[]', self.EXPECTED + b'\n', b'{"bindings_version":1,"bindings_version":1}']
+        for name in ('version', 'extra', 'project', 'empty', 'duplicate', 'missing', 'order',
+                     'entry-extra', 'capability', 'kid', 'fingerprint', 'fingerprint-case'):
+            v = copy.deepcopy(value)
+            if name == 'version': v['bindings_version'] = True
+            if name == 'extra': v['unknown'] = 1
+            if name == 'project': v['project_id'] = 'project-2'
+            if name == 'empty': v['bindings'] = []
+            if name == 'duplicate': v['bindings'].append(v['bindings'][0])
+            if name == 'missing': v['bindings'].pop()
+            if name == 'order': v['bindings'].reverse()
+            if name == 'entry-extra': v['bindings'][0]['unknown'] = 1
+            if name == 'capability': v['bindings'][0]['capability'] = 'unknown'
+            if name == 'kid': v['bindings'][0]['data_kid'] += '='
+            if name == 'fingerprint': v['bindings'][0]['fingerprint'] = 'sha256:00'
+            if name == 'fingerprint-case': v['bindings'][0]['fingerprint'] = v['bindings'][0]['fingerprint'].upper()
+            cases.append(canonical_json(v))
+        for raw in cases:
+            with self.subTest(raw=raw[:60]), self.assertRaises(RecordsError) as caught:
+                decode_key_bindings(raw, project_id='project-1', pairs=pairs)
+            self.assertEqual(str(caught.exception), 'invalid-key')
+
+    def test_bootstrap_requires_its_own_proof_before_first_event_decryption(self):
+        from dracla.records.key_bindings import KEY_BINDINGS_PATH
+        for defect in ('missing', 'malformed', 'latest-only'):
+            with self.subTest(defect=defect):
+                f = EncryptedRepository()
+                good = f.files['records', f.k][KEY_BINDINGS_PATH]
+                for oid in (f.k, f.b):
+                    if defect == 'malformed':
+                        replace_blob(f, 'records', oid, KEY_BINDINGS_PATH, b'{}')
+                    else:
+                        prefix = '/repos/acme/records/git/'
+                        tree = f.values[prefix + 'commits/' + oid]['tree']['sha']
+                        entries = f.values[prefix + 'trees/' + tree + '?recursive=1']['tree']
+                        entries[:] = [entry for entry in entries if entry['path'] != KEY_BINDINGS_PATH]
+                        del f.files['records', oid][KEY_BINDINGS_PATH]
+                if defect == 'latest-only':
+                    files = {**f.files['records', f.b], KEY_BINDINGS_PATH: good}
+                    latest = f.commit('records', files, f.b)
+                    f.values['/repos/acme/records/git/ref/heads/keys']['object']['sha'] = latest
+                with self.assertRaises(RecordsError) as caught:
+                    open_history(f.binding, *f.reader())
+                self.assertEqual(str(caught.exception), 'invalid-key')
+                event_paths = [p for p in f.calls if '/blobs/' in p]
+                encrypted = f.files['records', f.e]
+                event_blobs = {hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+                               for p, raw in encrypted.items() if p.startswith('events/')}
+                self.assertFalse(any(p.rsplit('/', 1)[-1] in event_blobs for p in event_paths))
+
+    def test_activation_checks_unchanged_capability_and_requires_pinned_proof(self):
+        from dracla.conformance import Keyring, base64url_encode, canonical_json, wrap_key_copy
+        from dracla.records.key_bindings import KEY_BINDINGS_PATH
+        lifecycle = TestKeyLifecycle()
+        for defect in ('unchanged-coverage', 'missing', 'pair-set', 'project'):
+            with self.subTest(defect=defect):
+                f = EncryptedRepository(complete_history=True, rotate=True)
+                new = wrap_key_copy(b'T' * 32, project_id='project-1', capability='records',
+                    data_kid=b'T' * 16, wrapper_id='recovery', wrapper_generation='install-1',
+                    wrapping_key=f.wrapping)
+                candidate = lifecycle.candidate(f, Keyring(lifecycle.ring(f).keys + (new,)))
+                lifecycle.activate(f, candidate, {**f.state.current_kids, 'records': base64url_encode(b'T' * 16)})
+                self.assertEqual(open_history(f.binding, *f.reader()).state.current_kids,
+                                 f.state.current_kids)
+                proof = json.loads(f.files['records', candidate][KEY_BINDINGS_PATH])
+                if defect == 'missing':
+                    prefix = '/repos/acme/records/git/'
+                    tree = f.values[prefix + 'commits/' + candidate]['tree']['sha']
+                    entries = f.values[prefix + 'trees/' + tree + '?recursive=1']['tree']
+                    entries[:] = [entry for entry in entries if entry['path'] != KEY_BINDINGS_PATH]
+                    del f.files['records', candidate][KEY_BINDINGS_PATH]
+                else:
+                    if defect == 'unchanged-coverage':
+                        selected = next(e for e in proof['bindings'] if e['capability'] == 'coverage'
+                                        and e['data_kid'] == f.state.current_kids['coverage'])
+                        selected['fingerprint'] = 'sha256:' + '0' * 64
+                    if defect == 'pair-set': proof['bindings'].pop()
+                    if defect == 'project': proof['project_id'] = 'project-2'
+                    replace_blob(f, 'records', candidate, KEY_BINDINGS_PATH, canonical_json(proof))
+                with self.assertRaises(RecordsError) as caught:
+                    open_history(f.binding, *f.reader())
+                self.assertEqual(str(caught.exception), 'invalid-key')
 
 
 class TestKeyLifecycle(unittest.TestCase):

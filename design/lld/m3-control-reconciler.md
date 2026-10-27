@@ -5,7 +5,8 @@ slice_convention: hierarchical-v1
 # M3 low-level design — control reconciler
 
 Status: Locked
-Owner approval: 25 October 2026 — design and six delivery slices
+Owner approval: 25 October 2026 — design and six delivery slices;
+28 October 2026 — actual-data-key binding and published-slice scope amendment
 Date: 25 October 2026
 Requirements: `design/requirements.md`, locked revision 14
 Architecture: `design/high-level-design.md`, including the owner-approved
@@ -43,6 +44,7 @@ plain immutable values, never Hydra/OmegaConf, dynamic commands or modules.
 |---|---|
 | `records/credentials.py` | Verify protected App/installation assignments through `InstallationCredentials`; accept explicit local operator credentials through `OperatorCredentials`; redact secret-bearing values |
 | `records/github.py` | `RepositoryTransport`: immutable-head/blob/tree reads, canonical non-forced append, branch-wide exact-head commit, bounded inventory and temporary-branch challenge operations |
+| `records/key_bindings.py` | Encode, validate and check HLD §6.10.2 actual-data-key commitments; one shared producer/reader primitive |
 | `records/history.py` | `open_history(binding, key_provider, transport)` validates bootstrap and yields authenticated `CanonicalEventRecord` values; `replay_history` returns the existing M1 `ReplayResult`; `verify_project` reports divergence without writes |
 | `records/append.py` | Execute the validated frozen package with existing M1 operation-state transitions; distinguish landed, semantic no-op, conflict and indeterminate results |
 | `records/reconcile.py` | `reconcile_project` repairs only authenticated, conditional transitions |
@@ -272,11 +274,31 @@ or exceeded budget yields unavailable/corrupt, never partial success.
 
 Follow HLD §6.10.2's exact bootstrap: mandatory README root, first keyring
 commit `K`, its manifest child `B`, matching project/generation/repository IDs
-and wrapped-key candidate. Use the candidate only to decrypt the first event;
-accept its key authority only when `project_connected` authenticates the exact
-manifest digest, `K`, `B`, generation, IDs and current kids. Replay later key
+and pinned wrapped-key metadata. Obtain provisional raw keys from the latest
+keyring descendant through the available authorized current wrapper. Check both
+initial keys against the proof in `K`; use the records key only to decrypt the
+first event. Accept its authority only when `project_connected` authenticates
+the exact manifest digest, `K`, `B`, generation, IDs and current kids. Do not
+require the retired installation wrapping secret. Replay later key
 activations for current selection and retain predecessors for old history.
 Missing, duplicate, mismatched or undecryptable candidates fail closed.
+
+Use HLD §6.10.2's exact `.dracla/key-bindings.json` contract. Keep its encoder,
+closed-schema validator and constant-time actual-key check in
+`records/key_bindings.py`; do not extend the existing M1 wrapped-copy/event
+schemas or create a second selector inside reconciliation. `open_history`
+checks both bootstrap keys at K and both selected capabilities at every pinned
+activation before returning any snapshot. Check unchanged capabilities too.
+Retained keys keep their original authorization. Latest wrapper-only descendants
+supply candidate bytes, never new authorization. Same-key rewrap and complete
+replay with only successor wrapping secrets must continue to work.
+
+Missing historical proof and same-ID substituted bytes return `invalid-key`
+before any reconciliation write. Do not infer proof from the latest keyring or
+silently migrate old histories. M5's actual rotation/Connect producers must
+consume the same byte contract and Python vectors before live activation; M6
+must write proof in initial K before B and complete the existing key challenges.
+These remain later producer responsibilities, not a completed M3 installer.
 
 Walk the complete single-parent events ancestry in commit order from the root.
 Every later commit has exactly one event and its exact event-specific artifact
@@ -453,6 +475,16 @@ using `m3/2`. Acceptance: fault injection before/after each persisted write,
 stale delayed writer, newer canonical source, terminal clearing, corrupt state,
 all derived classes and overflow. Unconfirmed success reservations and missing
 M4 route-unavailable proof stay blocked with an explicit integration result.
+The owner-approved correction also binds actual records/coverage key bytes in
+the central reader. Acceptance includes bootstrap and activation proofs,
+records-only/coverage-only/combined same-ID substitution through recovery and
+control providers with zero writes, same-key rewrap, successor-only wrapping
+secrets, malformed/missing/cross-context proof rejection, exact known-answer
+bytes and pending-activation crash recovery. The existing m3/3.1 title and
+published PR are retained; this is the same vertical correction, not another
+functional slice. Incremental estimate: 80–140 production lines and 200–350
+fixture/test lines, plus the existing full conformance and package gate. These
+are estimates for the inspected correction, not a universal line limit.
 
 ### m3/4 — Portable and explicit encrypted exports
 
@@ -526,6 +558,15 @@ On 27 October 2026, the owner approved replacing unaccepted `m3/3` with
 `m3/3.1` to add `records/github.py` for the existing public derived-branch CAS.
 The original intent remains unchanged in issued history. This changes file
 ownership only; the same responsibility and acceptance still form one deliverable.
+On 28 October 2026 the owner approved the actual-data-key binding correction.
+The reviewed pre-approval published-slice admission retains `m3/3.1`, its title,
+role, parent and external dependency, and adds the central reader/proof paths.
+The exact original issued intent and plan preimage remain in the existing native
+admission and preserved-stop history. Accepted slices and other issued intents
+do not change. Admission remains required before production edits.
+The same correction owns the reviewed HLD/LLD/index/roadmap and their exact
+helper-generated sidecars so they land with PR #58; it does not rewrite an
+accepted ancestor or introduce a separate functional slice.
 
 ```swe-slice-inventory
 {
@@ -655,7 +696,18 @@ ownership only; the same responsibility and acceptance still form one deliverabl
           "design/verification-matrix.md",
           "core/dracla/cli/app.py",
           "core/dracla/cli/config.py",
-          "docs/cli.md"
+          "docs/cli.md",
+          "core/dracla/records/key_bindings.py",
+          "core/dracla/records/history.py",
+          "core/tests/test_records_1.py",
+          "design/high-level-design.md",
+          "design/.review/high-level-design.md",
+          "design/lld/m3-control-reconciler.md",
+          "design/lld/.review/m3-control-reconciler.md",
+          "design/low-level-design.md",
+          "design/.review/low-level-design.md",
+          "docs/roadmap.md",
+          "docs/.review/roadmap.md"
         ],
         "dependencies": [
           "m3/2"
@@ -663,7 +715,8 @@ ownership only; the same responsibility and acceptance still form one deliverabl
         "acceptance": [
           "Recover every M3-owned persisted crash point with delayed-writer and newer-head races.",
           "Verify all shards/generations; derived overflow fails closed without capping canonical evidence.",
-          "Missing M4 check or route-unavailable proof remains explicitly blocked."
+          "Missing M4 check or route-unavailable proof remains explicitly blocked.",
+          "Bind actual bootstrap/activated data-key bytes to the pinned candidate; reject same-ID substitution with zero writes while preserving successor-only recovery and control wrapping secrets."
         ]
       }
     },

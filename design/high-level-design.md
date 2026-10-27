@@ -2842,7 +2842,9 @@ keyring whose history contains the newest activated commit and whose
 authenticated contents agree with that event. Missing history, rollback before
 the activated commit, an unknown current key, or invalid wrapping fails closed.
 Later wrapper-only rewrap commits may descend from the activated commit without
-changing the active data-key generation.
+changing the active data-key generation. The candidate-local actual-data-key
+binding proof in §6.10.2 authenticates the selected bytes independently of
+wrapping generations; comparing key IDs alone is insufficient.
 
 The private-repository Free baseline cannot rely on GitHub branch protection.
 Paid adopters may enable it as defense in depth. Authentication and activation
@@ -2991,7 +2993,9 @@ artifact is written:
    repository IDs, and current `kid` values.
 
 **One-time bootstrap anchor.** The first wrapped keyring commit on `keys` is
-`K`. Its child `B` adds `.dracla/bootstrap.json`, whose RFC 8785 bytes have this
+`K`, containing both the wrapped recovery keyring and the actual-data-key
+binding proof specified below. Its child `B` adds `.dracla/bootstrap.json`,
+whose RFC 8785 bytes have this
 closed schema:
 
 ```json
@@ -3039,11 +3043,15 @@ A records reader with no prior canonical state bootstraps as follows:
 1. verify the live records repository ID against its manifest, or verify its
    source ID through the backup manifest before an authorized
    replacement-repository rebind;
-2. validate the canonical manifest bytes, require the declared `K`/`B`
-   ancestry, and select exactly one wrapped records-key candidate matching the
-   declared project, generation, and `kid`;
-3. unwrap that candidate through the reader's authorized wrapper and use it
-   only to decrypt the sole event in the first post-README `events` commit;
+2. validate the canonical manifest bytes and declared `K`/`B` ancestry;
+   inspect `K` for the pinned install-generation recovery-key metadata and
+   exact actual-data-key binding proof for both initial capability/`kid` pairs;
+3. obtain provisional retained data-key bytes through the reader's available
+   authorized current wrapper from the latest keyring descendant containing
+   `K`. Require the same initially selected records and coverage keys to match
+   `K`'s proof before using the records key to decrypt the sole event in the
+   first post-README `events` commit. `K` supplies metadata/proof authority,
+   not a requirement to unwrap its retired wrapping generation;
 4. require that event to be `project_connected` and to pin `B`, `K`, the
    SHA-256 digest of the manifest bytes, the same install generation,
    repository IDs, and both current `kid` values; and
@@ -3095,6 +3103,90 @@ still decrypt historical data. An unactivated descendant may be used only to
 obtain keys needed to replay the activation decision; it is not current by
 itself. A failure before activation leaves the prior event-selected key current;
 a failure after activation is repaired forward and never removes the prior key.
+
+**Actual-data-key binding (owner-approved amendment, 28 October 2026).**
+
+The records `keys` candidate contains `.dracla/key-bindings.json` beside its
+wrapped recovery keyring. Initial candidate K contains it before bootstrap
+manifest child B. Each later data-key activation candidate contains a complete
+current copy. Its canonical RFC 8785 UTF-8 JSON has exactly these fields:
+
+    {"bindings_version":1,"project_id":"project-1","bindings":[
+      {"capability":"coverage","data_kid":"canonical-base64url-kid","fingerprint":"sha256:64-lowercase-hex"},
+      {"capability":"records","data_kid":"canonical-base64url-kid","fingerprint":"sha256:64-lowercase-hex"}
+    ]}
+
+`bindings_version` is the integer 1. The project ID must equal caller-derived
+project identity. Capabilities and key IDs use the existing keyring validators.
+Each pair appears exactly once. Entries sort by capability, then data_kid,
+using the existing strings' lexicographic order. Unknown fields, duplicate
+pairs, wrong types, noncanonical bytes, unknown versions, malformed fingerprints
+and an empty bindings list fail closed. Do not infer a missing pair.
+
+For each 32-byte data key K, the fingerprint is `sha256:` followed by lowercase
+hex of HMAC-SHA-256(K, canonical_json(context)), where context has exactly:
+
+    {"purpose":"dracla-data-key-binding-v1","project_id":PROJECT,
+     "capability":CAPABILITY,"data_kid":KID}
+
+Use the existing canonical JSON and key-ID rules and constant-time digest
+comparison. Fingerprints are commitments to uniformly random 256-bit keys,
+not passwords or access credentials. They confer no unwrap or write authority.
+Never persist or log the raw key or HMAC intermediate. The candidate OID binds
+the exact fingerprint bytes; a fingerprint from a latest unpinned descendant
+is never a substitute for proof from K or an event-pinned candidate.
+
+The bindings set equals the unique capability/key-ID pairs in the candidate's
+recovery keyring. The producer computes each from the actual generated or
+retained key, verifies every required wrapper returns that same key, and writes
+both artifacts in the same candidate commit. Conflicting wrapper copies fail.
+Wrapper-only rewraps preserve the binding bytes and actual data keys. Existing
+immutable candidates are never rewritten or retroactively blessed.
+
+**Reader and recovery ordering.**
+
+Repository scope/credential verification still precedes all key access.
+Read current wrapped key copies as untrusted replay candidates. At bootstrap,
+read the proof from K; check its closed schema, project and keyring pair set;
+verify both initially selected keys against it before using either. The first
+project_connected event must still validate all existing K/B/manifest bindings.
+No partially authenticated HistorySnapshot escapes.
+
+For each keyring_activated event, retain all existing replay, candidate-ancestry,
+manifest, uniqueness and generation checks. Read the proof at that exact event's
+candidate OID. Validate its entire structure and pair set. Check the actual
+latest unwrapped bytes for each event-selected records and coverage key against
+that proof before accepting the activation or using the newly selected keys.
+A capability whose current ID is unchanged is checked too. Historical selected
+keys remain validated against the candidate that first authorized them; a later
+candidate cannot replace their binding. Unactivated keys may be collected only
+as replay candidates and never acquire current-key or write authority by being
+present in the latest keyring.
+
+Validate the complete canonical history before returning keys to reconciliation,
+verification or export. Missing/malformed proof, mismatch, substituted bytes,
+removed retained keys or conflicting copies return the existing invalid-key
+error without private diagnostics. Reconciliation makes zero writes. A proof
+may be parsed before authentication, but it grants no authority until its
+existing bootstrap/event pin passes. Cross-capability reuse checks remain.
+
+**Compatibility and producer responsibilities.**
+
+No fallback accepts missing historical proof or computes it from today's latest
+wrapped keys. Existing histories without proof are unsupported and fail closed.
+M3 does not ship a migration that retroactively invents authorization. Any later
+migration needs an explicit reviewed owner policy and original-key evidence.
+This development-stage tightening does not claim deployed histories were migrated.
+
+M3 owns the central Python proof encoder/validator and historical-reader checks.
+The M3 fixtures produce real candidate-bound proof bytes; they are test evidence,
+not installed production state. M5's future Worker
+key-rotation/Connect producers must implement the same byte contract using
+Python-generated vectors before operational activation. M6's future installer
+must write bootstrap proof at K, verify all copies and complete existing live
+key challenges. Neither production producer exists merely because fixtures do.
+M4 receives no new current milestone responsibility. M3 does not change portal
+or installer completion claims, operation states, custody or key-retirement rules.
 
 No placeholder workflow or unused credential is seeded. Install refuses a
 release that lacks the real pinned reconcile command and its verification
