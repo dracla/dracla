@@ -161,9 +161,9 @@ live least-privilege, lifecycle and release-provenance evidence.
 |---|---|---|
 | `m3/1.1` | Authenticated encrypted history and read-only verify | Merged M2 |
 | `m3/2` | Durable canonical mutation and conditional projection writes | `m3/1.1` |
-| `m3/3` | Reconcile and recover persisted operations | `m3/2` |
-| `m3/4` | Portable and explicit encrypted exports | `m3/3` (reader dependency `m3/1.1`) |
-| `m3/5` | Verified production workflow and transport lifecycle | `m3/3`, `m3/4` |
+| `m3/3.1` | Reconcile and recover persisted operations | `m3/2` |
+| `m3/4` | Portable and explicit encrypted exports | `m3/3.1` (reader dependency `m3/1.1`) |
+| `m3/5` | Verified production workflow and transport lifecycle | `m3/3.1`, `m3/4` |
 | `m3/6` | Recovery integration and M3 evidence closure | `m3/5` |
 
 The LLD owns exact scope and acceptance. Approve each implementation slice

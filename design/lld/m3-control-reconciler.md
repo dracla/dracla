@@ -446,7 +446,7 @@ integration through the public engine API used by reconciliation. Dependency:
 appenders, stale-head rejection, lost responses and same-head fence checks;
 cross-runtime M1 vectors unchanged. No placeholder hosted endpoint.
 
-### m3/3 — Reconcile and recover persisted operations
+### m3/3.1 — Reconcile and recover persisted operations
 
 Deliver real `reconcile`, projection repair and every M3-owned crash transition
 using `m3/2`. Acceptance: fault injection before/after each persisted write,
@@ -457,7 +457,7 @@ M4 route-unavailable proof stay blocked with an explicit integration result.
 ### m3/4 — Portable and explicit encrypted exports
 
 Deliver local streaming JSON/CSV and the request-scoped hosted job writer using
-the authenticated reader from `m3/1.1`; stack delivery follows `m3/3`.
+the authenticated reader from `m3/1.1`; stack delivery follows `m3/3.1`.
 Acceptance: service-independent export, preserved JSON values, CSV injection
 cases, source OID, idempotent request identity, bounded hosted pair, no hosted
 plaintext or workflow artifacts. Deny an administrator/recovery custodian without a reader
@@ -470,7 +470,7 @@ M5 request/download authorization stays an explicit gate.
 ### m3/5 — Verified production workflow and transport lifecycle
 
 Deliver the actual external artifact/dependency/provenance gate, pinned workflow
-template and transport challenges invoking the real engines from `m3/3–4`.
+template and transport challenges invoking the real engines from `m3/3.1` and `m3/4`.
 Acceptance: failed verification cannot access either App secret or data keys;
 same verified artifact executes; no unconstrained resolution; malformed dispatch
 and App-writable executable input rejected; scoped live write/CAS, expiry,
@@ -522,6 +522,10 @@ installed-command assertions must change when `verify` is registered. The
 responsibility and acceptance remain unchanged; this adds no functional slice.
 The original issued intent remains immutable in the inventory. It grants no
 implementation or infrastructure authorization before owner approval.
+On 27 October 2026, the owner approved replacing unaccepted `m3/3` with
+`m3/3.1` to add `records/github.py` for the existing public derived-branch CAS.
+The original intent remains unchanged in issued history. This changes file
+ownership only; the same responsibility and acceptance still form one deliverable.
 
 ```swe-slice-inventory
 {
@@ -610,15 +614,43 @@ implementation or infrastructure authorization before owner approval.
     },
     {
       "id": "m3/3",
+      "intent": {
+        "acceptance": [
+          "Recover every M3-owned persisted crash point with delayed-writer and newer-head races.",
+          "Verify all shards/generations; derived overflow fails closed without capping canonical evidence.",
+          "Missing M4 check or route-unavailable proof remains explicitly blocked."
+        ],
+        "dependencies": [
+          "m3/2"
+        ],
+        "paths": [
+          "core/dracla/records/reconcile.py",
+          "core/dracla/records/append.py",
+          "core/tests/test_records_3.py",
+          "design/verification-matrix.md",
+          "core/dracla/cli/app.py",
+          "core/dracla/cli/config.py",
+          "docs/cli.md"
+        ],
+        "responsibility": "Implement the reconcile command and authenticated conditional projection/crash repair.",
+        "title": "[m3/3] Reconcile and recover persisted operations"
+      },
       "parent": null,
+      "role": "implementation",
+      "state": "replaced"
+    },
+    {
+      "id": "m3/3.1",
+      "parent": "m3/3",
       "state": "planned",
       "role": "implementation",
       "intent": {
-        "title": "[m3/3] Reconcile and recover persisted operations",
+        "title": "[m3/3.1] Reconcile and recover persisted operations",
         "responsibility": "Implement the reconcile command and authenticated conditional projection/crash repair.",
         "paths": [
           "core/dracla/records/reconcile.py",
           "core/dracla/records/append.py",
+          "core/dracla/records/github.py",
           "core/tests/test_records_3.py",
           "design/verification-matrix.md",
           "core/dracla/cli/app.py",
@@ -652,7 +684,7 @@ implementation or infrastructure authorization before owner approval.
           "docs/cli.md"
         ],
         "dependencies": [
-          "m3/3"
+          "m3/3.1"
         ],
         "acceptance": [
           "Service-independent installed export preserves JSON and neutralizes CSV formulas.",
@@ -690,7 +722,7 @@ implementation or infrastructure authorization before owner approval.
           "release/build-inputs.lock.json"
         ],
         "dependencies": [
-          "m3/3",
+          "m3/3.1",
           "m3/4"
         ],
         "acceptance": [
