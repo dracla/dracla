@@ -23,7 +23,7 @@ implementation and returns to design review.
 | M0 — reviewed baseline and owner prerequisites | This index and `docs/github-apps.md` | Operational checklist; no implementation LLD | Reviewed design complete; Cloudflare resources, service Apps and adopter transport setup remain external prerequisites |
 | M1 — conformance kernel | [`design/lld/m1-conformance-kernel.md`](lld/m1-conformance-kernel.md) | Locked | All M1 slices through M1-19 landed; complete cross-runtime gate passed |
 | M2 — CLI and administration seams | [`design/lld/m2-cli-administration.md`](lld/m2-cli-administration.md) | Locked | All four slices merged; inspected main `11e8d0f07ef3406451dc954ecda504c3f3854877` |
-| M3 — pinned control workflow and reconciler | [`design/lld/m3-control-reconciler.md`](lld/m3-control-reconciler.md) | Locked; owner-approved 25 October 2026 | Six approved slices; implementation not started |
+| M3 — pinned control workflow and reconciler | [`design/lld/m3-control-reconciler.md`](lld/m3-control-reconciler.md) | Locked; owner-approved 25 October 2026 | Six approved boundaries; m3/1.1 and m3/2 accepted; m3/3.1 actual-key correction pending reviewed stopped-publication admission; m3/4–6 pending |
 | M4 — enforcement and routing | `design/lld/m4-enforcement-routing.md` | Planned | Not started |
 | M5 — portal, Connect, signing, and administration | `design/lld/m5-portal-connect.md` | Planned | Not started |
 | M6 — end-to-end installer | `design/lld/m6-installer.md` | Planned | Not started |
