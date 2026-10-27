@@ -226,5 +226,8 @@ M2 is merged at the inspected main revision
 `design/lld/m3-control-reconciler.md` and all six `m3/1`–`m3/6` boundaries on
 25 October 2026. The 26 October ownership correction retains `m3/1` as
 replaced by `m3/1.1` with the same behavior and its existing CLI integration
-test; the other five boundaries are unchanged. After the design checkpoint,
+test. The owner-approved 27 October correction retains `m3/3` as replaced by
+`m3/3.1`, adding only `records/github.py` ownership for the existing derived-branch
+CAS with unchanged behavior and acceptance. The other four boundaries are
+unchanged. After the design checkpoint,
 a separate delivery request may select M3. This design task authorizes no implementation or merge.
