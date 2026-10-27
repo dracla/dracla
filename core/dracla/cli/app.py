@@ -7,11 +7,11 @@ from typing import Callable, TextIO
 from dracla.administration import Administration, AdminScope, discover
 from dracla.github_admin import GitHubAdministration, credentials_from_environment
 from dracla.provisioning import administration_scope, plan_install
-from .config import ConfigError, compose_install, compose_verify, prompt_recovery_keys
+from .config import ConfigError, compose_install, compose_verify, compose_reconcile, prompt_recovery_keys
 from .release import ReleaseError, ReleaseIdentity, load_release_policy
 
 _HELP = ("Usage: dracla install github.owner=LOGIN [project.slug=SLUG] [dry_run=true] [force=true]\n"
-         "       dracla verify project.id=ID github.owner=LOGIN github.owner_id=ID "
+         "       dracla {verify|reconcile} project.id=ID github.owner=LOGIN github.owner_id=ID "
          "records.name=NAME records.id=ID coverage.name=NAME coverage.id=ID control.name=NAME control.id=ID")
 
 
@@ -95,5 +95,38 @@ def _verify(args, out, release_loader, credential_provider, admin_factory, *, ve
         return 1
 
 
+def _reconcile(args, out, release_loader, credential_provider, admin_factory, *, verify_factory=None):
+    from datetime import datetime, timezone
+    from functools import cache
+    from dracla.records import OperatorCredentials, RecordsError, RepositoryTransport, WrappedKeys
+    from dracla.records.reconcile import reconcile_project
+
+    try:
+        binding = compose_reconcile(args)
+        release = release_loader()
+        keys, transport = (verify_factory(binding) if verify_factory is not None else
+                           (WrappedKeys('recovery', cache(prompt_recovery_keys)),
+                            RepositoryTransport(OperatorCredentials(credential_provider))))
+        report = reconcile_project(binding, keys, transport,
+            built_at=datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z'),
+            dracla_version=release.package_version)
+        if report.source_oid is not None:
+            print('Events: ' + report.source_oid, file=out)
+        if report.valid:
+            print('Reconciliation complete; authenticated projections and operation guards verified.', file=out)
+            return 0
+        print('Reconciliation blocked: ' + report.reason, file=out)
+        return 2
+    except (ConfigError, ReleaseError) as error:
+        print(str(error), file=out)
+        return 2
+    except RecordsError as error:
+        print('Reconciliation unavailable: ' + error.category, file=out)
+        return 2
+    except Exception:
+        print('Reconciliation unavailable.', file=out)
+        return 1
+
+
 # Keep the public command surface tied to actual handlers.
-_COMMANDS = {"install": _install, "verify": _verify}
+_COMMANDS = {"install": _install, "verify": _verify, "reconcile": _reconcile}

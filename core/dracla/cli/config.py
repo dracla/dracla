@@ -98,3 +98,11 @@ def prompt_recovery_keys():
         return {generation: bytes.fromhex(key) for generation, key in value.items()}
     except Exception:
         raise ConfigError('Recovery material is unavailable or invalid') from None
+
+
+def compose_reconcile(overrides: list[str]):
+    """Reconcile uses the same closed, non-secret project binding as verify."""
+    try:
+        return compose_verify(overrides)
+    except ConfigError:
+        raise ConfigError('Reconcile requires exact project, owner and three repository identities') from None

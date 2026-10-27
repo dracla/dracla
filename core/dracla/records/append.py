@@ -19,10 +19,12 @@ from dracla.conformance import (
     parse_event_jcs, prepare_operation, required_side_artifacts,
     parse_canonical_json, resolve_artifact_identity, terminal_operation, validate_event,
     validate_operation_cross_bindings, validate_side_artifact_package,
+    clear_prepared_operation, close_inflight_marker, release_mutation_fence,
+    PreparedOperation, DecisionFence, InFlightMarker,
 )
 from .credentials import RecordsError
 from .github import HeadConflict, IndeterminateWrite
-from .history import open_history, replay_history
+from .history import HistorySnapshot, exact, open_history, replay_history
 
 CELL = 'prepared-operation.enc.json'
 FENCE = 'decision-fence.enc.json'
@@ -34,6 +36,27 @@ class AppendOutcome:
     result: str
     observed_events_head: str
     canonical_commit: str | None = None
+
+
+@dataclass(frozen=True)
+class RecoveryState:
+    snapshot: HistorySnapshot
+    cell: PreparedOperation
+    fence: DecisionFence
+    marker: InFlightMarker
+    reference: PreparedOperationReference | None
+    mutation_fence: DecisionFence | None = None
+    released_fence: DecisionFence | None = None
+
+
+class RecoveryBlocked(RecordsError):
+    """A required integration proof is absent; keep every durable guard."""
+
+    def __init__(self, reason):
+        super().__init__('invalid-history')
+        allowed = ('check-confirmation-required', 'route-unavailable-proof-required',
+                   'authenticated-preconditions-unavailable', 'authenticated-external-evidence-required')
+        self.reason = reason if type(reason) is str and reason in allowed else 'records-unavailable'
 
 
 class MutationEngine:
@@ -96,7 +119,8 @@ class MutationEngine:
             return None
         return prior
 
-    def _plain(self, snapshot, role, branch, head, path, *, historical=False, rotation_cell=None):
+    def _plain(self, snapshot, role, branch, head, path, *, historical=False,
+               historical_events_head=None, rotation_cell=None):
         repo = self.binding.repo(role)
         raw = self.transport.read(repo, head, path)
         envelope = parse_canonical_json(raw)
@@ -107,13 +131,19 @@ class MutationEngine:
         def decrypt():
             return decrypt_json_artifact(raw, expected_project_id=self.binding.project_id,
                 expected_identity=resolve_artifact_identity(role, branch, path), keys=snapshot.keys[role])
-        if historical:
+        if historical or historical_events_head is not None:
             if (role, branch, path) != ('records', 'operations', CELL):
                 raise RecordsError('scope-mismatch')
             value = decrypt()
-            if type(value) is not dict or value.get('state') != 'prepared':
+            if type(value) is not dict:
                 raise RecordsError('invalid-history')
-            expected_kid = self._kids_at(snapshot, value['prepared_events_head'])['records']
+            if value.get('state') == 'prepared':
+                selected_events_head = value['prepared_events_head']
+            elif historical_events_head is not None and value.get('state') == 'idle':
+                selected_events_head = historical_events_head
+            else:
+                raise RecordsError('invalid-history')
+            expected_kid = self._kids_at(snapshot, selected_events_head)['records']
         elif envelope.get('kid') != expected_kid:
             if (role, branch, path) == ('records', 'operations', CELL):
                 value = decrypt()
@@ -129,8 +159,9 @@ class MutationEngine:
             raise RecordsError('invalid-key')
         return value if value is not None else decrypt()
 
-    def _cell(self, snapshot, head, *, historical=False):
-        value = self._plain(snapshot, 'records', 'operations', head, CELL, historical=historical)
+    def _cell(self, snapshot, head, *, historical=False, historical_events_head=None):
+        value = self._plain(snapshot, 'records', 'operations', head, CELL,
+                            historical=historical, historical_events_head=historical_events_head)
         if type(value) is not dict:
             raise RecordsError('invalid-history')
         evidence = None
@@ -163,14 +194,20 @@ class MutationEngine:
             blob = self.transport.tree(self.binding.repo('records'), head)[CELL].oid
             return PreparedOperationReference(head, blob, cell)
         fence, marker = self._guards(snapshot, snapshot.coverage_oid, cell=cell)
+        if fence.state != 'mutation':
+            raise RecordsError('invalid-history')
+        reference = self._reference_from_fence(snapshot, fence)
+        validate_operation_cross_bindings(cell, fence, marker, prepared_reference=reference)
+        return reference
+
+    def _reference_from_fence(self, snapshot, fence):
+        """Recover the immutable prepared reference held by a mutation fence."""
         f = fence.to_dict()
         if fence.state != 'mutation':
             raise RecordsError('invalid-history')
         original = self._cell(snapshot, f['prepared_commit_oid'], historical=True)
         blob = self.transport.tree(self.binding.repo('records'), f['prepared_commit_oid'])[CELL].oid
-        reference = PreparedOperationReference(f['prepared_commit_oid'], blob, original)
-        validate_operation_cross_bindings(cell, fence, marker, prepared_reference=reference)
-        return reference
+        return PreparedOperationReference(f['prepared_commit_oid'], blob, original)
 
     def prepare(self, event, side_artifacts):
         """Durably freeze one complete M1-authorized package, or resume it."""
@@ -210,6 +247,253 @@ class MutationEngine:
         if cell.state == 'idle':
             return None
         return self._reference(snapshot, snapshot.operations_oid, cell)
+
+    def recovery_state(self):
+        """Authenticate current guards, including a crash after fence release.
+
+        The released fence is evidence from immutable coverage ancestry. A
+        present-day idle fence alone cannot prove who released it.
+        """
+        snapshot = self.snapshot()
+        cell = self._cell(snapshot, snapshot.operations_oid)
+        fence, marker = self._guards(snapshot, snapshot.coverage_oid, cell=cell)
+        if fence.state == 'success_reserved':
+            raise RecoveryBlocked('check-confirmation-required')
+        if cell.state == 'idle':
+            validate_operation_cross_bindings(cell, fence, marker)
+            if fence.state != 'idle':
+                raise RecoveryBlocked('route-unavailable-proof-required')
+            return RecoveryState(snapshot, cell, fence, marker, None)
+        if fence.state == 'mutation' or cell.state == 'prepared':
+            reference = (self._reference_from_fence(snapshot, fence)
+                         if fence.state == 'mutation'
+                         else self._reference(snapshot, snapshot.operations_oid, cell))
+            validate_operation_cross_bindings(cell, fence, marker, prepared_reference=reference)
+            if cell.state == 'terminal':
+                self._verify_terminal(snapshot, cell, reference, fence, marker)
+            return RecoveryState(snapshot, cell, fence, marker, reference,
+                                 fence if fence.state == 'mutation' else None)
+        if cell.state != 'terminal' or marker.to_dict()['ops']:
+            raise RecoveryBlocked('route-unavailable-proof-required')
+        # Locate an exact consecutive mutation -> idle release. Do not infer
+        # release from elapsed time, current idleness or an operation ID alone.
+        history = self.transport.ancestry(self.binding.repo('coverage'), snapshot.coverage_oid)
+        predecessor_oid, predecessor = self._terminal_predecessor(snapshot, cell)
+        current_execution = self._current_execution_operation_oids(
+            snapshot, predecessor_oid,
+            historical_events_head=predecessor.to_dict()['prepared_events_head'])
+        current_value = cell.to_dict()
+        matches = []
+        for before, after in zip(history, history[1:]):
+            old, closed = self._historical_guards(snapshot, before.oid)
+            released, after_marker = self._historical_guards(snapshot, after.oid)
+            if (old.state != 'mutation' or released.state != 'idle'
+                    or released.generation != old.generation + 1
+                    or (old.to_dict()['operation_id'], old.to_dict()['operation_sha256'])
+                    != (current_value['operation_id'], current_value['operation_sha256'])
+                    or closed.to_dict()['ops'] or after_marker.to_dict()['ops']):
+                continue
+            original_head = old.to_dict()['prepared_commit_oid']
+            original = self._cell(snapshot, original_head, historical=True)
+            blob = self.transport.tree(self.binding.repo('records'), original_head)[CELL].oid
+            reference = PreparedOperationReference(original_head, blob, original)
+            if not self._reference_matches_predecessor(reference, predecessor):
+                continue
+            if original_head not in current_execution:
+                continue
+            validate_operation_cross_bindings(cell, old, closed, prepared_reference=reference)
+            matches.append((old, released, reference, closed))
+        if len(matches) != 1:
+            raise RecoveryBlocked('route-unavailable-proof-required')
+        old, released, reference, closed = matches[0]
+        self._verify_terminal(snapshot, cell, reference, old, closed)
+        return RecoveryState(snapshot, cell, fence, marker, reference, old, released)
+
+    def _terminal_predecessor(self, snapshot, cell):
+        """Return the authenticated operation cell immediately before terminal."""
+        value = cell.to_dict()
+        history = self.transport.ancestry(self.binding.repo('records'), snapshot.operations_oid)
+        predecessor = None
+        expected = 'appending' if value['result'] == 'landed' else 'prepared'
+        for commit in reversed(history):
+            raw = self.transport.read(self.binding.repo('records'), commit.oid, CELL)
+            stored = decrypt_json_artifact(raw, expected_project_id=self.binding.project_id,
+                expected_identity=resolve_artifact_identity('records', 'operations', CELL),
+                keys=snapshot.keys['records'])
+            if type(stored) is not dict:
+                raise RecordsError('invalid-history')
+            if canonical_json(stored) == canonical_json(value):
+                continue
+            predecessor = self._cell(snapshot, commit.oid, historical=stored.get('state') == 'prepared')
+            break
+        if predecessor is None or predecessor.state != expected:
+            raise RecordsError('invalid-history')
+        return commit.oid, predecessor
+
+    def _current_execution_operation_oids(self, snapshot, predecessor_oid, *, historical_events_head):
+        """Return operation commits after the last idle cell boundary.
+
+        A prepared commit can be byte-identical to an earlier execution. The
+        authenticated operations ancestry, rather than package equality, is
+        the execution boundary that makes a historical mutation fence useful
+        for the current terminal cell.
+        """
+        history = self.transport.ancestry(self.binding.repo('records'), snapshot.operations_oid)
+        predecessor_index = next((index for index, commit in enumerate(history)
+                                  if commit.oid == predecessor_oid), None)
+        if predecessor_index is None:
+            raise RecordsError('invalid-history')
+        boundary = None
+        for index in range(predecessor_index, -1, -1):
+            raw = self.transport.read(self.binding.repo('records'), history[index].oid, CELL)
+            stored = decrypt_json_artifact(raw, expected_project_id=self.binding.project_id,
+                expected_identity=resolve_artifact_identity('records', 'operations', CELL),
+                keys=snapshot.keys['records'])
+            if type(stored) is not dict:
+                raise RecordsError('invalid-history')
+            if stored.get('state') == 'idle':
+                self._cell(snapshot, history[index].oid,
+                           historical_events_head=historical_events_head)
+                boundary = index
+                break
+        if boundary is None:
+            raise RecordsError('invalid-history')
+        return {commit.oid for commit in history[boundary + 1:predecessor_index + 1]}
+
+    def _reference_matches_predecessor(self, reference, predecessor):
+        """Match the fence's immutable package to the current terminal claim."""
+        fields = ('generation', 'operation_id', 'operation_sha256', 'event_id',
+                  'prepared_events_head', 'event_jcs_b64', 'side_artifacts')
+        original = reference.cell.to_dict()
+        value = predecessor.to_dict()
+        return all(original[key] == value[key] for key in fields)
+
+    def _verify_terminal(self, snapshot, cell, reference, fence, marker):
+        """A terminal claim must agree with its authenticated canonical prefix."""
+        value = cell.to_dict()
+        # Authenticate the persisted predecessor, not only today's semantic
+        # result. An appending cell can never become a no-op/conflict: a
+        # delayed publisher may still own its durable append right.
+        history = self.transport.ancestry(self.binding.repo('records'), snapshot.operations_oid)
+        predecessor = None
+        for commit in reversed(history):
+            raw = self.transport.read(self.binding.repo('records'), commit.oid, CELL)
+            stored = decrypt_json_artifact(raw, expected_project_id=self.binding.project_id,
+                expected_identity=resolve_artifact_identity('records', 'operations', CELL),
+                keys=snapshot.keys['records'])
+            if type(stored) is not dict:
+                raise RecordsError('invalid-history')
+            if canonical_json(stored) != canonical_json(value):
+                predecessor = self._cell(snapshot, commit.oid, historical=stored.get('state') == 'prepared')
+                break
+        expected = 'appending' if value['result'] == 'landed' else 'prepared'
+        if predecessor is None or predecessor.state != expected:
+            raise RecordsError('invalid-history')
+        validate_operation_cross_bindings(predecessor, fence, marker, prepared_reference=reference)
+        observed = value['observed_events_head']
+        if observed not in {r.commit_oid for r in snapshot.records}:
+            raise RecordsError('invalid-history')
+        historical = open_history(self.binding, self.key_provider, self.transport.at_events(observed))
+        found = self._landed(historical, reference.cell)
+        if value['result'] == 'landed':
+            if found is None or found.result != 'landed' or found.canonical_commit != value['canonical_commit']:
+                raise RecordsError('invalid-history')
+            return
+        event = parse_event_jcs(base64url_decode(reference.cell.to_dict()['event_jcs_b64']))
+        noop = (historical.state.project_state == 'active' and event.type == 'config_updated'
+                and canonical_json(event.to_dict()['payload']['project_configuration'])
+                == canonical_json(historical.state.to_dict()['configuration']))
+        if value['result'] == 'semantic_noop':
+            if found is not None or not noop:
+                raise RecordsError('invalid-history')
+            return
+        if found is not None:
+            if found.result != 'conflict':
+                raise RecordsError('invalid-history')
+            return
+        try:
+            apply_event(historical.state, CanonicalEventRecord(event, 'f' * 40, observed))
+        except ReplayError:
+            return
+        if event.confirmed_canonical_oid is None or event.confirmed_canonical_oid == observed:
+            raise RecordsError('invalid-history')
+
+    def _historical_guards(self, snapshot, head):
+        """Historical coverage must use keys selected by its canonical source."""
+        def read(path):
+            raw = self.transport.read(self.binding.repo('coverage'), head, path)
+            value = decrypt_json_artifact(raw, expected_project_id=self.binding.project_id,
+                expected_identity=resolve_artifact_identity('coverage', 'coverage', path),
+                keys=snapshot.keys['coverage'])
+            return value, parse_canonical_json(raw)['kid']
+        source, kid = read('source.enc.json')
+        exact(source, {'canonical_sha', 'built_at', 'dracla_version', 'project_state', 'successor_project_id'},
+              category='invalid-history')
+        expected = self._kids_at(snapshot, source['canonical_sha'])['coverage']
+        if kid != expected:
+            raise RecordsError('invalid-key')
+        fence, fence_kid = read(FENCE)
+        marker, marker_kid = read(MARKER)
+        if fence_kid != expected or marker_kid != expected:
+            raise RecordsError('invalid-key')
+        return decode_decision_fence(canonical_json(fence)), decode_inflight_marker(canonical_json(marker))
+
+    def complete(self, state, *, projection_verified):
+        """Close only this exact owner's guards after projection readback.
+
+        Every input comes from recovery_state and every write is guarded by
+        the corresponding complete branch head. A racing canonical append
+        leaves the operation retained for another full reconciliation.
+        """
+        snapshot, cell, fence, marker, reference = (
+            state.snapshot, state.cell, state.fence, state.marker, state.reference)
+        if reference is None or state.mutation_fence is None:
+            raise RecordsError('invalid-history')
+        if self.transport.head(self.binding.repo('records'), 'events') != snapshot.events_oid:
+            raise HeadConflict('snapshot-changed')
+        coverage_head = snapshot.coverage_oid
+        if state.released_fence is None:
+            closed = close_inflight_marker(marker, fence, cell=cell,
+                prepared_reference=reference, projection_verified=projection_verified)
+            if closed.to_dict() != marker.to_dict():
+                coverage_head = self._write(snapshot, 'coverage', 'coverage', coverage_head,
+                                           {MARKER: closed.to_dict()})
+            fence, marker = self._guards(snapshot, coverage_head, cell=cell)
+            if cell.state == 'appending':
+                outcome = self._landed(snapshot, cell)
+                if outcome is None or outcome.result != 'landed':
+                    raise RecordsError('invalid-history')
+                v = cell.to_dict()
+                cell = terminal_operation(cell, operation_id=v['operation_id'],
+                    operation_sha256=v['operation_sha256'], fence=fence, marker=marker,
+                    prepared_reference=reference, result='landed',
+                    observed_events_head=snapshot.events_oid, canonical_commit=outcome.canonical_commit,
+                    projection_verified=projection_verified, readback_verified=True)
+                operation_head = self._write(snapshot, 'records', 'operations',
+                                            snapshot.operations_oid, {CELL: cell.to_dict()})
+                if self._cell(snapshot, operation_head).to_dict() != cell.to_dict():
+                    raise RecordsError('invalid-history')
+            else:
+                operation_head = snapshot.operations_oid
+            # The marker close and terminal cell have both been read back.
+            if self.transport.head(self.binding.repo('records'), 'events') != snapshot.events_oid:
+                raise HeadConflict('snapshot-changed')
+            released = release_mutation_fence(fence, state.mutation_fence, cell, marker,
+                prepared_reference=reference, projection_verified=projection_verified,
+                readback_verified=True)
+            coverage_head = self._write(snapshot, 'coverage', 'coverage', coverage_head,
+                                       {FENCE: released.to_dict()})
+            readback, marker = self._guards(snapshot, coverage_head, cell=cell)
+            if readback.to_dict() != released.to_dict():
+                raise RecordsError('invalid-history')
+        else:
+            operation_head, readback = snapshot.operations_oid, state.released_fence
+        cleared = clear_prepared_operation(cell, cell, mutation_fence=state.mutation_fence,
+            released_fence=readback, marker=marker, prepared_reference=reference)
+        head = self._write(snapshot, 'records', 'operations', operation_head, {CELL: cleared.to_dict()})
+        if self._cell(snapshot, head).to_dict() != cleared.to_dict():
+            raise RecordsError('invalid-history')
+        return head
 
     def begin(self, reference, *, subjects, project_wide, started_at):
         """Acquire the exact M1 fence, then open its marker at a fresh CAS head."""
@@ -268,7 +552,14 @@ class MutationEngine:
                 continue
             if record.event.operation_sha256 != event.operation_sha256:
                 return AppendOutcome('conflict', snapshot.events_oid)
-            if canonical_json(record.event.to_dict()) != canonical_json(event.to_dict()):
+            # recorded_at, dracla_version, actor login snapshots and
+            # action-time authorization observations are mutable metadata. The
+            # validated identity tuple is the operation boundary; preserve
+            # the already-authenticated canonical event rather than requiring
+            # a byte-identical retry package.
+            if (record.event.event_id, record.event.idempotency_key,
+                    record.event.operation_sha256) != (event.event_id,
+                    event.idempotency_key, event.operation_sha256):
                 raise RecordsError('invalid-history')
             for artifact in frozen['side_artifacts']:
                 # open_history verifies the complete deterministic generation
@@ -285,6 +576,34 @@ class MutationEngine:
                     raise RecordsError('invalid-history')
             return AppendOutcome('landed', snapshot.events_oid, record.commit_oid)
         return None
+
+    def _claim_discovered_landed(self, snapshot, cell, fence, marker, reference, found):
+        """Record the legal append-right transition for an already-landed event.
+
+        A duplicate prepared package has no append claim of its own, but its
+        matching canonical event proves that the original append already
+        succeeded. Claim the prepared cell as appending before projection
+        completion so M1 can perform the normal marker-close, terminal and
+        fence-release sequence. The claim binds the original event's actual
+        parent; it never creates another canonical commit.
+        """
+        if found.canonical_commit is None:
+            raise RecordsError('invalid-history')
+        landed = next((record for record in snapshot.records
+                       if record.commit_oid == found.canonical_commit), None)
+        if landed is None:
+            raise RecordsError('invalid-history')
+        value = cell.to_dict()
+        claimed = claim_append(cell, operation_id=value['operation_id'],
+            operation_sha256=value['operation_sha256'], fence=fence, marker=marker,
+            prepared_reference=reference, append_head=landed.parent_oid,
+            expected_append_claim=value.get('append_claim'), max_prepared_operation_bytes=self.limit)
+        if claimed.to_dict() == value:
+            return
+        head = self._write(snapshot, 'records', 'operations', snapshot.operations_oid,
+                           {CELL: claimed.to_dict()})
+        if self._cell(snapshot, head).to_dict() != claimed.to_dict():
+            raise RecordsError('invalid-history')
 
     def _terminal_absent(self, snapshot, cell, fence, marker, reference, result):
         value = cell.to_dict()
@@ -319,6 +638,12 @@ class MutationEngine:
                     raise RecordsError('invalid-history')
                 if found.result == 'conflict':
                     return self._terminal_absent(snapshot, cell, fence, marker, reference, 'conflict')
+                if found.result == 'landed' and cell.state == 'prepared':
+                    try:
+                        self._claim_discovered_landed(snapshot, cell, fence, marker, reference, found)
+                    except (HeadConflict, IndeterminateWrite):
+                        self.sleep(self.jitter(attempt))
+                        continue
                 return found
             event = parse_event_jcs(base64url_decode(cell.to_dict()['event_jcs_b64']))
             noop = (snapshot.state.project_state == 'active' and event.type == 'config_updated'
