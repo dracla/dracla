@@ -215,3 +215,25 @@ request or create a hosted endpoint. M3/3 owns reconciliation and projection
 completion; a landed append deliberately leaves the appending cell and open
 marker for that completion. The restricted live App CAS/append gate remains
 required before production use; deterministic fixtures do not satisfy it.
+
+## M3 explicit exports
+
+| Slice | Claim | Evidence | Status |
+|---|---|---|---|
+| m3/4.1 | Current and complete ancestry-history exports use the authenticated canonical reader and public replay facts; exact version-1 JSON/CSV preserve nested evidence, neutralize textual CSV formulas and retain explicit metadata for empty output | `core.tests.test_records_4.TestExportRendering`; byte/JCS/CSV vectors, current/reference status and login parity, cutoff evidence, pre-agreement exemptions, mutation/success observations and private-shard-cap independence | Focused tests pass |
+| m3/4.1 | Current numeric reader authority governs historical selections; individual/snapshot sources preserve union semantics and continuous membership is freshly read again even at unchanged canonical head | `TestExportAuthorization`; actual numeric GitHub route, pagination/input bounds, departure/uncertainty, snapshot/individual grants, withdrawal during final identity read and retry denial | Focused tests pass |
+| m3/4.1 | Explicit local outputs stream into exclusive owner-private files and publish without overwrite; unsafe/existing/aliased paths and handled render/disk/publication failures are non-success | `TestLocalExports`; umask022, symlinks/hardlinks/FIFO/directories, parent replacement, stage identity checks, unrelated replacement preservation, cleanup and 4MiB streaming beyond hosted limits | Focused tests pass |
+| m3/4.1 | Hosted jobs authenticate protected request identity before keys and again at the output gate, then atomically write only a bounded encrypted pair; reuse validates original immutable O/V while rechecking current reader authority | `TestHostedExports`; concrete encrypted REST/GraphQL fixture, exact request/schema binding, changed principal, partial/corrupt/conflicting pairs, later heads, CAS conflict, lost reply and indeterminate response | Focused tests pass |
+| m3/4.1 | Hosted plaintext, encrypted-envelope/pair and record bounds are inclusive and enforced before writes | `TestHostedExports.test_plaintext_record_and_serialized_envelope_bounds_are_inclusive`; per-format byte sink limit−1/limit/limit+1, actual serialized envelope/pair boundaries and record boundaries | Focused tests pass; these are deterministic bounds, not measured production capacity |
+| m3/4.1 | The real command validates closed options before keys, authenticates operator/repositories before recovery prompting, exports without hosted service or repository writes and returns only redacted receipts/errors | `TestExportCommand`; default credential/key composition, malformed options, error exits, actual isolated installed-wheel command and hosted API | Focused tests pass |
+| m3/4.1 | Every executable statement and branch in the new export module is reached by focused tests | `PYTHONPATH=core .venv/bin/python -m coverage run --data-file=/tmp/dracla-m3-4-1-round2.coverage --branch --source=dracla.records.exports,dracla.cli.app,dracla.cli.config -m unittest core.tests.test_records_4 -q`; 52 tests; `exports.py` 100% statements and branches, including restrictive-umask, cleanup-error, literal contract-vector and mutable-request corrections | Focused coverage passes |
+| m3/4.1 | Complete Python/vector/TypeScript/package validation passes; independent general/DBB code review remains required | `conformance/gate.py`; exact-target review/validation receipts retained by delivery; Python/TypeScript shared receipt counts1056/1025 | Full gate passed; current code reviews pending |
+
+The payload and job contract is the owner-approved M3 LLD §6.1. The original
+unstarted m3/4 remains replaced in issued history; m3/4.1 owns the same export
+behavior plus its four approved contract/review paths. Existing M3 live transport,
+protected production workflow and authentic release gates remain in m3/5–6.
+M5 owns the actual hosted request adapter, download authorization and endpoint;
+the fixture adapter does not complete those integration obligations. Local
+exports do not depend on that service. Owner-moved/replaced files are not removed
+through path-based cleanup; abrupt process death can leave a private staging file.

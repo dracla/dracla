@@ -106,3 +106,34 @@ def compose_reconcile(overrides: list[str]):
         return compose_verify(overrides)
     except ConfigError:
         raise ConfigError('Reconcile requires exact project, owner and three repository identities') from None
+
+
+def compose_export(arguments: list[str]):
+    """Parse explicit output options before any credential or recovery-key read."""
+    import os
+    from dracla.records.exports import _selection
+
+    options, overrides = {}, []
+    names = {'--json': 'json_path', '--csv': 'csv_path', '--view': 'view', '--at': 'source_events_oid'}
+    try:
+        cursor = iter(arguments)
+        for argument in cursor:
+            if argument in names:
+                key = names[argument]
+                value = next(cursor)
+                if key in options or not value or value.startswith('--'):
+                    raise ValueError()
+                options[key] = value
+            elif argument.startswith('-'):
+                raise ValueError()
+            else:
+                overrides.append(argument)
+        options.setdefault('view', 'current')
+        _selection(options['view'], options.get('source_events_oid'))
+        paths = [options[k] for k in ('json_path', 'csv_path') if k in options]
+        if (not paths or '-' in paths or any('..' in value.split(os.sep) for value in paths)
+                or len({os.path.abspath(value) for value in paths}) != len(paths)):
+            raise ValueError()
+        return compose_verify(overrides), options
+    except Exception:
+        raise ConfigError('Export requires explicit private destinations, valid view/source and exact project identities') from None
