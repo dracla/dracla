@@ -246,3 +246,61 @@ a fixed reason; an unexpected internal failure exits 1. Output contains only
 source OIDs and redacted status. Local recovery material does not grant reader
 authority or plaintext export permission. Live scoped-write and release-provenance
 tests remain production gates.
+
+## Explicit private exports
+
+Create a private directory, then select the output formats and the same exact
+project/repository identities used by `verify`:
+
+```sh
+mkdir -m 700 private-export
+dracla export --json private-export/current.json --csv private-export/current.csv project.id=project-1 github.owner=acme github.owner_id=10 records.name=records records.id=11 coverage.name=coverage coverage.id=12 control.name=control control.id=13
+```
+
+`--json PATH` and/or `--csv PATH` are required. Destinations must not exist.
+The command rejects stdout (`-`), symlinks, hard links, shared parent
+directories and aliases. It creates exclusive mode-`0600` staging files,
+streams each format, flushes and syncs, then publishes without replacing
+existing files. A handled failure removes only the files created by that
+attempt, by held file identity. A killed process can leave a private staging
+file; it is not a completed export and requires explicit operator cleanup.
+
+`--view current` is the default. It exports the latest contributor status and
+its acceptance, cutoff revocation and active exemption evidence. It records
+the exact canonical source and operation/coverage observation used for status.
+An in-flight mutation can make a row indeterminate. A succeeded project requires
+`--view history`. `--view history` exports every authenticated canonical event
+in ancestry order. Add `--at FULL_EVENTS_OID` only with history to select a
+connected canonical prefix. Selection does not restore old reader authority.
+
+The command authenticates the numeric GitHub operator and requires a current
+canonical reader source. Recovery material and repository administration alone
+do not authorize plaintext. Continuous sources require fresh exact team
+membership through that operator's credential, repeated before output even
+when the canonical head is unchanged. An independent individual or snapshot
+source preserves the existing authorization union. No hosted service, App
+Members permission, control-repository access or repository write is needed.
+
+JSON is exact RFC 8785 UTF-8, version 1, with no BOM or trailing newline.
+CSV has the fixed 19-column version-1 layout and a mandatory metadata row,
+including empty exports. Text data cells have one added leading apostrophe
+before normal CSV quoting. Remove exactly that prefix to recover original text;
+do not trim, evaluate formulas or remove original apostrophes. Nested evidence
+and context cells contain canonical JSON. Numeric IDs remain numeric. See the
+exact field contract in `design/lld/m3-control-reconciler.md` §6.1.
+
+Success exits 0 and prints only the source OID and view. Invalid input,
+authorization, conflicts or unavailable evidence exit 2. Rendering or filesystem
+failure exits 1. Output never contains signer fields, tokens, keys or plaintext
+export data. Local output streams beyond hosted-job limits within the ordinary
+authenticated input and filesystem limits.
+
+The Python API `dracla.records.exports.export_hosted` accepts only an explicit
+version-1 request and a protected request/membership authority adapter. It
+conditionally publishes both encrypted formats under the request ID and
+authenticates an existing pair before exact reuse. It keeps original snapshot
+observations while rechecking current reader authority. Each plaintext format
+is limited to 383,000 bytes and 10,000 records; encrypted envelopes and their
+pair have independent 512,000/1,024,000-byte limits. Missing adapters, conflicting
+reuse and overflow produce no new pair. Actual M5 request/download authorization,
+protected production workflows and live capacity/release evidence remain gates.
