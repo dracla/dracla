@@ -7,12 +7,14 @@ from typing import Callable, TextIO
 from dracla.administration import Administration, AdminScope, discover
 from dracla.github_admin import GitHubAdministration, credentials_from_environment
 from dracla.provisioning import administration_scope, plan_install
-from .config import ConfigError, compose_install, compose_verify, compose_reconcile, prompt_recovery_keys
+from .config import ConfigError, compose_install, compose_verify, compose_reconcile, compose_export, prompt_recovery_keys
 from .release import ReleaseError, ReleaseIdentity, load_release_policy
 
 _HELP = ("Usage: dracla install github.owner=LOGIN [project.slug=SLUG] [dry_run=true] [force=true]\n"
          "       dracla {verify|reconcile} project.id=ID github.owner=LOGIN github.owner_id=ID "
-         "records.name=NAME records.id=ID coverage.name=NAME coverage.id=ID control.name=NAME control.id=ID")
+         "records.name=NAME records.id=ID coverage.name=NAME coverage.id=ID control.name=NAME control.id=ID\n"
+         "       dracla export --json PRIVATE_PATH [--csv PRIVATE_PATH] [--view current|history] "
+         "[--at FULL_EVENTS_OID] <same project and repository identities>; --json and/or --csv required")
 
 
 def main(argv: list[str] | None = None, *, release_loader: Callable[[], ReleaseIdentity] = load_release_policy,
@@ -128,5 +130,33 @@ def _reconcile(args, out, release_loader, credential_provider, admin_factory, *,
         return 1
 
 
+def _export(args, out, release_loader, credential_provider, admin_factory, *, verify_factory=None):
+    from functools import cache
+    from dracla.records import OperatorCredentials, RecordsError, RepositoryTransport, WrappedKeys
+    from dracla.records.exports import ExportError, export_local
+
+    try:
+        binding, options = compose_export(args)
+        release_loader()
+        keys, transport = (verify_factory(binding) if verify_factory is not None else
+            (WrappedKeys('recovery', cache(prompt_recovery_keys)),
+             RepositoryTransport(OperatorCredentials(credential_provider))))
+        report = export_local(binding, keys, transport, **options)
+        print('Export complete; source events: ' + report.source_events_oid + '; view: ' + report.view, file=out)
+        return 0
+    except (ConfigError, ReleaseError) as error:
+        print(str(error), file=out)
+        return 2
+    except ExportError as error:
+        print('Export unavailable: ' + error.reason, file=out)
+        return 1 if error.reason in ('export-io-failure', 'export-render-failure') else 2
+    except RecordsError as error:
+        print('Export unavailable: ' + error.category, file=out)
+        return 2
+    except Exception:
+        print('Export unavailable.', file=out)
+        return 1
+
+
 # Keep the public command surface tied to actual handlers.
-_COMMANDS = {"install": _install, "verify": _verify, "reconcile": _reconcile}
+_COMMANDS = {"install": _install, "verify": _verify, "reconcile": _reconcile, "export": _export}
