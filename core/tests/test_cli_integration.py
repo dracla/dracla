@@ -85,7 +85,7 @@ with ExitStack() as stack:
             result=main(['install','github.owner=acme']+flags,output=out,admin_factory=factory)
             text=out.getvalue()
             assert result==(0 if mode=='absent' and 'dry_run=true' in flags else 2),text
-            assert 'SECRET' not in text and 'This deploy key is an integrity credential' in text
+            assert 'SECRET' not in text and 'The transport App key is an integrity credential' in text
             assert 'hosted operator' in text and 'M6; blocked' in text
             if mode=='collision': assert 'provenance verifier unavailable' in text
             assert len(calls)>start

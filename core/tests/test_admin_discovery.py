@@ -398,7 +398,7 @@ class CliDiscoveryTests(unittest.TestCase):
                 result = main(args, release_loader=ReleaseFixture().load, admin_factory=fixture.adapter, output=output)
                 self.assertEqual(result, 0 if dry else 2)
                 self.assertIn("Owner ID: 7", output.getvalue())
-                self.assertIn("This deploy key is an integrity credential", output.getvalue())
+                self.assertIn("The transport App key is an integrity credential", output.getvalue())
                 self.assertIn("hosted operator", output.getvalue())
                 self.assertIn("M6; blocked", output.getvalue())
                 self.assertNotIn("PRIVATE-TOKEN", output.getvalue())
