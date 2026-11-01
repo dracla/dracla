@@ -200,10 +200,11 @@ def plan_install(config: InstallInput, release: ReleaseDeclarations, discovery: 
         ("Release metadata is declared by the executing package; it is not independent proof of that package.",
          "A plan does not mean installed, connected, signable or routable.",
          "Repository names alone never prove project ownership or permission to reuse.",
-         "This deploy key is an integrity credential. Anyone who obtains it can read "
-         "encrypted repository data and can rewrite, delete, roll back, or replay that "
-         "data, which may affect CLA check results. This deploy key cannot decrypt CLA "
-         "records by itself.",
+         "The transport App key is an integrity credential. Anyone who obtains it can mint "
+         "installation tokens that read encrypted repository data and rewrite, delete, roll back, "
+         "or replay that data in every assigned arrangement. This may affect CLA check results. "
+         "The App key cannot decrypt CLA records by itself. The transport App must not have "
+         "write access to control repositories.",
          "People and workflows able to use control Actions secrets are integrity controllers.",
          "The hosted operator controls wrapping roots and is trusted for signer confidentiality and integrity."),
         _release(release),
