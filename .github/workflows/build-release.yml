@@ -1,0 +1,55 @@
+name: DraCLA immutable wheel builder
+on:
+  workflow_call:
+    inputs:
+      source-oid:
+        type: string
+        required: true
+permissions: {}
+jobs:
+  wheel:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.source-oid }}
+          persist-credentials: false
+      - name: Validate source and immutable container selector
+        env:
+          SOURCE_OID: ${{ inputs.source-oid }}
+          WORKFLOW_OID: ${{ github.sha }}
+        run: |
+          python3 -c 'import json,os,re; s=os.environ["SOURCE_OID"]; assert re.fullmatch("[0-9a-f]{40}",s) and s==os.environ["WORKFLOW_OID"]; b=json.load(open("release/build-inputs.lock.json")); assert b["container"]=="python@sha256:623674a14ef93d052bb9b0de4dbf5f28eb578a35263838941cc8aa43213c1487"'
+      - name: Download and hash all locked inputs without invoking packages
+        run: |
+          mkdir "$RUNNER_TEMP/dracla-inputs"
+          docker run --rm -v "$GITHUB_WORKSPACE:/source:ro" -v "$RUNNER_TEMP/dracla-inputs:/staging" python@sha256:623674a14ef93d052bb9b0de4dbf5f28eb578a35263838941cc8aa43213c1487 sh -ec 'python -I /source/control/verify_release.py fetch-inputs; cp -a /inputs/. /staging/'
+      - name: Build and test offline using only locked wheels
+        env:
+          DRACLA_SOURCE_OID: ${{ inputs.source-oid }}
+          DRACLA_WORKFLOW_OID: ${{ github.sha }}
+          DRACLA_SOURCE_REPOSITORY: ${{ github.repository }}
+          DRACLA_SOURCE_REF: ${{ github.ref }}
+          DRACLA_WORKFLOW_REF: ${{ github.workflow_ref }}
+          DRACLA_EVENT_NAME: ${{ github.event_name }}
+          DRACLA_REPOSITORY_ID: ${{ github.repository_id }}
+          DRACLA_REPOSITORY_OWNER_ID: ${{ github.repository_owner_id }}
+          DRACLA_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          mkdir "$RUNNER_TEMP/dracla-wheel"
+          docker run --rm --network none -e DRACLA_SOURCE_OID -e DRACLA_WORKFLOW_OID -e DRACLA_SOURCE_REPOSITORY -e DRACLA_SOURCE_REF -e DRACLA_WORKFLOW_REF -e DRACLA_EVENT_NAME -e DRACLA_REPOSITORY_ID -e DRACLA_REPOSITORY_OWNER_ID -e DRACLA_RUNNER_ENVIRONMENT -v "$GITHUB_WORKSPACE:/source:ro" -v "$RUNNER_TEMP/dracla-inputs:/inputs:ro" -v "$RUNNER_TEMP/dracla-wheel:/output" python@sha256:623674a14ef93d052bb9b0de4dbf5f28eb578a35263838941cc8aa43213c1487 sh -ec 'python -I -m pip --isolated install --no-index --no-deps --only-binary=:all: --require-hashes --no-compile -r /inputs/tools.requirements; python -I /source/control/verify_release.py produce'
+      - name: Attest the exact built wheel and consumed input set
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: ${{ runner.temp }}/dracla-wheel/*.whl
+          predicate-type: https://slsa.dev/provenance/v1
+          predicate-path: ${{ runner.temp }}/dracla-wheel/provenance.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dracla-release-wheel
+          path: ${{ runner.temp }}/dracla-wheel/*
+          if-no-files-found: error

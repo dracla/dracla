@@ -242,15 +242,140 @@ administrator action and updates to each affected protected configuration.
 Routine data tokens are short lived and restricted to the current arrangement.
 They are renewed from returned expiry and never persisted. Probe writes use
 fixed non-private data on temporary branches, never the canonical events branch.
+The protected job revokes its known inventory and data tokens on exit. A cleanup
+failure fails the job. This is not proof that unknown tokens are inactive.
+
+### Verified control execution
+
+`control/reconcile.yml` is the private control repository's workflow template.
+Copy it to `.github/workflows/reconcile.yml`. Protect that workflow, the control
+configuration, the bootstrap image variable and the repository secrets from
+contributing users and from the transport App. The baseline uses repository-
+scoped Actions secrets, not a deployment environment, so a private repository
+in a GitHub Free organization does not require a paid environment feature.
+Review actions and bootstrap image updates before enabling secrets. No record,
+coverage file or dispatch payload selects executable code.
+
+Only trusted adopter administrators may write control. Set the organization
+base permission to read (or none), grant write or admin access only through a
+dedicated trusted-administrator team, and audit this repository's inherited
+team grants and direct collaborator grants. Every account with control write
+access is a trusted key-bearing-code administrator. Contributors and event
+Apps have no control contents write access. The job admits only the
+private repository's default-branch workflow and checks its exact workflow
+identity before checkout; it then checks out `github.workflow_sha`. Manual
+dispatch from another branch or tag, a foreign workflow, missing context or
+malformed fixed inputs fails before the secret step. Private branch rules and
+required environment approvals are not the authority on GitHub Free. Team or
+Enterprise environment and branch protections may be added as optional
+hardening, but the baseline does not depend on them.
+
+Set `DRACLA_BOOTSTRAP_IMAGE` to the reviewed OCI image **digest**, not a tag.
+The image is built by `.github/workflows/bootstrap-image.yml` using the pinned
+base, Python, tool wheels, CLI archive and trusted-root snapshot in
+`release/build-inputs.lock.json`. Review its published provenance before
+installing that digest. The digest is an adopter-approved trust anchor; the
+container cannot authenticate itself by printing its own version or digest.
+No bootstrap tool or trust-root update occurs during a key-bearing job.
+The image installs the bootstrap tool closure, including the pinned Snappy
+decoder for GitHub's public attestation bundle URLs. Bundle downloads receive
+no credentials and remain subject to signature and identity verification.
+The wheel builder installs the build-tool closure and the exact runtime
+dependencies needed by its packaging-test subprocesses. Its separate checked
+production installation receives only the runtime closure and DraCLA wheel.
+These sets use the same locked bytes where a wheel is shared.
+
+Create the protected `control/production-profile.json` using
+`control/production-profile.schema.json` and LLD §3.1. All identities are
+required. Select the actual reviewed source commit, publisher and reusable
+builder identities, release ref, exact wheel hash, both lock hashes, bootstrap
+image digest and root snapshot hash. The supported profile is CPython 3.12.16,
+CPython ABI `cp312`, Debian bookworm x86-64 (`manylinux_2_36_x86_64`). This is a
+tested profile selection, not an automatic upgrade policy. Unsupported profiles,
+mutable selectors, placeholders and unknown fields fail closed. Do not invent
+pins from an example, a package version or an earlier successful workflow flag.
+
+The release producer uses the same-commit reusable builder, downloads and hashes
+the locked wheel inputs, then disables container networking before installing
+tools and building. It assembles the M2 policy and version constraints from the
+actual source context and runtime lock. It builds one wheel without isolation
+or resolution, tests that installed wheel, and attests the exact subject with
+standard SLSA v1 provenance. The publisher sends that same wheel to PyPI with
+its standard publish attestation. Publication needs the separate protected
+`pypi-release` environment and PyPI Trusted Publisher configuration. Adding the
+workflow files does not publish a release or create a Trusted Publisher.
+
+Before either App or wrapping secret is supplied, the external checker verifies
+the live numeric source repository ID, exact wheel/dependency hashes, publisher,
+source and reusable builder identities, witnessed log inclusion and the complete
+declared build input set. It converts the public PyPI format to a standard
+Sigstore bundle and verifies it with the pinned CLI and roots. A publish
+attestation alone fails. The checker installs only those wheels offline with
+hashes, no dependencies, no build and no resolver.
+
+The key-bearing step re-verifies evidence and derives the installed file map
+from the verified wheels and pinned pip's generated files. It rejects changed
+or additional files, links and executable paths. It then starts isolated Python
+with only that installed environment. The installed `RECORD` and a workflow
+success flag cannot authorize different bytes. The environment and wheelhouse
+stay in the same protected workspace; no workflow artifact transfers this trust.
+
+The adopter's protected `control/control-binding.json` has exactly these fields:
+
+| Field | Value |
+|---|---|
+| `control_version` | Integer `1` |
+| `project` | Exact `project_id`, numeric `owner_id`, ordered `repositories` objects with `role`, `owner`, `name`, `id` for records, coverage and control |
+| `installation` | Exact `app_id`, `client_id`, `installation_id`, `owner_id`, `assignments` and `excluded_repository_ids` |
+| `assignments` entries | Objects containing `project_id` and the ordered pair `repository_ids` for records and coverage |
+| `keyrings` | Immutable key-commit OID to base64-encoded protected control keyring; include the required historical copies |
+| `export_request` | `null` for verify/reconcile; otherwise only the closed LLD §6.1 request |
+
+Configure `DRACLA_TRANSPORT_APP_KEY` and `DRACLA_CONTROL_KEYS` as repository-
+scoped Actions secrets in the private control repository. Do not place these
+baseline secrets in a deployment environment. The first is the App PEM key.
+The second is a JSON object mapping control wrapping generations to 64
+lowercase hexadecimal characters. The job validates the complete App
+installation before reading wrapping keys. This guide does not authorize an
+installer to provision secrets or resources.
+
+`verify` and `reconcile` call the existing M3 engines. The export engine still
+requires M5's authenticated request and membership adapter. The template fails
+closed for export until that adapter is integrated; it does not use a transport
+token, administrator status or recovery access as reader authority. No export
+plaintext goes to logs or workflow artifacts.
+
+The template also runs reconciliation daily at 03:17 UTC as the missed-dispatch
+backstop. Its explicit `probe` operation first verifies the App assignment, then
+writes fixed non-private markers on unique `dracla-probe/` branches in the two
+data repositories. It verifies whole-commit readback and removes each temporary
+ref with GitHub's `updateRefs` exact-head precondition. A competing writer leaves
+its branch intact and fails the probe. Lost acknowledgements use readback, not
+blind replay. Canonical refs and live coverage are not probe destinations.
+After cleanup, the probe runs the real authenticated verification engine and
+revokes known credentials before emitting a non-private receipt. That receipt
+binds repository/App/installation IDs, release policy, source commit and actual
+protected control workflow identity. This capability challenge does not replace
+the separately authorized A6 rotation and unknown-token incident exercises.
+
+Keep the last verified profile, image, wheel and locks for explicit rollback.
+Verify the selected rollback artifacts with the same gate before releasing
+keys. Never roll back or rewrite canonical events as part of package rollback.
+Authentic DraCLA build/publish evidence and the least-privilege live transport,
+CAS, expiry, rotation and unknown-token containment probes remain production
+gates. Deterministic fixtures and a locally built image do not close them.
 
 ### Rotation and incident response
 
 Stage and verify a successor key in every assigned control repository before
 retiring a predecessor during routine rotation. App keys do not automatically
 expire. During suspected key compromise, stop every affected arrangement's
-routes. Remove the exposed key's minting ability and invalidate all potentially
-issued tokens, or wait through their maximum lifetime after verified revocation,
-including the live-tested safety margin. Revoking only known tokens is
+routes. Remove the exposed key's minting ability and establish the last possible
+issuance, including outstanding signed authentication requests. Permanently
+invalidate every potentially issued token, or wait from that last possible
+issuance through the maximum token lifetime plus the live-tested safety margin.
+Temporary suspension alone does not prove invalidation after service resumes.
+If those facts cannot be established, keep the routes closed. Revoking only known tokens is
 insufficient when an attacker could have minted unknown ones. Do not resume
 routes merely because a replacement key works. Verify scope, trusted backup
 heads and authenticated replay; repair projections and recheck open pull

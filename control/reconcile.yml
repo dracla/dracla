@@ -1,0 +1,71 @@
+# Copy to .github/workflows/reconcile.yml in the adopter's PRIVATE control repo.
+# Protect this workflow, control configuration and image variable.
+name: DraCLA verified control
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      command:
+        type: choice
+        options: [verify, reconcile, export, probe]
+        default: verify
+        required: true
+permissions:
+  contents: read
+jobs:
+  control:
+    # GitHub evaluates this BEFORE starting the container. Docker then enforces
+    # the complete OCI digest syntax; a tag cannot start verifier code.
+    if: >-
+      ${{ github.event.repository.private == true && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.workflow_ref == format('{0}/.github/workflows/reconcile.yml@{1}', github.repository, github.ref) && contains(vars.DRACLA_BOOTSTRAP_IMAGE, '@sha256:') && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["verify","reconcile","export","probe"]'), inputs.command))) }}
+    runs-on: ubuntu-24.04
+    container:
+      # Required adopter-approved OCI digest; no default or mutable tag.
+      image: ${{ vars.DRACLA_BOOTSTRAP_IMAGE }}
+    steps:
+      - name: Validate trusted control workflow context
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          COMMAND: ${{ github.event_name == 'schedule' && 'reconcile' || inputs.command }}
+          IMAGE: ${{ vars.DRACLA_BOOTSTRAP_IMAGE }}
+        shell: sh
+        run: |
+          set -eu
+          test "$REPOSITORY_PRIVATE" = true
+          case "$EVENT_NAME" in schedule|workflow_dispatch) ;; *) exit 1;; esac
+          test -n "$DEFAULT_BRANCH"
+          test "$REF" = "refs/heads/$DEFAULT_BRANCH"
+          test "$WORKFLOW_REF" = "$REPOSITORY/.github/workflows/reconcile.yml@$REF"
+          printf '%s' "$WORKFLOW_SHA" | grep -Eq '^[0-9a-f]{40}$'
+          case "$COMMAND" in verify|reconcile|export|probe) ;; *) exit 1;; esac
+          printf '%s' "$IMAGE" | grep -Eq '^[a-z0-9][a-z0-9._:/-]*@sha256:[0-9a-f]{64}$'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+      - name: Validate fixed dispatch and protected image selector
+        env:
+          IMAGE: ${{ vars.DRACLA_BOOTSTRAP_IMAGE }}
+        shell: sh
+        run: |
+          /usr/local/bin/python -I -c 'import json,os,re; p=json.load(open("control/production-profile.json")); i=os.environ["IMAGE"]; assert re.fullmatch(r"[a-z0-9][a-z0-9._:/-]*@sha256:[0-9a-f]{64}",i) and p["bootstrap"]["image"]==i'
+      - name: Verify evidence and install exact bytes without secrets
+        shell: sh
+        run: /opt/dracla/verify-release.sh prepare --profile "$GITHUB_WORKSPACE/control/production-profile.json" --state "$RUNNER_TEMP/dracla-verified"
+      - name: Recheck installed bytes, then invoke the fixed engine
+        env:
+          DRACLA_TRANSPORT_APP_KEY: ${{ secrets.DRACLA_TRANSPORT_APP_KEY }}
+          DRACLA_CONTROL_KEYS: ${{ secrets.DRACLA_CONTROL_KEYS }}
+          COMMAND: ${{ github.event_name == 'schedule' && 'reconcile' || inputs.command }}
+          DRACLA_CONTROL_REPOSITORY_ID: ${{ github.repository_id }}
+          DRACLA_CONTROL_WORKFLOW_REF: ${{ github.workflow_ref }}
+          DRACLA_CONTROL_WORKFLOW_OID: ${{ github.workflow_sha }}
+        shell: sh
+        run: /opt/dracla/verify-release.sh launch --profile "$GITHUB_WORKSPACE/control/production-profile.json" --state "$RUNNER_TEMP/dracla-verified" --configuration "$GITHUB_WORKSPACE/control/control-binding.json" --command "$COMMAND"
