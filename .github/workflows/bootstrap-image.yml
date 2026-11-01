@@ -1,0 +1,35 @@
+name: DraCLA pinned external bootstrap image
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    environment: bootstrap-release
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build locked bootstrap tools and root snapshot
+        run: docker build --tag "ghcr.io/${GITHUB_REPOSITORY}/bootstrap:${GITHUB_SHA}" --file control/bootstrap.Dockerfile .
+      - name: Publish the immutable image
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "ghcr.io/${GITHUB_REPOSITORY}/bootstrap:${GITHUB_SHA}"
+          docker image inspect "ghcr.io/${GITHUB_REPOSITORY}/bootstrap:${GITHUB_SHA}" --format '{{index .RepoDigests 0}}' > image-identity.txt
+      - id: image
+        name: Resolve published digest
+        run: |
+          python3 -c 'import os,re; s=open("image-identity.txt").read().strip(); assert re.fullmatch(r"[a-z0-9][a-z0-9._:/-]*@sha256:[0-9a-f]{64}",s); n,d=s.split("@"); open(os.environ["GITHUB_OUTPUT"],"a").write("name="+n+"\ndigest="+d+"\n")'
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-name: ${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true

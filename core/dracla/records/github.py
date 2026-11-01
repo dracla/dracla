@@ -16,6 +16,10 @@ from .credentials import (AuthorizationFailure, ProjectBinding, RecordsError,
                           opaque_token, request_json, unique_json)
 from dracla.github_admin import API_ORIGIN, API_VERSION, HttpResponse
 
+_PROBE_BRANCH = re.compile(r'dracla-probe/(?:[0-9a-f]{40}|[0-9a-f]{64})-[0-9a-f]{32}')
+_CONTROL_LABELS = {'verify': 'Verification', 'reconcile': 'Reconciliation',
+                   'export': 'Export', 'probe': 'Probe'}
+
 
 class HeadConflict(RecordsError):
     """A definite rejected conditional write; read again before recomputing."""
@@ -27,6 +31,151 @@ class IndeterminateWrite(RecordsError):
 
 class RejectedWrite(RecordsError):
     """A definite provider rejection, with no provider text in diagnostics."""
+
+
+def control_job(configuration, operation):
+    """Fixed protected-workflow entry point, after external artifact validation.
+
+    Configuration is adopter-controlled. Records and coverage cannot select it.
+    M5's authenticated hosted-export adapter remains a separate integration gate.
+    """
+    import os
+    import stat
+    from datetime import datetime, timezone
+    from .credentials import InstallationBinding, InstallationCredentials
+    from .history import WrappedKeys, verify_project
+    from .reconcile import reconcile_project
+    from .exports import export_hosted, ExportError
+    from dracla.cli.release import load_release_policy
+    credentials = None
+    try:
+        if operation not in ('verify', 'reconcile', 'export', 'probe'):
+            raise RecordsError('invalid-configuration')
+        fd = os.open(configuration, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 1024 * 1024:
+                raise RecordsError('invalid-configuration')
+            config = unique_json(stream.read(1024 * 1024 + 1))
+        if type(config) is not dict or set(config) != {'control_version', 'project', 'installation', 'keyrings', 'export_request'}:
+            raise RecordsError('invalid-configuration')
+        if type(config['control_version']) is not int or config['control_version'] != 1:
+            raise RecordsError('invalid-configuration')
+        project = config['project']
+        if type(project) is not dict or set(project) != {'project_id', 'owner_id', 'repositories'}:
+            raise RecordsError('invalid-configuration')
+        repositories = project['repositories']
+        if type(repositories) is not list or any(type(r) is not dict or set(r) != {'role', 'owner', 'name', 'id'} for r in repositories):
+            raise RecordsError('invalid-configuration')
+        binding = ProjectBinding(project['project_id'], project['owner_id'], tuple(RepositoryRef(**r) for r in repositories))
+        install = config['installation']
+        if type(install) is not dict or set(install) != {'app_id', 'client_id', 'installation_id', 'owner_id', 'assignments', 'excluded_repository_ids'}:
+            raise RecordsError('invalid-configuration')
+        assignments = tuple((a['project_id'], tuple(a['repository_ids'])) for a in install['assignments']
+                            if type(a) is dict and set(a) == {'project_id', 'repository_ids'})
+        if len(assignments) != len(install['assignments']):
+            raise RecordsError('invalid-configuration')
+        protected = InstallationBinding(install['app_id'], install['client_id'], install['installation_id'],
+            install['owner_id'], assignments, tuple(install['excluded_repository_ids']))
+        execution_repository_id = os.environ.get('DRACLA_CONTROL_REPOSITORY_ID')
+        if (type(execution_repository_id) is not str
+                or re.fullmatch(r'[1-9][0-9]*', execution_repository_id) is None):
+            raise RecordsError('identity-mismatch')
+        try:
+            execution_repository_id = numeric_id(int(execution_repository_id))
+        except (ValueError, OverflowError):
+            raise RecordsError('identity-mismatch') from None
+        if execution_repository_id != binding.repo('control').id:
+            raise RecordsError('identity-mismatch')
+        if type(config['keyrings']) is not dict or not config['keyrings']:
+            raise RecordsError('invalid-configuration')
+        rings = {object_id(oid): base64.b64decode(raw, validate=True) for oid, raw in config['keyrings'].items()}
+        if operation == 'export':
+            # Missing M5 authority fails before history/key access. Never use a
+            # transport token or an operator PAT as hosted reader authority.
+            export_hosted(binding, None, None, config['export_request'], authority=None)
+            raise RecordsError('invalid-configuration')
+        if config['export_request'] is not None:
+            raise RecordsError('invalid-configuration')
+        release = load_release_policy()
+        workflow = None
+        if operation == 'probe':
+            control = binding.repo('control')
+            reference = os.environ['DRACLA_CONTROL_WORKFLOW_REF']
+            repository, separator, git_ref = reference.partition('/.github/workflows/reconcile.yml@')
+            if (not separator or repository.casefold() != f'{control.owner}/{control.name}'
+                    or re.fullmatch(r'refs/(heads|tags)/[A-Za-z0-9][A-Za-z0-9._/-]*', git_ref) is None
+                    or '..' in git_ref or '//' in git_ref):
+                raise RecordsError('invalid-configuration')
+            workflow = {'identity': 'https://github.com/' + reference,
+                        'commit_oid': object_id(os.environ['DRACLA_CONTROL_WORKFLOW_OID'])}
+        credentials = InstallationCredentials(protected,
+            lambda: os.environ['DRACLA_TRANSPORT_APP_KEY'].encode(), contents='read' if operation == 'verify' else 'write')
+        def wrapping():
+            value = unique_json(os.environ['DRACLA_CONTROL_KEYS'].encode())
+            if type(value) is not dict or not value or any(type(k) is not str or not k or type(v) is not str
+                    or re.fullmatch(r'[0-9a-f]{64}', v) is None for k, v in value.items()):
+                raise RecordsError('invalid-key')
+            return {k: bytes.fromhex(v) for k, v in value.items()}
+        keys = WrappedKeys('control', wrapping, protected_keyrings=lambda oid: rings[oid])
+        transport = RepositoryTransport(credentials)
+        if operation == 'probe':
+            import secrets
+            transport.authorize(binding)
+            receipt = transport.challenge(release.source_commit_oid + '-' + secrets.token_hex(16))
+            report = verify_project(binding, keys, transport)
+            if not report.valid:
+                print(f'Events: {report.source_oid}; coverage: {report.coverage_oid}; '
+                      f'derived: {report.derived_oid}; operations: {report.operations_oid}')
+                print('Verification incomplete: ' + ', '.join(report.discrepancies))
+                return 1
+            receipt.update({'project_id': binding.project_id, 'repository_ids': binding.ids(),
+                'app_id': protected.app_id, 'installation_id': protected.installation_id,
+                'owner_id': protected.owner_id, 'release': {
+                    'package_version': release.package_version, 'source_commit_oid': release.source_commit_oid,
+                    'release_policy_sha256': release.policy_sha256, 'provenance_identity': release.provenance_identity,
+                    'dependency_constraints_sha256': release.dependency_constraints_sha256}, 'workflow': workflow})
+            credentials.close()
+            print(json.dumps(receipt, sort_keys=True))
+            return 0
+        if operation == 'verify':
+            report = verify_project(binding, keys, transport)
+            print(f'Events: {report.source_oid}; coverage: {report.coverage_oid}; '
+                  f'derived: {report.derived_oid}; operations: {report.operations_oid}')
+            if report.valid:
+                print('Verification passed; no repository changes made.')
+                return 0
+            print('Verification incomplete: ' + ', '.join(report.discrepancies))
+            return 1
+        report = reconcile_project(binding, keys, transport, built_at=datetime.now(timezone.utc).isoformat(),
+                                   dracla_version=release.package_version)
+        if report.source_oid is not None:
+            print('Events: ' + report.source_oid)
+        if report.valid:
+            print('Reconciliation complete; authenticated projections and operation guards verified.')
+            return 0
+        print('Reconciliation blocked: status=' + report.status + '; reason=' + str(report.reason))
+        return 1
+    except RecordsError as error:
+        print(_CONTROL_LABELS.get(operation, 'Control') + ' unavailable: ' + error.category)
+        return 1
+    except ExportError as error:
+        print(_CONTROL_LABELS.get(operation, 'Control') + ' unavailable: ' + error.reason)
+        return 1
+    except Exception:
+        print(_CONTROL_LABELS.get(operation, 'Control') + ' unavailable: records-unavailable')
+        return 1
+    finally:
+        if credentials is not None:
+            try:
+                credentials.close()
+            except RecordsError as error:
+                # Known-token cleanup is not unknown-token containment.
+                print('Control cleanup unavailable: ' + error.category)
+                return 1
+            except Exception:
+                print('Control cleanup unavailable: records-unavailable')
+                return 1
 
 
 def object_id(value: object) -> str:
@@ -120,9 +269,9 @@ class RepositoryTransport:
             raise RecordsError('identity-mismatch') from None
 
     def head(self, repo: RepositoryRef, branch: str):
-        if branch not in ('events', 'keys', 'operations', 'derived', 'coverage'):
-            raise RecordsError('scope-mismatch')
-        if (repo.role == 'coverage') != (branch == 'coverage'):
+        if (type(branch) is not str or _PROBE_BRANCH.fullmatch(branch) is None and
+                (branch not in ('events', 'keys', 'operations', 'derived', 'coverage')
+                 or (repo.role == 'coverage') != (branch == 'coverage'))):
             raise RecordsError('scope-mismatch')
         path = self._path(repo)
         if branch == 'events' and self._events_oid is not None:
@@ -346,6 +495,10 @@ class RepositoryTransport:
                 resolve_artifact_identity(repo.role, branch, path)
             except ValueError:
                 raise RecordsError('scope-mismatch') from None
+        return self._conditional_files(repo, branch, expected_head, files)
+
+    def _conditional_files(self, repo, branch, expected_head, files):
+        """Shared exact-head commit primitive; callers own the closed paths."""
         expected_head = object_id(expected_head)
         self._path(repo)
         if self.head(repo, branch) != expected_head:
@@ -375,3 +528,79 @@ class RepositoryTransport:
                     except RecordsError:
                         break
             raise IndeterminateWrite() from None
+
+    def _challenge_head(self, repo, branch):
+        """Distinguish a missing probe ref from an inaccessible repository."""
+        self._path(repo)
+        body = {'query': 'query($owner:String!,$name:String!,$ref:String!){repository(owner:$owner,name:$name){'
+                'id fullDatabaseId nameWithOwner isPrivate ref(qualifiedName:$ref){target{__typename oid}}}}',
+                'variables': {'owner': repo.owner, 'name': repo.name, 'ref': 'refs/heads/' + branch}}
+        value = self._mutation('POST', '/graphql', body, graphql=True)
+        try:
+            result = value['data']['repository']
+            database_id = result['fullDatabaseId']
+            if (type(database_id) is not str or re.fullmatch(r'[1-9][0-9]{0,15}', database_id) is None
+                    or numeric_id(int(database_id)) != repo.id or result['isPrivate'] is not True
+                    or result['nameWithOwner'].casefold() != f'{repo.owner}/{repo.name}'
+                    or len(opaque_token(result['id'])) > 1024):
+                raise RecordsError('identity-mismatch')
+            ref = result['ref']
+            if ref is None:
+                return result['id'], None
+            if ref['target']['__typename'] != 'Commit':
+                raise RecordsError('invalid-history')
+            return result['id'], object_id(ref['target']['oid'])
+        except (KeyError, TypeError, ValueError, AttributeError):
+            raise RecordsError('identity-mismatch') from None
+
+    def _challenge_update(self, repo, node, branch, before, after):
+        zero = '0' * 40
+        operation = branch + ('/delete' if after == zero else '/create')
+        body = {'query': 'mutation($input:UpdateRefsInput!){updateRefs(input:$input){clientMutationId}}',
+                'variables': {'input': {'repositoryId': node, 'clientMutationId': operation,
+                    'refUpdates': [{'name': 'refs/heads/' + branch, 'beforeOid': before,
+                                    'afterOid': after, 'force': False}]}}}
+        try:
+            value = self._mutation('POST', '/graphql', body, graphql=True)
+            if value.get('data', {}).get('updateRefs', {}).get('clientMutationId') != operation:
+                raise IndeterminateWrite()
+        except (IndeterminateWrite, AttributeError):
+            observed_node, observed = self._challenge_head(repo, branch)
+            if observed_node != node or observed != (None if after == zero else after):
+                raise IndeterminateWrite() from None
+
+    def challenge(self, generation):
+        """Fixed non-private writes on two unique temporary branches only.
+
+        GraphQL updateRefs uses beforeOid for both absence at creation and
+        exact-head cleanup. Lost responses are reconciled, never replayed.
+        This is a capability challenge, not the complete live A6 incident test.
+        """
+        if (self.binding is None or self.credentials.mode != 'control'
+                or type(generation) is not str
+                or _PROBE_BRANCH.fullmatch('dracla-probe/' + generation) is None):
+            raise RecordsError('invalid-configuration')
+        branch, zero = 'dracla-probe/' + generation, '0' * 40
+        results = []
+        for repo in self.binding.repositories[:2]:
+            node, existing = self._challenge_head(repo, branch)
+            if existing is not None:
+                raise HeadConflict('snapshot-changed')
+            parent = self.head(repo, 'events' if repo.role == 'records' else 'coverage')
+            self._challenge_update(repo, node, branch, zero, parent)
+            known = parent
+            try:
+                if self._challenge_head(repo, branch) != (node, parent):
+                    raise HeadConflict('snapshot-changed')
+                known = self._conditional_files(repo, branch, parent,
+                    {'dracla-transport-probe.txt': b'DraCLA transport capability challenge v1\n'})
+                if self._challenge_head(repo, branch) != (node, known):
+                    raise HeadConflict('snapshot-changed')
+                results.append({'repository_id': repo.id, 'branch': branch,
+                                'parent_oid': parent, 'commit_oid': known})
+            finally:
+                self._challenge_update(repo, node, branch, known, zero)
+                if self._challenge_head(repo, branch) != (node, None):
+                    raise IndeterminateWrite()
+        return {'challenge_version': 1, 'generation': generation, 'repositories': results,
+                'temporary_branch_cleanup': 'confirmed'}
