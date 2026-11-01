@@ -1195,7 +1195,8 @@ accepted ancestor or introduce a separate functional slice.
           "core/dracla/provisioning.py",
           "docs/cli.md",
           "docs/github-apps.md",
-          "control/README.md"
+          "control/README.md",
+          "core/tests/test_cli_planning.py"
         ],
         "dependencies": [
           "m3/5"
