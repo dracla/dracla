@@ -1182,7 +1182,7 @@ accepted ancestor or introduce a separate functional slice.
     {
       "id": "m3/6",
       "parent": null,
-      "state": "planned",
+      "state": "replaced",
       "role": "implementation",
       "intent": {
         "title": "[m3/6] Recovery integration and M3 evidence closure",
@@ -1197,6 +1197,37 @@ accepted ancestor or introduce a separate functional slice.
           "docs/github-apps.md",
           "control/README.md",
           "core/tests/test_cli_planning.py"
+        ],
+        "dependencies": [
+          "m3/5"
+        ],
+        "acceptance": [
+          "Restore exact backup refs and authenticated history; unauthorized replacement identities fail.",
+          "Upgrade and rollback repeat verification and preserve canonical evidence.",
+          "Full Python, M1 cross-runtime and installed-command gates pass; pending live/hosted integration remains explicit."
+        ]
+      }
+    },
+    {
+      "id": "m3/6.1",
+      "parent": "m3/6",
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m3/6.1] Recovery integration and M3 evidence closure",
+        "responsibility": "Verify backup recovery and upgrade/rollback across installed engines, pins and evidence.",
+        "paths": [
+          "core/dracla/records/history.py",
+          "core/dracla/records/reconcile.py",
+          "core/tests/test_records_6.py",
+          "design/verification-matrix.md",
+          "core/dracla/provisioning.py",
+          "docs/cli.md",
+          "docs/github-apps.md",
+          "control/README.md",
+          "core/tests/test_cli_planning.py",
+          "core/tests/test_admin_discovery.py",
+          "core/tests/test_cli_integration.py"
         ],
         "dependencies": [
           "m3/5"
