@@ -59,6 +59,8 @@ def request_json(sender: Callable, method: str, path: str, token: str,
     """Return JSON, plus response headers when the caller checks pagination."""
     if not path.startswith("/") or path.startswith("//") or any(c in path for c in "\r\n#"):
         raise RecordsError("invalid-configuration")
+    if method == 'DELETE' and (path != '/installation/token' or body is not None):
+        raise RecordsError('invalid-configuration')
     try:
         response = sender(method, API_ORIGIN + path,
                           {"Authorization": "Bearer " + opaque_token(token),
@@ -69,8 +71,12 @@ def request_json(sender: Callable, method: str, path: str, token: str,
             raise RecordsError("resource-limit")
         if response.status in (401, 403):
             raise AuthorizationFailure()
-        if response.status != (201 if method == "POST" else 200):
+        if response.status != (201 if method == "POST" else 204 if method == "DELETE" else 200):
             raise RecordsError()
+        if method == 'DELETE':
+            if response.body:
+                raise RecordsError()
+            return None
         if not paginated and any(str(k).lower() == "link" and str(v).strip()
                                  for k, v in response.headers.items()):
             raise RecordsError("scope-mismatch")
@@ -228,14 +234,19 @@ class InstallationCredentials:
     _permissions = {"contents": "write", "metadata": "read"}
 
     def __init__(self, protected: InstallationBinding, private_key_provider: Callable[[], bytes], *,
-                 sender: Callable = send, clock: Callable[[], float] = time.time, margin: int = 60,
+                 sender: Callable = send, clock: Callable[[], float] = time.time,
+                 monotonic: Callable[[], float] = time.monotonic, margin: int = 60,
                  contents: str = 'read'):
         if (type(protected) is not InstallationBinding or type(margin) is not int or not 0 < margin <= 300
                 or contents not in ('read', 'write')):
             raise RecordsError("invalid-configuration")
-        self.protected, self._provider, self.sender, self._clock = protected, private_key_provider, sender, clock
+        self.protected, self._provider, self.sender = protected, private_key_provider, sender
+        self._clock, self._monotonic = clock, monotonic
         self._requested = {'contents': contents, 'metadata': 'read'}
         self._margin, self._credential, self._expiry, self._binding = margin, None, 0.0, None
+        self._issued = {}
+        self._issued_deadlines = {}
+        self._last_monotonic = None
 
     def __repr__(self):
         return f"InstallationCredentials(app_id={self.protected.app_id}, installation_id={self.protected.installation_id})"
@@ -254,13 +265,47 @@ class InstallationCredentials:
         except Exception:
             raise RecordsError() from None
 
+    def _monotonic_now(self):
+        value = self._monotonic()
+        if (not math.isfinite(value)
+                or self._last_monotonic is not None and value < self._last_monotonic):
+            raise ValueError()
+        self._last_monotonic = value
+        return value
+
+    def _prune_issued(self):
+        try:
+            now = self._clock()
+            if not math.isfinite(now):
+                raise ValueError()
+            has_known_expiry = any(expiry is not None for expiry in self._issued.values())
+            elapsed = self._monotonic_now() if has_known_expiry else None
+            issued, deadlines = {}, {}
+            for token, expiry in self._issued.items():
+                deadline = self._issued_deadlines.get(token)
+                if (expiry is None or deadline is None or elapsed is None
+                        or now < expiry + self._margin or elapsed < deadline):
+                    issued[token] = expiry
+                    if deadline is not None:
+                        deadlines[token] = deadline
+            self._issued, self._issued_deadlines = issued, deadlines
+        except Exception:
+            raise RecordsError() from None
+
     def _mint(self, jwt: str, repositories: tuple[int, ...] | None, permissions: dict):
+        self._prune_issued()
+        if len(self._issued) >= 1000:
+            raise RecordsError('resource-limit')
         body = {"permissions": permissions}
         if repositories is not None:
             body["repository_ids"] = list(repositories)
         value = request_json(self.sender, "POST", f"/app/installations/{self.protected.installation_id}/access_tokens", jwt, body)
         try:
             token = opaque_token(value["token"])
+            # Retain even a token whose remaining response fails validation so
+            # job cleanup can revoke every usable token this process observed.
+            self._issued[token] = None
+            self._issued_deadlines.pop(token, None)
             expiry = datetime.fromisoformat(value["expires_at"].replace("Z", "+00:00"))
             now = self._clock()
             if expiry.tzinfo is None or expiry.utcoffset() != timezone.utc.utcoffset(expiry):
@@ -269,6 +314,16 @@ class InstallationCredentials:
             if (not math.isfinite(now) or not now + self._margin < expiry <= now + 3600 + self._margin
                     or value["permissions"] != permissions or value["repository_selection"] != "selected"):
                 raise RecordsError("scope-mismatch")
+            self._issued[token] = expiry
+            try:
+                observed = self._monotonic_now()
+                deadline = observed + 3600 + self._margin
+                if math.isfinite(deadline):
+                    self._issued_deadlines[token] = deadline
+            except Exception:
+                # An unusable elapsed clock cannot prove expiry. Keep the token
+                # tracked so close attempts confirmed revocation instead.
+                self._issued_deadlines.pop(token, None)
             return token, expiry
         except (KeyError, TypeError, ValueError, AttributeError):
             raise RecordsError("scope-mismatch") from None
@@ -345,3 +400,27 @@ class InstallationCredentials:
         if now + self._margin >= self._expiry:
             self.authorize(self._binding)
         return opaque_token(self._credential)
+
+    def close(self):
+        """Revoke this process's known tokens, including inventory credentials.
+
+        This is job cleanup, not an App incident containment barrier. A stolen
+        App key can mint tokens which this process has never observed.
+        """
+        self._credential, self._expiry, self._binding = None, 0.0, None
+        try:
+            self._prune_issued()
+        except RecordsError:
+            # Uncertain time cannot prove expiry; attempt every known token.
+            pass
+        failed = False
+        for token in tuple(self._issued):
+            try:
+                request_json(self.sender, 'DELETE', '/installation/token', token)
+            except RecordsError:
+                failed = True
+            else:
+                del self._issued[token]
+                self._issued_deadlines.pop(token, None)
+        if failed:
+            raise RecordsError()
