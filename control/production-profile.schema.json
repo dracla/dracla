@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DraCLA protected production profile version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profile_version",
+    "package_version",
+    "source",
+    "publisher",
+    "builder",
+    "bootstrap",
+    "runtime"
+  ],
+  "properties": {
+    "profile_version": {
+      "const": 1
+    },
+    "package_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_url",
+        "repository_id",
+        "commit_oid",
+        "ref"
+      ],
+      "properties": {
+        "repository_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+          "maxLength": 512
+        },
+        "repository_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "commit_oid": {
+          "$ref": "#/$defs/commit"
+        },
+        "ref": {
+          "type": "string",
+          "pattern": "^refs/(tags|heads)/[A-Za-z0-9][A-Za-z0-9._/-]*$",
+          "maxLength": 512
+        }
+      }
+    },
+    "publisher": {
+      "$ref": "#/$defs/workflow"
+    },
+    "builder": {
+      "$ref": "#/$defs/workflow"
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "trust_root_sha256"
+      ],
+      "properties": {
+        "image": {
+          "type": "string",
+          "pattern": "^(?:[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::[0-9]+)?/)?[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*@sha256:[0-9a-f]{64}$",
+          "maxLength": 1024
+        },
+        "trust_root_sha256": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "python_version",
+        "abi",
+        "platform",
+        "wheel",
+        "runtime_lock_sha256",
+        "build_lock_sha256"
+      ],
+      "properties": {
+        "python_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "maxLength": 32,
+          "const": "3.12.16"
+        },
+        "abi": {
+          "type": "string",
+          "pattern": "^cp[0-9]{2,3}$",
+          "maxLength": 16,
+          "const": "cp312"
+        },
+        "platform": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$",
+          "maxLength": 128,
+          "const": "manylinux_2_36_x86_64"
+        },
+        "wheel": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "filename",
+            "sha256"
+          ],
+          "properties": {
+            "filename": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.+-]+\\.whl$",
+              "maxLength": 255
+            },
+            "sha256": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        },
+        "runtime_lock_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "build_lock_sha256": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "commit": {
+      "type": "string",
+      "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workflow",
+        "commit_oid",
+        "certificate_identity"
+      ],
+      "properties": {
+        "workflow": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/[A-Za-z0-9_.-]+\\.ya?ml$",
+          "maxLength": 1024
+        },
+        "commit_oid": {
+          "$ref": "#/$defs/commit"
+        },
+        "certificate_identity": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/[A-Za-z0-9_.-]+\\.ya?ml@refs/(tags|heads)/[A-Za-z0-9][A-Za-z0-9._/-]*$",
+          "maxLength": 2048
+        }
+      }
+    }
+  }
+}

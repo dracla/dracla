@@ -234,6 +234,27 @@ The payload and job contract is the owner-approved M3 LLD §6.1. The original
 unstarted m3/4 remains replaced in issued history; m3/4.1 owns the same export
 behavior plus its four approved contract/review paths. Existing M3 live transport,
 protected production workflow and authentic release gates remain in m3/5–6.
+
+### M3/5 — external release gate and transport lifecycle
+
+| Slice | Claim | Evidence | State |
+|---|---|---|---|
+| m3/5 | Closed protected profile and hash-bound locks reject mutable selectors, duplicate/unknown fields, unsupported profiles and swapped inputs | `ExternalReleaseGateTests` in `core/tests/test_records_5.py` | Focused fixtures pass |
+| m3/5 | Both standard publish and SLSA build evidence bind numeric source identity, source/workflow commits, subject hash, hosted runner, witnessed inclusion and complete consumed inputs | `test_standard_verified_claims_require_both_publisher_and_complete_build`, `test_gh_command_pins_the_crypto_policy_and_uses_no_app_secret`, numeric-ID ordering test | Deterministic boundary tests; authentic DraCLA producer/publish acceptance remains open |
+| m3/5 | Hash-checked offline installation executes only wheel-derived installed bytes; installed RECORD and workflow flags are not authority | Offline install/map test, changed-wheel/link/unlisted-input tests and failed-launch zero-execution test | Focused fixtures pass |
+| m3/5 | Known inventory/data token cleanup includes renewed credentials and blocks reuse; failures are retryable and fail the job | `TransportLifecycleTests`; concrete REST DELETE mapping plus existing expiry and scoped REST/GraphQL regressions | Focused fixtures pass; unknown-token containment is separate |
+| m3/5 | Protected workflow invokes installed verify/reconcile engines; malformed dispatch and App-writable executable inputs cannot select code | `control/reconcile.yml`, `control_job`, closed configuration tests and installed-wheel producer probes | Focused fixtures pass; actual hosted workflow execution remains open |
+| m3/5 | REQ-OPS-3 / HLD §§4, 9: the private GitHub Free control path uses repository-scoped Actions secrets, admits only the trusted default-branch workflow context, and checks out the exact workflow commit before the pinned prepare/secret boundary | `ExternalReleaseGateTests.test_workflow_keeps_verification_and_secret_steps_in_one_protected_job`; `ExternalReleaseGateTests.test_workflow_context_guard_rejects_untrusted_fixtures`; `docs/github-apps.md` administrator and secret-custody instructions | Focused fixtures pass; hosted provider acceptance remains open |
+| m3/5 | Daily reconciliation backstop and explicit generation-specific temporary-branch challenges exercise write/readback and atomic exact-head cleanup without changing canonical refs or live coverage | Workflow test and `TransportLifecycleTests` concrete GraphQL `updateRefs`/`createCommitOnBranch` fixtures, lost creation/commit/deletion replies, concurrent cleanup, repository identity rejection and release/workflow-bound receipt | Focused fixtures pass; live GitHub capability and A6 containment remain open |
+| m3/5 | Full Python/vector/TypeScript/package gate and exact-candidate independent/DBB reviews pass | Existing `conformance/gate.py` and delivery-bound review receipts | Required for each candidate; exact results retained by delivery |
+| m3/5 | Dedicated/shared App live scope, excluded-control denial, real non-force writes/CAS conflicts, timeout readback, renewal/revocation, old-key retirement and unknown-token containment | Separately authorized disposable-private-repository probes under LLD §8/HLD §8.1.2 | Not run; blocks production claims |
+
+The bootstrap image and a public authentic PyPI format fixture can validate the
+pinned tool combination locally. They do not establish DraCLA release identity,
+an authentic producer/publisher run or live App incident containment. No package
+has been published and no live resources or credentials have been provisioned
+as part of this implementation. M5 hosted-export authority and M6 provisioning
+remain explicit integration gates.
 M5 owns the actual hosted request adapter, download authorization and endpoint;
 the fixture adapter does not complete those integration obligations. Local
 exports do not depend on that service. Owner-moved/replaced files are not removed

@@ -59,6 +59,8 @@ def request_json(sender: Callable, method: str, path: str, token: str,
     """Return JSON, plus response headers when the caller checks pagination."""
     if not path.startswith("/") or path.startswith("//") or any(c in path for c in "\r\n#"):
         raise RecordsError("invalid-configuration")
+    if method == 'DELETE' and (path != '/installation/token' or body is not None):
+        raise RecordsError('invalid-configuration')
     try:
         response = sender(method, API_ORIGIN + path,
                           {"Authorization": "Bearer " + opaque_token(token),
@@ -69,8 +71,12 @@ def request_json(sender: Callable, method: str, path: str, token: str,
             raise RecordsError("resource-limit")
         if response.status in (401, 403):
             raise AuthorizationFailure()
-        if response.status != (201 if method == "POST" else 200):
+        if response.status != (201 if method == "POST" else 204 if method == "DELETE" else 200):
             raise RecordsError()
+        if method == 'DELETE':
+            if response.body:
+                raise RecordsError()
+            return None
         if not paginated and any(str(k).lower() == "link" and str(v).strip()
                                  for k, v in response.headers.items()):
             raise RecordsError("scope-mismatch")
@@ -236,6 +242,7 @@ class InstallationCredentials:
         self.protected, self._provider, self.sender, self._clock = protected, private_key_provider, sender, clock
         self._requested = {'contents': contents, 'metadata': 'read'}
         self._margin, self._credential, self._expiry, self._binding = margin, None, 0.0, None
+        self._issued = {}
 
     def __repr__(self):
         return f"InstallationCredentials(app_id={self.protected.app_id}, installation_id={self.protected.installation_id})"
@@ -255,12 +262,27 @@ class InstallationCredentials:
             raise RecordsError() from None
 
     def _mint(self, jwt: str, repositories: tuple[int, ...] | None, permissions: dict):
+        try:
+            now = self._clock()
+            if not math.isfinite(now):
+                raise ValueError()
+            self._issued = {token: expiry for token, expiry in self._issued.items()
+                            if expiry is None or expiry > now}
+            if len(self._issued) >= 1000:
+                raise RecordsError('resource-limit')
+        except RecordsError:
+            raise
+        except Exception:
+            raise RecordsError() from None
         body = {"permissions": permissions}
         if repositories is not None:
             body["repository_ids"] = list(repositories)
         value = request_json(self.sender, "POST", f"/app/installations/{self.protected.installation_id}/access_tokens", jwt, body)
         try:
             token = opaque_token(value["token"])
+            # Retain even a token whose remaining response fails validation so
+            # job cleanup can revoke every usable token this process observed.
+            self._issued[token] = None
             expiry = datetime.fromisoformat(value["expires_at"].replace("Z", "+00:00"))
             now = self._clock()
             if expiry.tzinfo is None or expiry.utcoffset() != timezone.utc.utcoffset(expiry):
@@ -269,6 +291,7 @@ class InstallationCredentials:
             if (not math.isfinite(now) or not now + self._margin < expiry <= now + 3600 + self._margin
                     or value["permissions"] != permissions or value["repository_selection"] != "selected"):
                 raise RecordsError("scope-mismatch")
+            self._issued[token] = expiry
             return token, expiry
         except (KeyError, TypeError, ValueError, AttributeError):
             raise RecordsError("scope-mismatch") from None
@@ -345,3 +368,21 @@ class InstallationCredentials:
         if now + self._margin >= self._expiry:
             self.authorize(self._binding)
         return opaque_token(self._credential)
+
+    def close(self):
+        """Revoke this process's known tokens, including inventory credentials.
+
+        This is job cleanup, not an App incident containment barrier. A stolen
+        App key can mint tokens which this process has never observed.
+        """
+        self._credential, self._expiry, self._binding = None, 0.0, None
+        failed = False
+        for token in tuple(self._issued):
+            try:
+                request_json(self.sender, 'DELETE', '/installation/token', token)
+            except RecordsError:
+                failed = True
+            else:
+                del self._issued[token]
+        if failed:
+            raise RecordsError()
