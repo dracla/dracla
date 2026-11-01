@@ -12,6 +12,9 @@ Date: 25 October 2026
 The owner accepted the export contract and replacement of unstarted `m3/4`
 with `m3/4.1`. Exact current design review and campaign admission remain
 required before implementation; earlier approvals remain preserved history.
+The owner also approved replacing unaccepted `m3/6` with `m3/6.1` for the
+same recovery behavior and two additional existing test ownership paths.
+The original issued intent, accepted prefix and spent budgets remain preserved.
 Requirements: `design/requirements.md`, locked revision 14
 Architecture: `design/high-level-design.md`, including the owner-approved
 25 October adopter-owned transport App amendment
@@ -873,6 +876,13 @@ fixtures listed there are mandatory; an authentic publish-only result fails.
 
 ### m3/6 — Recovery integration and M3 evidence closure
 
+Retain this unaccepted ID and its original intent as replaced by `m3/6.1`.
+The owner approved the successor for the same recovery behavior, with ownership
+of the two additional existing test files listed in §9. This remains one
+product deliverable; the original issued history and spent budgets are retained.
+
+### m3/6.1 — Recovery integration and M3 evidence closure
+
 Deliver backup/restore and upgrade/rollback exercises across the installed
 package and workflow from `m3/5`, current App warning/planner integration, and
 traceability for every M3-owned requirement. Acceptance: exact-head reviewed
@@ -927,6 +937,11 @@ do not change. Admission remains required before production edits.
 The same correction owns the reviewed HLD/LLD/index/roadmap and their exact
 helper-generated sidecars so they land with PR #58; it does not rewrite an
 accepted ancestor or introduce a separate functional slice.
+The owner approved replacing unaccepted `m3/6` with `m3/6.1` so the same
+recovery deliverable also owns `core/tests/test_admin_discovery.py` and
+`core/tests/test_cli_integration.py`. The successor retains the responsibility,
+dependency and acceptance contract of §7. The original `m3/6` intent remains
+unchanged as replaced history; accepted slices and spent budgets do not change.
 
 ```swe-slice-inventory
 {
@@ -1182,7 +1197,7 @@ accepted ancestor or introduce a separate functional slice.
     {
       "id": "m3/6",
       "parent": null,
-      "state": "planned",
+      "state": "replaced",
       "role": "implementation",
       "intent": {
         "title": "[m3/6] Recovery integration and M3 evidence closure",
@@ -1197,6 +1212,37 @@ accepted ancestor or introduce a separate functional slice.
           "docs/github-apps.md",
           "control/README.md",
           "core/tests/test_cli_planning.py"
+        ],
+        "dependencies": [
+          "m3/5"
+        ],
+        "acceptance": [
+          "Restore exact backup refs and authenticated history; unauthorized replacement identities fail.",
+          "Upgrade and rollback repeat verification and preserve canonical evidence.",
+          "Full Python, M1 cross-runtime and installed-command gates pass; pending live/hosted integration remains explicit."
+        ]
+      }
+    },
+    {
+      "id": "m3/6.1",
+      "parent": "m3/6",
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m3/6.1] Recovery integration and M3 evidence closure",
+        "responsibility": "Verify backup recovery and upgrade/rollback across installed engines, pins and evidence.",
+        "paths": [
+          "core/dracla/records/history.py",
+          "core/dracla/records/reconcile.py",
+          "core/tests/test_records_6.py",
+          "design/verification-matrix.md",
+          "core/dracla/provisioning.py",
+          "docs/cli.md",
+          "docs/github-apps.md",
+          "control/README.md",
+          "core/tests/test_cli_planning.py",
+          "core/tests/test_admin_discovery.py",
+          "core/tests/test_cli_integration.py"
         ],
         "dependencies": [
           "m3/5"
