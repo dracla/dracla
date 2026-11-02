@@ -259,3 +259,37 @@ M5 owns the actual hosted request adapter, download authorization and endpoint;
 the fixture adapter does not complete those integration obligations. Local
 exports do not depend on that service. Owner-moved/replaced files are not removed
 through path-based cleanup; abrupt process death can leave a private staging file.
+
+### M3/6.1 — recovery exercises and evidence closure
+
+| Slice | Contract and boundary | Executable evidence | Current result |
+|---|---|---|---|
+| m3/6.1 | REQ-REC-4, REQ-REC-7 / HLD §9.1: the operator restores the complete three-repository mirror and checks saved numeric identities, all branch heads and required ancestors before keys | `core.tests.test_records_6.BackupRecoveryTests.test_operator_rejects_incomplete_or_mismatched_all_repository_mirror`; complete control/data refs, archival branch, missing repository/ref/ancestor, wrong head and replacement IDs | Deterministic mirror-procedure exercise passes; this is a test fixture, not a new backup command or format |
+| m3/6.1 | REQ-REC-5, REQ-VERIFY-2: restored ciphertext and separately supplied recovery material reach the existing authenticated reader; replacement data IDs fail before keys and control rebinding cannot bypass authenticated bootstrap | `test_existing_reader_rejects_replacement_data_repository_before_keys`, `test_changed_control_binding_is_not_an_automatic_trust_transfer`, `test_missing_key_commit_or_wrong_recovery_material_never_repairs` | Focused tests pass; no unauthorized write or automatic rebind |
+| m3/6.1 | REQ-REC-6 / M3 LLD §5: restore retained prepared/landed work, finish its authenticated package/projections forward and repeat without duplicate writes | `test_restore_recovers_persisted_work_and_preserves_complete_canonical_prefix`, `test_restore_of_landed_operation_finishes_without_duplicate_append`; actual encrypted REST/GraphQL fixture, real CLI and complete `verify_project` | Focused tests pass; exact retained canonical/key objects preserved and all projections verify |
+| m3/6.1 | Missing private projections in idle state do not invent M4 route-shutdown authority | `test_idle_projection_loss_retains_explicit_m4_recovery_gate` | Passes with `route-unavailable-proof-required` and zero writes; unrestricted restore-then-rebuild remains an M4 integration gate |
+| m3/6.1 | HLD §9 / REQ-SEC-10: explicit upgrade/rollback repeat the existing protected artifact verifier; mixing another wheel with old pins fails | `ProtectedReleaseSelectionTests.test_explicit_upgrade_and_rollback_repeat_existing_verifier` | Synthetic publisher/crypto fixture passes for old/new/old selections; authentic publication is not established |
+| m3/6.1 | REQ-VERIFY-2 / M3 LLD §7: actual installed engines recover the encrypted mirror and preserve the same canonical/key evidence through upgrade and rollback; repeated completed recovery is write-free | `InstalledRecoveryTests.test_real_wheel_recovery_upgrade_and_rollback_preserve_canonical_evidence` | Passes with two synthetic metadata versions of this candidate and retained-wheel reinstall; every imported `dracla` module is installed. Uses test-interpreter dependencies; authentic older-release compatibility remains open |
+| m3/6.1 | HLD §6.10.2 / REQ-OPS-4: the real planner reports current transport-App integrity reach across assignments, decryption limitation and control exclusion | Existing `core.tests.test_cli_planning.CliTests` warning regression and `core/dracla/provisioning.py`; existing install/resume tests | CLI planning suite passes (13 tests); no provisioning action added |
+| m3/6.1 | Full Python, shared-vector/TypeScript and installed-package gates plus exact-candidate general/DBB and fresh independent review | Existing `conformance/gate.py`, current delivery-bound validation/review receipts | Required before implementation acceptance; the focused M3/6.1 run is not a full-gate or clean-review claim |
+
+The recovery runbook is [control/README.md](../control/README.md). It covers the
+operator mirror/identity check, recovery material kept apart, existing engine
+commands, protected artifact changes and the remaining assembled recovery steps.
+The M3/1.1, M3/2, M3/3.1, M3/4.1 and M3/5 rows above retain their existing
+reader/key-proof, append/CAS, crash recovery, export and execution-boundary evidence.
+M3/6.1 adds their restore/package-selection journey; it does not replace those gates.
+
+| Remaining production/integration evidence | Owner and current state |
+|---|---|
+| Authentic DraCLA build plus publish evidence, published bootstrap provenance/digest, approved adopter profile and exact locked installed artifact | Release/adopter acceptance; open |
+| Actual private GitHub Free control dispatch/schedule and production export capacity | Hosted/provider acceptance; open |
+| Dedicated/shared installation scope, excluded-control denial, real non-force/CAS/lost-reply mappings, renewal/revocation and all-token/key containment | Separately authorized live acceptance; open |
+| Authenticated route-unavailable idle reconstruction, success-publication confirmation and final enforcer sweep | M4 integration; open |
+| Replacement service wraps, hosted request/download authorization and restored hosted routes | M5 integration; open |
+| Credential/secret provisioning, replacement-ID administrator rebind, registry/App activation and full installer resume | M6 integration; open |
+
+These open gates are deferrals to their existing acceptance/integration owners,
+not representation fixes or completed production outcomes. Current M3/6.1 tests
+provide deterministic implementation evidence only. No release, live resource,
+credential installation, merge or M4/M5/M6 implementation is implied.
