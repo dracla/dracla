@@ -1,8 +1,9 @@
 # CLI and administration
 
-M2 provides planning and independently tested administration seams. It does
-not install a project. The reconciler, hosted challenge service and complete
-installer arrive in M3, M5 and M6.
+The CLI provides read-only installation planning, encrypted verification,
+persisted-operation reconciliation and explicit private exports. Planning does
+not install a project. The hosted challenge service and complete installer
+remain M5/M6 integration work.
 
 The installation planning command is:
 
@@ -246,6 +247,47 @@ a fixed reason; an unexpected internal failure exits 1. Output contains only
 source OIDs and redacted status. Local recovery material does not grant reader
 authority or plaintext export permission. Live scoped-write and release-provenance
 tests remain production gates.
+
+## Backup recovery and package rollback
+
+Follow the [control recovery runbook](../control/README.md) before running a
+maintenance command against restored repositories. Back up the complete records,
+coverage and control histories and every branch head. Store each snapshot's
+source numeric repository IDs and exact branch/head list with that snapshot.
+Keep recovery wrapping material separately. A repository backup alone cannot
+decrypt the records.
+
+An operator must verify the complete restored identity/ref list and every
+required commit before supplying recovery keys. The data transport does not
+read control and cannot perform this independent all-repository mirror check.
+A replacement repository's new numeric ID does not inherit trust automatically;
+administrator-authorized rebind and later installer/hosted integration remain
+required. Do not change command IDs merely to bypass an identity failure.
+
+Use `verify` to authenticate restored keys/history and report the current
+projection/operation state. Use `reconcile` to finish an authenticated persisted
+operation through the same normal engine. It can append that operation's exact
+event and finish its projection, then repeat without another write. It cannot
+rewrite canonical history, invent a lost operation or infer an external route
+shutdown. An idle repository with missing/corrupt projections reports
+`route-unavailable-proof-required`; M4 must provide the required authenticated
+recovery integration before repair can proceed. A successful local recovery
+does not restore hosted routes, install replacement credentials or sweep checks.
+
+Package upgrade and rollback change only explicit protected artifact selections.
+Retain the prior verified profile, bootstrap image, wheel and complete locks.
+Repeat the external verification and installed-file checks before releasing any
+App or wrapping key to either selection. Never roll back events, keys or
+repository heads to match an older package. An artifact that cannot read the
+current authenticated history must stop; compatibility is not inferred from
+its version string.
+
+`core.tests.test_records_6` exercises encrypted fixture restoration, persisted
+operation recovery, explicit repair gates and real installed-engine execution
+through synthetic version selections and rollback. Its publisher responses are
+fixtures. It does not prove authentic release compatibility, hosted execution
+or live containment. The [verification matrix](../design/verification-matrix.md)
+keeps these production and integration gates separate.
 
 ## Explicit private exports
 

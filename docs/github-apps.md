@@ -233,6 +233,10 @@ App do not isolate arrangements. Sharing an App never shares encryption keys,
 canonical history, legal grants or acceptance evidence. Independent Apps provide
 credential separation; each control job still holds its own project's data keys.
 
+The installation planner emits this App integrity warning in its read-only
+output, including shared-assignment reach, the decryption limitation and control
+exclusion. `force` and a dry run do not remove the disclosure or grant authority.
+
 Protected control configuration records exact App, installation and owner IDs
 and the approved arrangement-to-repository-ID assignment. Before project keys
 are accessed, verify the full grant and selected-repository union; unexpected
@@ -357,6 +361,10 @@ revokes known credentials before emitting a non-private receipt. That receipt
 binds repository/App/installation IDs, release policy, source commit and actual
 protected control workflow identity. This capability challenge does not replace
 the separately authorized A6 rotation and unknown-token incident exercises.
+
+Use the [control recovery runbook](../control/README.md) for full-ref backup,
+independent identity/ref preflight and the remaining hosted recovery gates.
+The transport App cannot read or restore control on the operator's behalf.
 
 Keep the last verified profile, image, wheel and locks for explicit rollback.
 Verify the selected rollback artifacts with the same gate before releasing
