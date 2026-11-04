@@ -1,0 +1,738 @@
+{
+  "schema_version": 2,
+  "slices": [
+    {
+      "id": "m6/1",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/1] Trusted deployment profile and read-only installation planning",
+        "responsibility": "Make the released CLI select exactly the bundled shared profile or the approved absolute local profile before credentials. Preserve the four-key install grammar and M2 pure planning; validate release, dependencies, exact origins, App identities, public proof keys and profile/release hashes. Deliver real bounded read-only composition and controller disclosure, not an execution-ready flag. Existing M4/M5 runtime and setup protocols are external prerequisites; introduce only the local client and test seam.",
+        "paths": [
+          "core/dracla/installation/__init__.py",
+          "core/dracla/installation/profile.py",
+          "core/dracla/cli/app.py",
+          "core/dracla/cli/config.py",
+          "core/dracla/provisioning.py",
+          "core/dracla/cli/conf/shared-deployment.json",
+          "core/tests/test_installation_profile.py",
+          "core/tests/installation_fakes.py",
+          "pyproject.toml",
+          "core/dracla/installation/limits.py"
+        ],
+        "dependencies": [],
+        "acceptance": [
+          "Unset selector uses bundled shared configuration; empty/relative/symlinked/oversized/noncanonical/unknown/credential-bearing profiles block without fallback or credential use.",
+          "Current CLI and installed-wheel dry-run exercise actual scoped read discovery, exact release checks and profile congruence while capture shows no repository/ref/key/secret/job/registry effect.",
+          "Origin/App/public-key/profile changes conflict with proven installed intent; force cannot skip selected-controller trust consent or clear a blocker.",
+          "One immutable released InstallationLimits value enforces per-operation/aggregate requests, bytes, deadlines and retries; incomplete observations cannot become absence or success."
+        ]
+      },
+      "display": {
+        "summary": "Trusted deployment profile and read-only installation planning",
+        "production": [
+          500,
+          790
+        ],
+        "tests": [
+          800,
+          1250
+        ]
+      }
+    },
+    {
+      "id": "m6/2",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/2] Private role repositories and exact initial Git roots",
+        "responsibility": "Extend M2 scoped administration with the missing first Contents write and non-forced initialization/readback. Create three private empty roles, use the actual initial branch for the records README, rename its exact head to events and initialize only the approved nonsemantic coverage/control layouts. The local coordinator later composes these operations; no auto_init, impossible first-ref call, collision adoption, agreement/config/event or synthetic full projection.",
+        "paths": [
+          "core/dracla/installation/resources.py",
+          "core/dracla/administration.py",
+          "core/dracla/github_admin.py",
+          "core/tests/test_installation_resources.py",
+          "core/tests/test_admin_mutations.py"
+        ],
+        "dependencies": [
+          "m6/1"
+        ],
+        "acceptance": [
+          "Real scoped HTTP adapter tests cover personal/org visibility, three distinct private IDs, arbitrary initial branch, exact README root/default and conditional rename/readback.",
+          "Lost create/Contents/rename replies, recycled names, disappeared IDs, partial pagination, public roles and races block or reuse only a proven exact effect; no overwrite/delete/force.",
+          "No semantic coverage, project config, derived generation or private canonical event is written by resource creation.",
+          "Internal intent starts with exactly three null role IDs and fills them immutably only from verified create/readback. Fault between each role: known IDs never change/clear, unknown/uncertain names do not enroll IDs, and complete-ID objects remain blocked.",
+          "Same-process all-null/one-ID/two-ID prefixes admit only create_next_role for the first null in records/coverage/control order after exact prior-ID/receipt/current-absence proof; uncertainty/disappearance/conflict denies and seed_roots waits for all3 IDs."
+        ]
+      },
+      "display": {
+        "summary": "Private role repositories and exact initial Git roots",
+        "production": [
+          450,
+          700
+        ],
+        "tests": [
+          800,
+          1250
+        ]
+      }
+    },
+    {
+      "id": "m6/3",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/3] Verified protected control installation before secrets",
+        "responsibility": "Install the same released M3/M4/M5 protected workflow and inert v2 bindings through the scoped local administrator. Reuse external release verification and numeric executing-repository checks, repository Actions secrets and least-privilege fixed job permissions. Add exact current code/config/provenance readback; keep the release verifier policy separate from deployment data. Later bootstrap and activation slices add their narrow fixed phases, not a generic executor.",
+        "paths": [
+          "core/dracla/installation/control.py",
+          "core/dracla/github_admin.py",
+          "control/reconcile.yml",
+          "control/control-binding.schema.json",
+          "core/tests/test_installation_control.py",
+          "docs/installation.md",
+          "core/dracla/administration.py",
+          "core/tests/test_installation_job_observation.py"
+        ],
+        "dependencies": [
+          "m6/2"
+        ],
+        "acceptance": [
+          "Actual released workflow/source/artifact/verifier identities and current numeric control repository are checked before any key-bearing step; substituted source/image/ref/code denies.",
+          "Private GitHub Free uses repository secrets without environment or paid-protection dependency; records/coverage content cannot select executable code.",
+          "Lost control/config writes require exact readback; changed code or protected binding blocks key/probe delivery.",
+          "Run/attempt/job lookup and exact proof-log download enforce section4.4 numeric page/item/byte/redirect/deadline limits and fail closed at exhaustion."
+        ]
+      },
+      "display": {
+        "summary": "Verified protected control installation before secrets",
+        "production": [
+          350,
+          550
+        ],
+        "tests": [
+          650,
+          1000
+        ]
+      }
+    },
+    {
+      "id": "m6/4",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/4] Administrator-owned transport App scope and key custody",
+        "responsibility": "Guide dedicated or explicitly shared private App creation/selection through GitHub and keep the private key and any registration conversion local. Implement exact App/client/owner/installation, grants and selected-union verification using M3 transport credentials and M2 local administration. Deliver actual secret installation with full reach warnings; the actual nonempty-repository transport challenge occurs in m6/6. No hosted registration proxy, unattended consent, broad runtime PAT or alternate transport.",
+        "paths": [
+          "core/dracla/installation/transport_setup.py",
+          "core/dracla/records/credentials.py",
+          "core/dracla/github_admin.py",
+          "core/tests/test_installation_transport.py",
+          "docs/installation.md"
+        ],
+        "dependencies": [
+          "m6/3"
+        ],
+        "acceptance": [
+          "Dedicated/shared selection proves the complete approved records/coverage union, excludes control/source repositories, and rejects all-repository or excess grants before keys.",
+          "Private key is delivered only to assigned control secrets; captured argv/logs/Git/outputs/hosted requests contain none of that key or local administrator credential.",
+          "Human GitHub consent, full assignment/controller warning and ambiguous secret handling remain required; same-App different keys never imply isolation.",
+          "Complete App/assignment observations enforce per-collection and invocation limits; manual create/select is the supported baseline and any optional conversion material remains local."
+        ]
+      },
+      "display": {
+        "summary": "Administrator-owned transport App scope and key custody",
+        "production": [
+          500,
+          800
+        ],
+        "tests": [
+          850,
+          1350
+        ]
+      }
+    },
+    {
+      "id": "m6/5",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/5] Actual data-key proofs and private recovery handoff",
+        "responsibility": "Compose existing M1/M3 crypto and M5 purpose-bound setup services for the actual candidate records/coverage keys, control and recovery copies. Reuse the approved browser-authorized opaque installer context without copying browser cookies or GitHub credentials. Prove both recovery paths, all three independent service paths and the fixed initial control proof before private initialization, then complete safe non-echoing recovery handoff. This adds the M6 local client, not another wrapping service or durable keys_ready flag. Implement the closed recovery bundle, safe exclusive descriptor-based durable handoff and exact WrappedKeys mapping in section4.1.1.",
+        "paths": [
+          "core/dracla/installation/key_setup.py",
+          "core/dracla/installation/handoff.py",
+          "core/dracla/cli/config.py",
+          "core/tests/test_installation_keys.py",
+          "core/tests/test_installation_handoff.py",
+          "docs/installation.md"
+        ],
+        "dependencies": [
+          "m6/4"
+        ],
+        "acceptance": [
+          "Actual candidate bytes/kids/fingerprints and exact context/purpose/wrapper/nonce/release/actor are checked for recovery, portal-records, portal-coverage, enforcer-coverage and control independently.",
+          "Browser receives no raw key; services receive only their direct capability, never the transport key. Wrong/expired/swapped context, generation or challenge fails before private writes.",
+          "Safe local exclusive private destination and explicit receipt/storage confirmation precede private initialization; unavailable TTY/handoff blocks without ordinary secret output.",
+          "Round-trip real native recovery copies through the versioned bundle; symlink/hardlink/existing-file/swap/owner/mode/short-write/fsync/crash/receipt failures never expose or overwrite unrelated material and block private initialization."
+        ]
+      },
+      "display": {
+        "summary": "Actual data-key proofs and private recovery handoff",
+        "production": [
+          770,
+          1200
+        ],
+        "tests": [
+          1300,
+          2100
+        ]
+      }
+    },
+    {
+      "id": "m6/6",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/6] Initial transport challenge and exact K/B idle bootstrap",
+        "responsibility": "Implement the missing installer bootstrap over the real protected M3 temporary-branch transport challenge, M5 initial proof phase and existing M1 formats. After candidate proof/handoff, create only the nonsemantic coverage root needed for the no-history challenge; verify scope and exact cleanup, then write unique K, child B, identical manifests, actual wrapped copies and independent encrypted idle guards. The new initial-transport phase does not invoke ordinary history on absent events/derived state or build an unconnected projection.",
+        "paths": [
+          "core/dracla/installation/bootstrap.py",
+          "core/dracla/records/github.py",
+          "core/dracla/records/credentials.py",
+          "control/reconcile.yml",
+          "core/tests/test_installation_bootstrap.py",
+          "core/tests/test_installation_transport_probe.py",
+          "api/src/control/bootstrap.ts",
+          "core/dracla/records/bootstrap.py",
+          "api/test/control/initial-transport.test.ts"
+        ],
+        "dependencies": [
+          "m6/5"
+        ],
+        "acceptance": [
+          "Real protected no-history probe challenges exact current records/coverage scope using temporary fixed nonprivate branches and conditional cleanup before encrypted guards/completion.",
+          "Verify unique root-to-K and direct K-to-B ancestry, exact actual-key proof, manifest equality on all three roles and final control provenance pinning B.",
+          "Operation cell/fence/marker decode independently as idle; first event/config, semantic coverage/shards and private generations remain absent. Lost replies cannot force a ref or create a second K."
+        ]
+      },
+      "display": {
+        "summary": "Initial transport challenge and exact K/B idle bootstrap",
+        "production": [
+          650,
+          1000
+        ],
+        "tests": [
+          1150,
+          1850
+        ]
+      }
+    },
+    {
+      "id": "m6/7",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/7] Provenance verifier and executable installer coordination",
+        "responsibility": "Replace the existing unconditional execution blocker only after composing the implemented ports and real prerequisites. Implement InstallationVerifier and ordered coordinator over M2 plan/resume, fresh numeric observations, actual root/K/B/control/profile provenance, proof results and immutable effects. Reuse exact proven prefixes and original key generation; distinguish unproved early prefixes, complete provisioned state and already connected arrangements. No local progress ledger, name-based adoption or automatic cleanup. Use section4.2.1 single rich inspector, immutable evidence/anchor types, fixed state/effect table and complete-only M2 compatibility projection; no independently implemented second verifier.",
+        "paths": [
+          "core/dracla/installation/verifier.py",
+          "core/dracla/installation/coordinator.py",
+          "core/dracla/provisioning.py",
+          "core/dracla/cli/app.py",
+          "core/tests/test_installation_coordinator.py",
+          "core/tests/test_installation_resume.py",
+          "core/tests/test_cli_planning.py"
+        ],
+        "dependencies": [
+          "m6/6"
+        ],
+        "acceptance": [
+          "Installed CLI executes actual typed admin/control/bootstrap clients in approved order and reports provisioned only after all readbacks/proofs/handoff; pure planner remains I/O-free.",
+          "Fault at every irreversible boundary, concurrent install, rate/error/SSO/head/privacy/profile drift and lost dispatch result yield safe finite categories; exact proven repeat creates no replacement keys or genesis.",
+          "An early prefix without attributable provenance blocks with safe cleanup/new-intent guidance; force cannot adopt it. Connected/pending Connect state is never reset to installation.",
+          "Exercise all absent/same-process-prefix/restarted-attributed-K-prefix/provisioned/Connect-pending/connected/blocked transitions; early unproved restart cannot regenerate keys, adopt names or clear guards, and M2 None never permits an effect.",
+          "Inspector/attempt retain the latest monotonic positive-or-null role-ID map; complete positive IDs are mandatory before bundle/K/B/restart/M2/provisioned/pending/connected/final provenance, without changing complete-object codecs.",
+          "The fixed creation\u2192roots\u2192control\u2192transport\u2192proofs\u2192handoff\u2192bootstrap\u2192final-provenance effect table is derived from actual evidence; every adjacent transition/fault is exercised and no saved step status bypasses prerequisites."
+        ]
+      },
+      "display": {
+        "summary": "Provenance verifier and executable installer coordination",
+        "production": [
+          600,
+          960
+        ],
+        "tests": [
+          1200,
+          1950
+        ]
+      }
+    },
+    {
+      "id": "m6/8",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/8] Released installer through real separate Connect acceptance",
+        "responsibility": "Wire completion links, stateless installation handoff and packaged entrypoints to the actual M5 setup/Connect and M4/M3 writer providers. Exercise a full installed-wheel flow from provisioning through direct/linked App installation, genuine first event/config and subsequent complete normal coverage/derived publication. Reuse m5/12 first-derived-root and bootstrap recovery, and keep agreement/scope activation separate. Do not build those foundations again.",
+        "paths": [
+          "core/dracla/installation/handoff.py",
+          "core/dracla/cli/app.py",
+          "core/tests/test_installation_connect.py",
+          "core/tests/installation_fakes.py",
+          "api/test/integration/installed-connect.test.ts",
+          "docs/installation.md",
+          "pyproject.toml"
+        ],
+        "dependencies": [
+          "m6/7"
+        ],
+        "acceptance": [
+          "Actual local Worker/HTTP/browser and Python engine handoff proves seven current rows, K/B/all copies and all actual live-path proofs; callbacks alone create no project/registry claim.",
+          "First Connect appends event/config once before full projection/readback; injected interruption and lost result resume its own exact operation with write-free completed repeat.",
+          "Provisioned, connected, agreement-active, scope-active and routable are separately asserted; no route follows from installer or first append alone."
+        ]
+      },
+      "display": {
+        "summary": "Released installer through real separate Connect acceptance",
+        "production": [
+          300,
+          500
+        ],
+        "tests": [
+          750,
+          1200
+        ]
+      }
+    },
+    {
+      "id": "m6/9",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/9] Same-release shared and self-hosted deployment assets",
+        "responsibility": "Ship reproducible operator configuration/runbooks and checks for the M4/M5 two-Worker topology, same-origin portal assets/API, isolated agreement origin, routing namespace and Git registry. Produce the approved nonsecret local profile from verified same-release deployment outputs, using distinct service roots/App credentials and public proof key sets. Count deployment templates/instructions as production. No source editing, per-project Worker, hosted provisioner or new deployment CLI.",
+        "paths": [
+          "release/deployment/portal.template.jsonc",
+          "release/deployment/enforce.template.jsonc",
+          "release/deployment/profile.template.json",
+          "release/deployment/assets-manifest.json",
+          "core/dracla/installation/deployment.py",
+          "core/tests/test_deployment_assets.py",
+          "api/test/integration/deployment-bindings.test.ts",
+          "docs/deployment.md",
+          "pyproject.toml",
+          "api/src/runtime/config.ts"
+        ],
+        "dependencies": [
+          "m6/1",
+          "m6/8"
+        ],
+        "acceptance": [
+          "Released assets/config instantiate shared and independent selfhost accounts without source edits and with identical code/assets identities and explicitly selected origins/controllers.",
+          "Wrong origins, cookie/CSP/asset pins, mixed root capabilities, missing service binding/gate/registry or another-project credentials fail closed through real runtime configuration.",
+          "Deployment/profile generation contains no private key/token/root; public deployment proof keys cannot replace fixed release-publisher/verifier trust."
+        ]
+      },
+      "display": {
+        "summary": "Same-release shared and self-hosted deployment assets",
+        "production": [
+          1000,
+          1550
+        ],
+        "tests": [
+          1400,
+          2200
+        ]
+      }
+    },
+    {
+      "id": "m6/10",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/10] Compatible upgrade and rollback procedures with readback",
+        "responsibility": "Implement and document explicit verified same-release upgrade/rollback sequencing over the deployed assets and protected control. Install accepted public verification keys/readers/config before enabling writers, retain prior verified identities, and validate actual canonical capabilities and origins. Reuse M4/M5 guarded transitions; do not rewrite history, clear guards, introduce v3 control merely for configuration or roll back to readers that reject existing schema2.",
+        "paths": [
+          "core/dracla/installation/deployment.py",
+          "core/dracla/installation/control.py",
+          "core/tests/test_deployment_upgrade.py",
+          "api/test/integration/upgrade-compatibility.test.ts",
+          "docs/deployment.md",
+          "docs/installation.md"
+        ],
+        "dependencies": [
+          "m6/9"
+        ],
+        "acceptance": [
+          "Interrupted readers/keys/control/assets/writer rollout remains unavailable until exact compatible identities and current proofs pass; lost replies use actual readback.",
+          "Rollback restores only an independently verified compatible prior release and retains canonical history/guards and old decrypt-only keys.",
+          "After a rebind, schema1-only rollback is rejected; no mutable release tag or profile selector silently retargets an existing deployment."
+        ]
+      },
+      "display": {
+        "summary": "Compatible upgrade and rollback procedures with readback",
+        "production": [
+          500,
+          800
+        ],
+        "tests": [
+          850,
+          1400
+        ]
+      }
+    },
+    {
+      "id": "m6/11",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/11] Exact snapshot manifests and isolated mirror-copy procedure",
+        "responsibility": "Add bounded canonical backup/target parsing, snapshot capture and exact object/ref comparison plus shipped official GitHub mirror instructions. Verify current private/empty or exact matching targets and administrator Actions deny/readback before any control import, excluding inherited secrets/runners and handling reused runs/containment. Copy remains the operator Git mirror procedure; preserve application-broken bytes/missing refs and report equality separately from health. No new Git-copy engine or public backup command.",
+        "paths": [
+          "core/dracla/recovery/__init__.py",
+          "core/dracla/recovery/snapshot.py",
+          "core/dracla/github_admin.py",
+          "core/tests/test_recovery_snapshot.py",
+          "core/tests/test_recovery_mirror.py",
+          "docs/backup-and-restore.md"
+        ],
+        "dependencies": [
+          "m6/1",
+          "m6/3"
+        ],
+        "acceptance": [
+          "Exact three-role manifest captures source IDs/default branches/full backed-up ref map and complete retained objects; readback detects missing/extra/moved refs without repair.",
+          "Missing derived/unfinished Connect, non-idle guards, stale projections and invalid application content copy unchanged and can remain offline broken; health is not a copy gate.",
+          "Malicious imported push/schedule/dispatch workflows cannot run before authenticated Actions deny; inherited resources, lost replies or unisolatable eligible refs block, never use retrospective policy receipt as proof.",
+          "Complete ref/object equality obeys section4.4 per-role and aggregate local traversal/bytes/deadlines; over-limit copy equality stays unverified without truncating or changing imported content."
+        ]
+      },
+      "display": {
+        "summary": "Exact snapshot manifests and isolated mirror-copy procedure",
+        "production": [
+          600,
+          950
+        ],
+        "tests": [
+          1000,
+          1650
+        ]
+      }
+    },
+    {
+      "id": "m6/12",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/12] Closed schema-2 rebind and generation parity",
+        "responsibility": "Implement only the approved project_repositories_rebound event in schema2 across Python authoring and TS consumption. Keep existing v1 event/envelope and identity domains unchanged; authenticate selected event schema in AAD before semantic dispatch. Replay exact prior/current role bindings and seven fresh target authorities, require snapshot.events as parent and advance all private class generations atomically in the existing package. Reuse native crypto, shared corpus and materializers.",
+        "paths": [
+          "core/dracla/conformance/events.py",
+          "core/dracla/conformance/event_identity.py",
+          "core/dracla/conformance/artifacts.py",
+          "core/dracla/conformance/envelope.py",
+          "core/dracla/conformance/replay.py",
+          "core/dracla/conformance/derived.py",
+          "api/src/conformance/events.ts",
+          "api/src/conformance/artifacts.ts",
+          "api/src/conformance/envelope.ts",
+          "api/src/conformance/derived.ts",
+          "conformance/authoring/build.py",
+          "conformance/authoring/transitions.py",
+          "core/tests/test_rebind_protocol.py",
+          "api/test/conformance.test.mjs"
+        ],
+        "dependencies": [
+          "m6/11"
+        ],
+        "acceptance": [
+          "Shared valid/substitution vectors prove exact closed payload, six required OIDs, old/current owner/set, unchanged slug, at least one changed ID and exact current seven authorization rows.",
+          "Schema/AAD/type/path substitutions, malformed/foreign authorization, null derived and non-event schema2 identities deny; old v1 bytes/corpus remain valid.",
+          "Canonical event plus required generation artifact commits atomically or not at all; all three private generations equal this event ID and no alternate crypto/replay implementation exists."
+        ]
+      },
+      "display": {
+        "summary": "Closed schema-2 rebind and generation parity",
+        "production": [
+          750,
+          1150
+        ],
+        "tests": [
+          1400,
+          2200
+        ]
+      }
+    },
+    {
+      "id": "m6/13",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/13] Strict historical-origin and current repository readers",
+        "responsibility": "Extend existing history/bootstrap acquisition to authenticate original manifest/root/K/B against genesis, every allowed canonical rebind epoch and final replay against actual current transport IDs. Reuse full key/history/projection validation and update actual M4/M5 service/reader/export call sites for normal post-rebind operation. A transient read-only source view is constructed only after current target authorization; no ID alias, rewritten origin or permanent recovery bypass.",
+        "paths": [
+          "core/dracla/records/history.py",
+          "core/dracla/records/key_bindings.py",
+          "core/dracla/recovery/origin.py",
+          "api/src/records/history.ts",
+          "api/src/records/recovery.ts",
+          "core/tests/test_recovery_history.py",
+          "api/test/records/recovery-history.test.ts",
+          "api/src/records/preconditions.ts"
+        ],
+        "dependencies": [
+          "m6/12"
+        ],
+        "acceptance": [
+          "Original genesis and old authorization epochs remain byte-identical; normal reader accepts only the fully validated final current set and rejects old/new substitution or missing history.",
+          "Actual transport remains scoped to current numeric target IDs; source view cannot authorize ordinary private disclosure or arbitrary refs/providers.",
+          "Real post-rebind read/admin/sign/revoke/export paths consume normal current state; unconnected/missing-derived source stays denied for activation."
+        ]
+      },
+      "display": {
+        "summary": "Strict historical-origin and current repository readers",
+        "production": [
+          500,
+          800
+        ],
+        "tests": [
+          1100,
+          1750
+        ]
+      }
+    },
+    {
+      "id": "m6/14",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/14] Healthy-source admission and exact activation-operation retries",
+        "responsibility": "Construct the narrow local activation admission from the full exact snapshot, actual authorized target transport and existing read-only verifier. Require complete valid projections and idle original cell/fence/marker before new activation. Extend only the existing engine seam for this new rebind and its exact accepted retry, reconstructing healthy source at frozen original OIDs. Imported old operations never resume. Existing verifier comparisons and writer state machine are reused, not counted again.",
+        "paths": [
+          "core/dracla/recovery/admission.py",
+          "core/dracla/records/append.py",
+          "core/dracla/records/reconcile.py",
+          "core/tests/test_recovery_admission.py",
+          "core/tests/test_recovery_own_operation.py",
+          "api/src/records/preconditions.ts",
+          "api/src/records/mutations.ts",
+          "api/test/records/recovery-admission.test.ts"
+        ],
+        "dependencies": [
+          "m6/11",
+          "m6/13"
+        ],
+        "acceptance": [
+          "Every missing/corrupt/stale/non-idle source case denies with zero Git/secret/job/registry/source-route effects; actual byte/ref equality remains independently reportable.",
+          "Only exact snapshot/source/target/new activation package matches its prepared/appending/landed retry; changed/foreign/imported packages cannot be adopted or guards cleared.",
+          "Frozen source health is reverified through immutable observations; expired/unavailable required context blocks safely without resetting the accepted operation or inventing a new nonce."
+        ]
+      },
+      "display": {
+        "summary": "Healthy-source admission and exact activation-operation retries",
+        "production": [
+          250,
+          400
+        ],
+        "tests": [
+          650,
+          1100
+        ]
+      }
+    },
+    {
+      "id": "m6/15",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/15] Explicit live activation through protected proofs and one rebind",
+        "responsibility": "Implement dracla restore planning/execute over a pre-copied snapshot and the real M4/M5/control/engine stack. Add the fixed recovery-only context/proof adapters required before new-ID activation; neither unclaimed initial-wrap nor ordinary installed proofs are silently broadened. After health/current heads/authority/confirmation, stage exact registry/pending gates and revalidate, transfer the bounded nonsecret manifest as a content-addressed blob in the exact control repo, dispatch only a short inert descriptor, then prove keys/code and execute one rebind/full publication/sweep. No second writer, job authority store or public mutation form.",
+        "paths": [
+          "core/dracla/cli/app.py",
+          "core/dracla/recovery/activate.py",
+          "core/dracla/records/github.py",
+          "core/dracla/github_admin.py",
+          "api/src/portal/recovery.ts",
+          "api/src/enforce/recovery.ts",
+          "api/src/control/recovery.ts",
+          "api/src/portal/index.ts",
+          "api/src/enforce/index.ts",
+          "control/reconcile.yml",
+          "core/tests/test_recovery_activation.py",
+          "api/test/integration/recovery-activation.test.ts",
+          "docs/backup-and-restore.md",
+          "api/src/portal/contexts.ts",
+          "api/src/portal/bootstrap.ts",
+          "api/src/portal/wrapping.ts",
+          "api/src/enforce/wrapping.ts",
+          "api/src/control/bootstrap.ts",
+          "api/src/portal/authority.ts",
+          "api/src/enforce/portal-observations.ts",
+          "api/src/routing/registry.ts",
+          "api/src/routing/coordinator.ts",
+          "dashboard/portal/connect.ts",
+          "api/test/portal/recovery-authority.test.ts"
+        ],
+        "dependencies": [
+          "m6/4",
+          "m6/5",
+          "m6/10",
+          "m6/14"
+        ],
+        "acceptance": [
+          "Actual assembled one-role/all-role/same-ID and exact-companion cases enforce every first-install authority/privacy/App/source/provenance/recovery/live-key requirement before canonical activation/routing.",
+          "At-limit1MiB snapshot uses only a bounded fixed descriptor, exact self-control blob SHA256/readback/schema before keys, no secret/context in Git and no indefinite blob-retention assumption; lost upload/dispatch replies retain exact intent.",
+          "Fault every staging/proof/append/materialization/gate boundary; recheck source/target/registry after staging. Matching pre-event restoration only, accepted operation pending through full completion, newer quarantine wins and completed repeat has no new event/nonce/dispatch/Git writes.",
+          "Exact section8.4 authorize/prove wire and multi-generation MAC/ControlKeyProof mapping pass parity and substitutions for context/challenge/candidate/source/member/body/run/attempt/stored copies; existing initial/installed bootstrap union stays closed."
+        ]
+      },
+      "display": {
+        "summary": "Explicit live activation through protected proofs and one rebind",
+        "production": [
+          1340,
+          2050
+        ],
+        "tests": [
+          2680,
+          4100
+        ]
+      }
+    },
+    {
+      "id": "m6/16",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/16] Installed controller lifecycle and hosted migration integration",
+        "responsibility": "Wire the installed CLI/deployment/runbooks to existing M3/M4/M5 successor/rotation/quarantine and data-key activation protocols. Prove all shared transport assignments and control secret controllers, coordinate changed profile/operator bindings, and keep token-only versus App/root exposure scopes distinct. M4m4/13 owns the all-token barrier; M6 delivers actual installed/local integration and honest rewrap versus security-cutoff results, not another containment registry.",
+        "paths": [
+          "core/dracla/installation/lifecycle.py",
+          "core/dracla/recovery/activate.py",
+          "core/tests/test_installed_lifecycle.py",
+          "api/test/integration/installed-lifecycle.test.ts",
+          "docs/installation.md",
+          "docs/deployment.md",
+          "docs/backup-and-restore.md"
+        ],
+        "dependencies": [
+          "m6/15"
+        ],
+        "acceptance": [
+          "Successor App/root/wrapper selection and actual key proofs precede retirement; shared union/control reach is complete and stale protected configuration fails closed.",
+          "Unknown future issuance/old tokens, temporary suspension/revival, missing permanent invalidation or full lifetime-plus-tested-margin evidence keep affected routes unavailable.",
+          "Former-operator-independent migration preserves canonical bytes; ordinary rewrap does not claim old-key revocation. Security cutoff rotates both data keys and rebuilds current state with actual readback/sweep."
+        ]
+      },
+      "display": {
+        "summary": "Installed controller lifecycle and hosted migration integration",
+        "production": [
+          450,
+          750
+        ],
+        "tests": [
+          1000,
+          1650
+        ]
+      }
+    },
+    {
+      "id": "m6/17",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/17] Assembled offline acceptance and failure-sensitivity evidence",
+        "responsibility": "Complete one installed-wheel/real Worker/HTTP/browser/Python integration driver using the existing M4/M5 harness and earlier M6 fixtures. Join installation, first Connect, deployment/upgrade, exact broken copy, healthy activation, normal operations and lifecycle without saved success bits. Add failure-sensitivity checks and ship the final current operator diagnostics/warnings. This owns cross-slice assembly, not duplicate endpoint, crypto or per-slice unit suites.",
+        "paths": [
+          "core/tests/integration/test_m6_installed.py",
+          "core/tests/integration/m6_driver.py",
+          "api/test/integration/m6-assembled.test.ts",
+          "dashboard/portal/test/installed-adopter.spec.ts",
+          "core/dracla/cli/app.py",
+          "docs/installation.md",
+          "docs/deployment.md",
+          "docs/backup-and-restore.md",
+          "pyproject.toml",
+          "api/package.json"
+        ],
+        "dependencies": [
+          "m6/8",
+          "m6/10",
+          "m6/15",
+          "m6/16"
+        ],
+        "acceptance": [
+          "Every M6 requirement/parent journey maps to actual executable assertions through installed release entrypoints and real owning services, including useful safe source OIDs and all required trust/recovery/integrity warnings.",
+          "Deliberately bypass privacy/ID/profile/source/guard/proof/quarantine/readback checks in disposable mutation runs and demonstrate tests fail; no mirror-implementation-only suite.",
+          "Full affected Python/TS/vector/type/package/offline gates pass; source/WIP is preserved and nine historical live skips or fake providers never count as hosted acceptance.",
+          "At-limit/over-limit, aggregate budget, deadline/slow-body, retry and proof-size sensitivity run through actual clients; nested operations cannot reset counters or infer success from incomplete data."
+        ]
+      },
+      "display": {
+        "summary": "Assembled offline acceptance and failure-sensitivity evidence",
+        "production": [
+          450,
+          700
+        ],
+        "tests": [
+          1250,
+          2000
+        ]
+      }
+    },
+    {
+      "id": "m6/18",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m6/18] Real adopter and self-hosted installation acceptance driver",
+        "responsibility": "Deliver the bounded explicitly authorized real-account driver and shipped execution/cleanup instructions for the same released installer, GitHub policy/App/secret/protected job and Cloudflare shared/selfhost integration. Reuse M4 incident and M5 live provider drivers and m6/17 assertions; M7 assembles the final release/capacity/demo matrix rather than rebuilding this driver. Do not run accounts/credentials/deployments during this design campaign.",
+        "paths": [
+          "core/tests/live/m6_adopter.py",
+          "core/tests/live/m6_cleanup.py",
+          "api/test/live/m6-deployment.mjs",
+          "docs/installation.md",
+          "docs/deployment.md",
+          "docs/backup-and-restore.md"
+        ],
+        "dependencies": [
+          "m6/17"
+        ],
+        "acceptance": [
+          "Future separately authorized runs bind actual published wheel/source/release/asset/profile/workflow identities and exercise unrelated personal/org adopters, private Free control and shared/selfhost installed flows without source edits.",
+          "Record actual numeric resources, policy/permission negatives, control pre-key identity, key challenges, one/all-role rawcopy/activation and live token/retirement behavior; missing/skipped live evidence stays open.",
+          "Cleanup targets only the exact run-owned verified resources under explicit authority, preserves retained histories/keys/evidence and reports residual resources; never sweeps unrelated repositories or prior completed slices."
+        ]
+      },
+      "display": {
+        "summary": "Real adopter and self-hosted installation acceptance driver",
+        "production": [
+          250,
+          450
+        ],
+        "tests": [
+          1100,
+          1800
+        ]
+      }
+    }
+  ]
+}

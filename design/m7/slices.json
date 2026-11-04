@@ -1,0 +1,582 @@
+{
+  "schema_version": 2,
+  "slices": [
+    {
+      "id": "m7/1",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/1] Authenticated coherent dashboard pages",
+        "responsibility": "Extend M5/9 actual index and exact-status handlers with the closed safe source wrapper in plan §2. Resolve every status control at one immutable coverage commit and selected index at its validated derived commit. Preserve each request’s current session/proof/source-union/live-membership checks and native formats. No new route, proof, snapshot store or writer.",
+        "paths": [
+          "api/src/portal/private-pages.ts",
+          "api/src/portal/readers.ts",
+          "api/test/portal/private-pages.test.ts",
+          "api/test/portal/dashboard-source.test.ts"
+        ],
+        "dependencies": [],
+        "acceptance": [
+          "Real M5 handlers return only allowed fields with E/D/C, generations and profile identity derived from actual validated observations; tests reject wrong project/purpose/profile/shard and missing/unknown controls.",
+          "Open/close subject and project fences at fixed events/derived heads: both page and exact-status provenance changes and status matches native evaluation.",
+          "Withdraw individual/snapshot/continuous authorization and lose live membership between pages: no plaintext; no repository-permission or alternate-proof bypass.",
+          "Every E/D/C field uses native40-or64 lowercase full Git OID exactly; page/status preserve each supported repository format without truncation, while shortened/uppercase/padded/mixed-format observations within one repository reject."
+        ]
+      },
+      "display": {
+        "summary": "Authenticated coherent dashboard pages",
+        "production": [
+          300,
+          480
+        ],
+        "tests": [
+          600,
+          950
+        ]
+      }
+    },
+    {
+      "id": "m7/2",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/2] Bounded private dashboard scan and rendering",
+        "responsibility": "Wire Dashboard into the existing M5 app. Fetch the fixed32 pages through at most two authorized requests, enforce §3 bounds before accumulation, preserve one complete source tuple, and render only100 local rows. Reuse M5 browser/build harness and codecs. No general data cache or per-row provider lookup.",
+        "paths": [
+          "dashboard/portal/dashboard.ts",
+          "dashboard/portal/dashboard-model.ts",
+          "dashboard/portal/app.ts",
+          "dashboard/portal/styles.css",
+          "dashboard/portal/test/dashboard-scan.spec.ts",
+          "dashboard/portal/test/dashboard-model.test.ts"
+        ],
+        "dependencies": [
+          "m7/1"
+        ],
+        "acceptance": [
+          "Actual app navigation obtains a real reader proof and shows loading/partial/complete/empty/unavailable distinctly; empty shards count toward32, failed/truncated shards never count complete.",
+          "Wrong tuple, duplicate/wrong-shard/unsafe-ID/unknown fields, oversized streamed body, row/aggregate budget and timeout clear private rows; source churn exhausts finite budget rather than looping.",
+          "Maximum native shard fixtures stay within tested client limits and100 DOM rows; deterministic data with legitimate zero results is distinct from unproved completeness."
+        ]
+      },
+      "display": {
+        "summary": "Bounded private dashboard scan and rendering",
+        "production": [
+          400,
+          650
+        ],
+        "tests": [
+          700,
+          1100
+        ]
+      }
+    },
+    {
+      "id": "m7/3",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/3] Complete dashboard filters and stable ordering",
+        "responsibility": "Implement every required loaded-row filter, deterministic comparator and accessible reset/pagination in §4. Match stable IDs and loaded labels without identity lookups. Preserve canonical status, exemption and unsupported Entity distinctions. All filtering stays volatile and local.",
+        "paths": [
+          "dashboard/portal/dashboard-filters.ts",
+          "dashboard/portal/dashboard.ts",
+          "dashboard/portal/test/dashboard-filters.test.ts",
+          "dashboard/portal/test/dashboard-filters.spec.ts"
+        ],
+        "dependencies": [
+          "m7/2"
+        ],
+        "acceptance": [
+          "All filter combinations exercise OR within/AND across fields, empty defaults, exact numeric IDs/login substrings, native repository/organization selectors and agreement/version.",
+          "UTC leap dates/inclusive final day/nulls/inverted bounds and every sortable column have stable ties; filter/sort reset page1, Reset changes no authority/project/data.",
+          "Keyboard labels and live result text distinguish partial/complete/empty; exempt never becomes signed Individual coverage, Entity is unavailable."
+        ]
+      },
+      "display": {
+        "summary": "Complete dashboard filters and stable ordering",
+        "production": [
+          220,
+          360
+        ],
+        "tests": [
+          450,
+          750
+        ]
+      }
+    },
+    {
+      "id": "m7/4",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/4] Safe refresh and private browser lifecycle",
+        "responsibility": "Apply the existing app session transitions to every dashboard/status callback using one monotonic local view epoch. Explicit Refresh replaces rather than merges. Hidden/unloaded views purge state; no polling. Enforce no-Service-Worker/private-cache initialization and fresh uncontrolled reload in §3. Reuse existing logout/session code, not a new auth protocol.",
+        "paths": [
+          "dashboard/portal/dashboard.ts",
+          "dashboard/portal/app.ts",
+          "dashboard/portal/status.ts",
+          "dashboard/portal/read-context.ts",
+          "dashboard/portal/test/dashboard-lifecycle.spec.ts",
+          "dashboard/portal/test/private-persistence.spec.ts"
+        ],
+        "dependencies": [
+          "m7/2",
+          "m7/3"
+        ],
+        "acceptance": [
+          "Hold authorized index/status responses through logout/project/login-cycle/denial/source-generation/hidden/controller-change/replacement refresh; releasing headers/body/timers cannot change private memory/DOM/counts.",
+          "Reverse two-generation completion, including coverage-only fences at fixed records heads; no mixed complete result. Disabling final commit guard makes the race assertion fail.",
+          "Seed controlling registration and private Cache Storage: no private initialization/read/replay until operator cleanup and fresh uncontrolled page. Supported app never registers/caches; persistence inspection after every invalidation finds no private values."
+        ]
+      },
+      "display": {
+        "summary": "Safe refresh and private browser lifecycle",
+        "production": [
+          300,
+          480
+        ],
+        "tests": [
+          850,
+          1350
+        ]
+      }
+    },
+    {
+      "id": "m7/5",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/5] Accessible static badges and complete canonical links",
+        "responsibility": "Ship four fixed public SVGs through M6 released static assets and extend M5 canonical link composition only where needed. Use existing M4 single-comment writer and M5 disclosure. Provide factual accessible guidance and actual owner/slug/numeric repository/PR links. Static image bytes excluded from LOC; shipped instructions included.",
+        "paths": [
+          "dashboard/public/badges/cla-sign-or-check.svg",
+          "dashboard/public/badges/cla-satisfied.svg",
+          "dashboard/public/badges/cla-action-required.svg",
+          "dashboard/public/badges/cla-unavailable.svg",
+          "dashboard/portal/links.ts",
+          "api/src/portal/pr.ts",
+          "dashboard/portal/test/badges-links.spec.ts",
+          "docs/dashboard.md",
+          "docs/contributing-integration.md"
+        ],
+        "dependencies": [
+          "m7/4"
+        ],
+        "acceptance": [
+          "Both deployments and independent same-number PRs/rename cases navigate to the correct existing project; malformed/cross-origin/context substitutions fail validation.",
+          "Actual static asset request produces no Worker invocation; no signer identifiers/count/proof/query data in SVG/link/markup. If routing invokes Worker, zero-dynamic claim fails.",
+          "All existing PR disclosure tiers and malicious configuration/login/agreement/scope values render safely, with keyboard/text alternatives and no second comment or anonymous lookup."
+        ]
+      },
+      "display": {
+        "summary": "Accessible static badges and complete canonical links",
+        "production": [
+          200,
+          340
+        ],
+        "tests": [
+          500,
+          800
+        ]
+      }
+    },
+    {
+      "id": "m7/6",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/6] Independent installed sample across deployments",
+        "responsibility": "Extend M6/18 adopter/deployment driver and M5/17 portal driver to operate two distinct immutable recipients with independent role IDs/keys through authentic released configuration and normal first Connect. Supply only existing installer keys plus ordinary portal instructions. Cover shared and independent selfhost without source edits or format conversion; real resources require separate authorization.",
+        "paths": [
+          "examples/independent-project/README.md",
+          "examples/independent-project/install.yaml",
+          "scripts/acceptance/m7_projects.py",
+          "dashboard/portal/test/independent-projects.spec.ts",
+          "api/test/integration/m7-projects.test.ts"
+        ],
+        "dependencies": [
+          "m7/5"
+        ],
+        "acceptance": [
+          "Install configuration uses only github.owner, project.slug, dry_run and force; no invented recipient CLI key. Separate normal portal agreement/recipient/scope operations precede signing.",
+          "Real composed sign/check/revoke/re-sign/dashboard/export works for both; wrong route/App/proof/project read/write attempts deny and tenant A failure leaves B operational.",
+          "Shared→selfhost and upgrade/rollback retain exact canonical histories and approved controller disclosures. Cleanup uses exact verified run-owned IDs and records residuals."
+        ]
+      },
+      "display": {
+        "summary": "Independent installed sample across deployments",
+        "production": [
+          180,
+          300
+        ],
+        "tests": [
+          1000,
+          1600
+        ]
+      }
+    },
+    {
+      "id": "m7/7",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/7] Joined signing administration and reader journeys",
+        "responsibility": "Join existing real M3 writer, M4 coverage, M5 forms/readers/exports and M6 installed arrangement for scenario groups L1–L8 in support. Reuse child fixtures/clients; add only orchestration and assertions across their real seams. Cover complete administrative matrix and acceptance/activation/exemption/reader/legal transitions, not another business engine.",
+        "paths": [
+          "scripts/acceptance/m7_legal.py",
+          "core/tests/integration/test_m7_legal.py",
+          "api/test/integration/m7-legal.test.ts",
+          "dashboard/portal/test/m7-legal.spec.ts",
+          "docs/release-verification.md"
+        ],
+        "dependencies": [
+          "m7/6"
+        ],
+        "acceptance": [
+          "Each actual administrative authorization row verifies stable actor, login snapshot, exact operation/current authority/evidence, with lower-role denial and no effect.",
+          "Sign/active/inactive/retired/restore/revoke-all-earlier versions/direct re-sign/lost reply/conflicting key/stale confirmation/repeated beyond former window give exact canonical events and semantic no-op writes0.",
+          "Individual/snapshot all+subset/continuous/union withdrawal affect exemptions and records readers independently; reader without repo access works; encryption-purpose/key/privacy and malicious CSV/JSON/export values retain native guarantees."
+        ]
+      },
+      "display": {
+        "summary": "Joined signing administration and reader journeys",
+        "production": [
+          120,
+          200
+        ],
+        "tests": [
+          1400,
+          2200
+        ]
+      }
+    },
+    {
+      "id": "m7/8",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/8] Joined queue routing and concurrent recovery journeys",
+        "responsibility": "Compose M4 queue/gate/control drivers with real portal mutation and M3 append/recovery for E1–E5. Preserve immutable completed queue decisions and current membership/routing authority. Include full overlap/transfer/inspection/reconciliation and unaffected-tenant behavior. Do not duplicate route coordinator or mutation engine.",
+        "paths": [
+          "scripts/acceptance/m7_enforcement.py",
+          "api/test/integration/m7-enforcement.test.ts",
+          "core/tests/integration/test_m7_conflicts.py",
+          "docs/release-verification.md"
+        ],
+        "dependencies": [
+          "m7/6",
+          "m7/7"
+        ],
+        "acceptance": [
+          "Two queue entries evaluate their own membership despite cumulative branch; mutation after ordinary check affects fresh queue; completed decision survives later mutation/physical landing, rebuild/new checks_requested makes fresh changed decision.",
+          "Overlap bind/move/transfer, stale/pending/wrong-generation/quota/lost gate, authenticated event mismatch and missed lifecycle reconcile fail closed only for affected repository; all inspection tiers and per-mutation auth match requirements.",
+          "Concurrent append loss proves semantic no-op0writes/valid retry/conflict. Real service outage plus automatic and user retry preserve unavailable/public bounded output; attacker-controlled control data cannot select code."
+        ]
+      },
+      "display": {
+        "summary": "Joined queue routing and concurrent recovery journeys",
+        "production": [
+          100,
+          180
+        ],
+        "tests": [
+          1200,
+          1900
+        ]
+      }
+    },
+    {
+      "id": "m7/9",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/9] Every-clause release verification and current evidence",
+        "responsibility": "Implement the finite clause/staleness check and standard result composition in §5 using the complete planning catalogue. Preserve old M1–M3 verification records as history. Require current actual assertion/manual evidence for each normative clause and complete §16 scenario, not source existence, suite counts or a new workflow/truth/approval store. Test-only manifest/checker is test LOC; shipped instructions P.",
+        "paths": [
+          "scripts/acceptance/m7_verify.py",
+          "scripts/acceptance/m7_requirements.json",
+          "core/tests/test_m7_verification.py",
+          "design/verification-matrix.md",
+          "docs/release-verification.md"
+        ],
+        "dependencies": [
+          "m7/7",
+          "m7/8"
+        ],
+        "acceptance": [
+          "Added/removed/duplicated/stale MUST token or scenario, unmapped assertion, stale source/release/profile/workflow, malformed/truncated standard test output, missing manual record and skipped/unavailable/unrun/failed evidence all keep release gate closed.",
+          "Each current clause maps exact observable assertion/manual procedure; conditional Entity scope is explicit approved §17 applicability, not silently counted passed or a new deferral.",
+          "Current native conformance results are retained and composed with installed/runtime/browser/live outputs; a handcrafted boolean/matrix row cannot authorize release or replace authentic execution evidence."
+        ]
+      },
+      "display": {
+        "summary": "Every-clause release verification and current evidence",
+        "production": [
+          180,
+          300
+        ],
+        "tests": [
+          700,
+          1150
+        ]
+      }
+    },
+    {
+      "id": "m7/10",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/10] Complete encrypted production-path measurement cases",
+        "responsibility": "Extend M4/14 and M5/17 case drivers and safe instrumentation counters for §6. Use actual encrypted released handlers/codecs/adapters and M6 installed exporter. Capture every relevant nested resource exactly once. No plaintext performance surrogate, duplicate harness or instrumentation evidence database.",
+        "paths": [
+          "api/bench/enforcement.mjs",
+          "api/bench/portal.mjs",
+          "api/test/bench/m7-measurement.test.ts",
+          "scripts/acceptance/portal_resources.ts",
+          "core/tests/test_m7_measurement.py",
+          "docs/performance.md"
+        ],
+        "dependencies": [
+          "m7/4",
+          "m7/7",
+          "m7/8"
+        ],
+        "acceptance": [
+          "Normal/max/error cases cover PR/queue/rebuild/fallback, sign/revoke/admin/Connect/bulk/teams, proof/index/full32scan/status/exports, warm/cold/reconstructed gate/SQL and Actions paths.",
+          "Captured rows bind handler, fixture/source/profile, counter inclusion, units and warm/cold condition; removed crypto/auth/publication/gate seam changes expected result or sensitivity assertion.",
+          "Full maximum fixture and streamed export counters reconcile with actual driver calls; missing measurements remain unknown. Historical plaintext1.26ms is preserved only as lower-bound historical evidence."
+        ]
+      },
+      "display": {
+        "summary": "Complete encrypted production-path measurement cases",
+        "production": [
+          220,
+          360
+        ],
+        "tests": [
+          1000,
+          1600
+        ]
+      }
+    },
+    {
+      "id": "m7/11",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/11] Hosted CPU resource and billing measurements",
+        "responsibility": "Extend existing authorized live drivers to retrieve provider CPU/wall/request/SQL/KV/logging/Actions evidence safely. Use existing provider telemetry and deployment metadata; no Tail Worker or additional service. Exact telemetry schemas/units and quota accounting are validated at execution before verified conversion; real provider claims require real runs, not local timings.",
+        "paths": [
+          "scripts/acceptance/m7_provider.py",
+          "scripts/acceptance/portal_resources.ts",
+          "api/test/live/enforcement.ts",
+          "core/tests/live/m6_adopter.py",
+          "core/tests/test_m7_provider_metrics.py",
+          "docs/performance.md"
+        ],
+        "dependencies": [
+          "m7/6",
+          "m7/10"
+        ],
+        "acceptance": [
+          "At least100 warm and5 provider-confirmed cold/reconstructed samples per required path/profile or explicit unavailable gate; measured sampling/resolution and unobserved startup work never become zero.",
+          "All metrics are normalized from schema-declared units; unknown unit/schema, missing cases/max membership/live accounts, logging query redaction failure or provider identity mismatch blocks evidence.",
+          "Safe captures contain no URL query/proof/key/private payload; real Free/private control and actual Actions jobs/rounding/storage/owner are observed. Service-bound invocations and Internet requests remain separate until Free quota accounting verified.",
+          "Capture current fixed-origin primary/provider source bytes, values, windows and safe run bindings. This producer does not depend on the later m7/13 snapshot loader; m7/13 and final m7/15 consume its exact observations for authenticated-snapshot equality/current applicability, with missing/changed/stale data an unmet gate."
+        ]
+      },
+      "display": {
+        "summary": "Hosted CPU resource and billing measurements",
+        "production": [
+          130,
+          230
+        ],
+        "tests": [
+          1400,
+          2300
+        ]
+      }
+    },
+    {
+      "id": "m7/12",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/12] Complete dimensional workload calculator",
+        "responsibility": "Extend the one existing calculator into §7 typed operation/resource classes and concrete producer/consumer schemas over arbitrary heterogeneous projects. Replace incomplete scalar CPU and signing-implies-reconciler arithmetic directly; no parallel legacy answer, database, service or scheduler. Add normal/full-dashboard/queue/check-run/push/fallback/team/export/recovery scenarios and explicit measured/assumed/unknown provenance.",
+        "paths": [
+          "core/capacity.py",
+          "core/tests/test_capacity.py",
+          "docs/capacity.md"
+        ],
+        "dependencies": [
+          "m7/10"
+        ],
+        "acceptance": [
+          "Exact hand-calculated heterogeneous/N0/N1/boundary cases reconcile all event/portal/maintenance/gate/SQL/KV/logs/GitHub/Actions totals without parent/child double charge.",
+          "Strict unit/type/finite validation, zero versus unknown, fractional event rates, days28–31, per-job ceil and per-account grouping pass; unknown essential resource cannot yield verified capacity.",
+          "Actual M4 maintenance planner calibration over0..256 verifies conservative inclusive child coefficients; beyond calibrated profile mathematical output remains explicitly unverified rather than new runtime support.",
+          "Concrete measurement/workload/provider codecs and model/CLI in §7.1 reject incompatible schema/unit/aggregation/bindings. Hand-calculated same-object overlap, idle retained storage, peak overload and mixed-owner hourly billing prove each aggregation class rather than a universal linear formula.",
+          "Closed nested OtherUsage/PeakBound/Release/Source/AccountPlan/Limit/Price shapes define units, owner/provenance/windows/unknowns/base fee/allowance/rounding. condition_cases binds exactly one matching case per positive mixture condition; warm2ms/cold8ms example yields70ms/day and distinct8ms maximum. Missing/extra/foreign/mismatched inputs reject."
+        ]
+      },
+      "display": {
+        "summary": "Complete dimensional workload calculator",
+        "production": [
+          400,
+          650
+        ],
+        "tests": [
+          650,
+          1050
+        ]
+      }
+    },
+    {
+      "id": "m7/13",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/13] Provider limits and evidenced capacity envelope",
+        "responsibility": "Finish the same model with dated primary provider limits/prices and actual released deployment/profile, strict per-invocation/peak/daily/monthly/account/adopter checks, unknowns and limiting resource. Produce useful reproducible human/JSON output with assumptions and safe sources. No automatic expanded profile, changed topology or billing authority.",
+        "paths": [
+          "core/capacity.py",
+          "core/tests/test_capacity_profiles.py",
+          "docs/capacity.md",
+          "docs/performance.md",
+          "core/dracla/data/capacity-provider-profile.json",
+          "core/dracla/data/capacity-provider-sources",
+          "pyproject.toml"
+        ],
+        "dependencies": [
+          "m7/11",
+          "m7/12"
+        ],
+        "acceptance": [
+          "Free10ms/49releasedcalls/memory, DO duration/SQL/storage, KV/logs and real GitHub buckets/concurrency are independent constraints; monthly included paid capacity is not a hard daily limit.",
+          "Unsupported measurement/profile/provider-accounting or unknown other account consumption makes verified envelope unknown; tested budget violation reduces supported envelope or retains failed gate.",
+          "Boundaries, saturation ties, root-only N0 overhead, arbitrary counts and actual pricing effective dates reproduce outputs. Static assets have zero dynamic requests only when actual routing evidence supports it.",
+          "Separate flow/maxima/interval-union/stock-time-integral/owner-billing equations; wrong resource aggregation class rejects and absent peak/storage/other-usage evidence remains unknown.",
+          "Provider plan required resource set cannot omit costly terms; exact dated owner billing windows, one base fee and pooled allowances, actual retention/release evidence and per-item rounding reject conflicting or unknown values without an invented zero.",
+          "Load/hash the exact canonical provider snapshot and primary-source bytes included in the existing authenticated release artifact; bind provider_profile_sha256 in report output. Caller-edited quotas/prices/URL/hash/date/approval flags cannot establish release evidence. CLI output is forecast/unknown/unsupported; authentic snapshot equality and current evidence are checked by the existing final verifier."
+        ]
+      },
+      "display": {
+        "summary": "Provider limits and evidenced capacity envelope",
+        "production": [
+          350,
+          600
+        ],
+        "tests": [
+          700,
+          1150
+        ]
+      }
+    },
+    {
+      "id": "m7/14",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/14] All-token containment exact copy and healthy activation",
+        "responsibility": "Join M4 all-token barrier with M5 lifecycle/keys and M6 exact mirror/healthy activation. Prove unknown-token/cutoff/issuance/max-lifetime-plus-margin handling, complete controller reach, retained rotation history and final normal read/export/dashboard. Broken backup stays equally broken; no imported pending continuation or nullable-derived workaround.",
+        "paths": [
+          "scripts/acceptance/m7_recovery.py",
+          "core/tests/integration/test_m7_recovery.py",
+          "core/tests/live/m6_adopter.py",
+          "api/test/live/enforcement.ts",
+          "dashboard/portal/test/m7-recovery.spec.ts",
+          "docs/recovery-verification.md"
+        ],
+        "dependencies": [
+          "m7/6",
+          "m7/7",
+          "m7/8",
+          "m7/11"
+        ],
+        "acceptance": [
+          "Actual dedicated/shared App reach excludes control, unknown externally issued tokens/outstanding issuance and skew/propagation negatives defeat false containment; routes stay unavailable until current accepted barrier/readback.",
+          "Raw copy preserves healthy and broken/unfinished refs/objects exactly; unhealthy activation performs zero Git/secret/job/registry/source-route effects and leaves replacements unbound.",
+          "Healthy same/new-ID activation under every first-install/controller check admits only its own new rebind retry; newer quarantine wins. Full projection/read/export/dashboard and bounded PR recheck pass with historical old-key decryptability and exact owned cleanup."
+        ]
+      },
+      "display": {
+        "summary": "All-token containment exact copy and healthy activation",
+        "production": [
+          200,
+          330
+        ],
+        "tests": [
+          1300,
+          2100
+        ]
+      }
+    },
+    {
+      "id": "m7/15",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m7/15] Authentic release identity and complete acceptance",
+        "responsibility": "Complete already-required nonsecret deployed release identity at existing Worker GET /health and composed release acceptance in §8. Reuse M6 authentic builder/publisher/assets/profile/deployment and control verifier, not another signing protocol or release authority. Verify actual served/build/provider/protected identities independently of self-declaration. Assemble all current clause/scenario/A2/A3/A6/sample results and ship honest limits/controller guidance.",
+        "paths": [
+          "api/src/release-identity.ts",
+          "api/test/release-identity.test.ts",
+          "scripts/acceptance/m7_release.py",
+          "core/tests/test_m7_release.py",
+          "dashboard/portal/build.mjs",
+          "docs/release-verification.md",
+          "docs/operations.md",
+          "docs/faq.md",
+          "api/src/portal/index.ts",
+          "api/src/enforce/index.ts",
+          "api/wrangler.portal.jsonc",
+          "api/wrangler.enforce.jsonc",
+          "api/package.json",
+          "release/deployment/portal.template.jsonc",
+          "release/deployment/enforce.template.jsonc",
+          "core/dracla/installation/deployment.py",
+          "core/tests/test_deployment_assets.py",
+          "api/test/live/m6-deployment.mjs"
+        ],
+        "dependencies": [
+          "m7/9",
+          "m7/13",
+          "m7/14"
+        ],
+        "acceptance": [
+          "Both actual portal and enforce Worker entrypoints serve only closed safe health metadata. Native40/64 OIDs, authentic build artifact hash and CF_VERSION_METADATA.id bind through exact account/script/version/deployment readback, one100% final version, authenticated exact upload-byte→immutable-version/etag→current deployment/health readback plus authentic artifact/assets/profiles and actual protected source. Split/stale/missing identity cannot pass.",
+          "Candidate publication under existing authority precedes tests requiring authentic published release; final acceptance fails on mismatch, stale pins, unsupported rollback, missing MUST or any live skip, without circular publication gate.",
+          "Both projects/shared+selfhost upgrades and rollback expose actual identity; all joined outcomes/A2/A3/A6 have current actual evidence, safe residual cleanup and no production-ready claim from design/offline results.",
+          "Existing actual release verifier compares model provider digest/values/source content with the authentic artifact and actual current provider/measurement/workload captures. Forged CPU, sample count, primary-source metadata, snapshot content or another release fails; changed calculator labels alone do not close A3. No new trust key/store/service."
+        ]
+      },
+      "display": {
+        "summary": "Authentic release identity and complete acceptance",
+        "production": [
+          650,
+          1050
+        ],
+        "tests": [
+          1300,
+          2100
+        ]
+      }
+    }
+  ]
+}

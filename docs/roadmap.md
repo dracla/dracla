@@ -197,6 +197,8 @@ M4/M5/M6 integration separately from M3 engine completion.
 
 ### M4 — Enforcement and routing
 
+Design package: [overview](../design/m4/overview.md), [requirements](../design/m4/requirements.md), [HLD](../design/m4/high-level-design.md), and [implementation plan](../design/m4/implementation-plan.md). Current general and DBB design review is complete; implementation and production acceptance remain separate. The package’s canonical inventory owns full slice IDs and incremental production/test LOC estimates.
+
 | | |
 |---|---|
 | **Needs** | M0 Cloudflare resources and Apps; M1; M3 recovery path |
@@ -210,6 +212,8 @@ M4/M5/M6 integration separately from M3 engine completion.
 - Overrides and exemptions without exposing exact private reasons
 
 ### M5 — Portal, Connect, signing, and administration
+
+Design package: [overview](../design/m5/overview.md), [requirements](../design/m5/requirements.md), [HLD](../design/m5/high-level-design.md), and [implementation plan](../design/m5/implementation-plan.md). Current general and DBB design review is complete; implementation and production acceptance remain separate. The package’s canonical inventory owns full slice IDs and incremental production/test LOC estimates.
 
 | | |
 |---|---|
@@ -227,6 +231,8 @@ M4/M5/M6 integration separately from M3 engine completion.
 - Re-evaluation of an originating pull request after signing
 
 ### M6 — End-to-end installer
+
+Design package: [overview](../design/m6/overview.md), [requirements](../design/m6/requirements.md), [HLD](../design/m6/high-level-design.md), and [implementation plan](../design/m6/implementation-plan.md). Current general and DBB design review is complete; implementation and production acceptance remain separate. The package’s canonical inventory owns full slice IDs and incremental production/test LOC estimates.
 
 | | |
 |---|---|
@@ -250,6 +256,8 @@ component: revision 14 requires it to verify real control code and live hosted
 wrapping paths, not placeholders.
 
 ### M7 — Product surfaces and release verification
+
+Design package: [overview](../design/m7/overview.md), [requirements](../design/m7/requirements.md), [HLD](../design/m7/high-level-design.md), and [implementation plan](../design/m7/implementation-plan.md). Current general and DBB design review is complete; implementation and production acceptance remain separate. The package’s canonical inventory owns full slice IDs and incremental production/test LOC estimates.
 
 | | |
 |---|---|
