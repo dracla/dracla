@@ -131,7 +131,7 @@ provisioning privilege never belongs to DraCLA at all (`REQ-REC-2`).
 - `contents: write` on **canonical**
 - `contents: write` on **coverage** (encrypted materialization, the in-flight
   marker, active-version updates, effective exemption decisions, and generic
-  check-reason codes, §5.4)
+  check-reason codes, and exact check success-reservation CAS, §5.4)
 - Organization `members: read` only where a configured continuous reader or
   exemption team must be observed. Repository reader enumeration is not a
   confidentiality control and is not required.
@@ -143,7 +143,7 @@ provisioning privilege never belongs to DraCLA at all (`REQ-REC-2`).
 - Not installed on any contributing repo; receives no pull request webhooks
 
 ### `dracla-enforcer` App — check side
-- Webhooks: `pull_request`, `merge_group`, and the event-wide `check_run`
+- Webhooks: `pull_request`, `merge_group`, `push`, and the event-wide `check_run`
   subscription. `checks: write` automatically subscribes the App; GitHub does
   not offer an action-only subscription, so signed `created` and `completed`
   deliveries for other Apps' check runs can reach this Worker. Before any gate
@@ -155,18 +155,35 @@ provisioning privilege never belongs to DraCLA at all (`REQ-REC-2`).
   this App's exact authoritative `completed` delivery clears only its matching
   routing publication reservation (§7.2; [GitHub `check_run` webhook
   contract](https://docs.github.com/en/webhooks/webhook-events-and-payloads#check_run))
+- The `push` handler processes §6.4's default-branch post-landing detection
+  when a required merge queue is not in use; it does not claim final pre-landing
+  enforcement.
 - A daily Cron Trigger in `worker-enforce` uses the same App identity to recover
   missing and stranded checks and to verify installation boundaries; unlike the
   canonical reconciler, it can enumerate contributing repositories and write
   check runs
-- `checks: write`, **`pull_requests: write`**, `contents: read` on
-  **contributing** repos. Write is required to post the pull request comment of
-  `REQ-PORTAL-3`; read alone cannot, and the earlier inventory made that
-  requirement unimplementable.
+- Runtime operations require `checks: write`, **`pull_requests: write`**,
+  **`issues: write`**, and `contents: read` on **contributing** repos. Pull-request
+  write permits the `REQ-PORTAL-3` comment; Issues write permits §6.4's bounded
+  uncovered-commit issue. Normal tokens name the exact repository ID and only
+  the permissions required by that operation. Coverage-read tokens request
+  only contents read.
+- GitHub grants the App's accepted repository permissions across an
+  installation's selected repositories, not by DraCLA repository role. The
+  enforcer App key can therefore mint issue-write tokens for any selected
+  repository, including selected coverage repositories; narrower normal tokens
+  do not contain that App-key reach. There is no create-only issue permission.
+  The runtime uses issue writes only for the fixed fallback on contributing
+  repositories and discloses only commit SHA, generic state and portal link.
 - Organization `members: read` where an organization-wide enforcement-scope
   selector must be observed; repository metadata is used for live
   per-repository permission checks
-- `contents: read` on **coverage** only
+- `contents: read` on **coverage** only. The enforcer cannot commit its
+  decision-fence reservations with this token. It requests only the exact
+  reserve/release CAS through the private coverage-fence service in
+  `worker-portal`, whose existing records App has coverage contents write.
+  That service never returns a token, key, records data or route-mutation
+  capability; see §5.4 and §9.
 - Holds the coverage wrapping root only. It cannot unwrap a records key even if
   canonical ciphertext is supplied to it.
 - Not installed on canonical
@@ -219,9 +236,14 @@ read repository content, or manage secrets.
 - Unwraps records and coverage data keys with a per-project control wrapping
   key held as an Actions secret; the corresponding wrapped keyring is data, not
   executable configuration
-- Before unwrapping, verifies the control repository is private and that the
-  install manifest names its current numeric ID plus the exact records and
-  coverage repository IDs; a mismatch stops the job
+- Before unwrapping, verifies the executing control repository is private and
+  its numeric ID and complete current arrangement match protected installed
+  bindings. Before any rebind the initial manifest also matches that set.
+  After §9.1.1 recovery, protected current bindings name the successor set,
+  while the unchanged manifest must match authenticated genesis and the full
+  rebind chain must end at the current set. Recovery-only admission additionally
+  pins exact source snapshot and successor identities before keys; no restored
+  manifest or caller-selected mismatch flag can select this branch
 - Declares an explicit least-privilege `permissions:` block, and **never**
   interpolates event-derived values into `run:` or `env:`. Signer fields are
   untrusted input (`REQ-SEC-8`) and this job holds a cross-repo write
@@ -303,9 +325,9 @@ path before decrypting, then rejects any mismatch.
 
 | Repository branch and path `P` | `artifact_kind` | Key capability | `schema_version` |
 |---|---|---|---:|
-| records `events`: `config/project.enc.json` | `project-config` | records | 1 |
+| records `events`: `config/project.enc.json` | `project-config` | records | 1 (legacy), 2 (versioned trailer policy) |
 | records `events`: `config/materialization-generations.enc.json` | `materialization-generations` | records | 1 |
-| records `events`: `events/<aa>/<bb>/<event_id>.enc.json` | `canonical-event` | records | 1 |
+| records `events`: `events/<aa>/<bb>/<event_id>.enc.json` | `canonical-event` | records | 1 (closed legacy events), 2 (only §9.1.1 repository rebind) |
 | records `operations`: `prepared-operation.enc.json` | `prepared-operation` | records | 1 |
 | records `derived`: `derived/state.enc.json` | `derived-state` | records | 1 |
 | records `derived`: `derived/index/<shard>.enc.json` | `derived-index` | records | 1 |
@@ -317,8 +339,18 @@ path before decrypting, then rejects any mismatch.
 | coverage `coverage`: `inflight.enc.json` | `inflight` | coverage | 1 |
 | coverage `coverage`: `decision-fence.enc.json` | `decision-fence` | coverage | 1 |
 | coverage `coverage`: `users/<shard>.enc.json` | `coverage-shard` | coverage | 1 |
-| coverage `coverage`: `agreements/active.enc.json` | `active-agreement` | coverage | 1 |
+| coverage `coverage`: `agreements/active.enc.json` | `active-agreement` | coverage | 1 (legacy), 2 (versioned trailer policy) |
 | coverage `coverage`: `exemptions.enc.json` | `exemption-fold` | coverage | 1 |
+
+For canonical-event paths, a schema2-capable reader derives the allowed schema
+set `{1,2}` from this row, never from an untrusted caller. It authenticates the
+selected envelope schema as AAD before interpreting plaintext, then requires
+the plaintext semantic `schema_version` to equal it: schema1 accepts only the
+closed v1 union; schema2 accepts only `project_repositories_rebound` with its
+closed §9.1.1 shape. Cross-version type/payload/AAD mismatches reject. Existing
+schema1 bytes and all other artifact schema rules stay unchanged. Legacy
+readers reject schema2 rather than interpreting it as v1. M6 owns these future
+codec/vector/read-path extensions; current source is not claimed to accept them.
 
 `<event_id>` is the server-computed identifier from §5.1; `<aa>` and `<bb>`
 are its first and next two ASCII characters. `<shard>` is the zero-padded
@@ -360,6 +392,9 @@ lengths, non-canonical envelope bytes, wrong project/purpose/identity bindings,
 unknown `kid`, and authentication failure. Repository identity is checked by
 routing and installation-token authorization, not embedded in ciphertext; this
 is what lets an unchanged backup be restored into a replacement repository.
+Resuming live operation under new numeric IDs additionally requires the
+authenticated canonical transition in §9.1.1; ciphertext portability alone
+grants no replacement authority.
 Production nonces come from the platform CSPRNG and must never repeat under one
 key.
 
@@ -551,10 +586,13 @@ set specified below.
 
 The following table is the closed v1 event union. Object names such as
 `coverage_tuple`, `subject`, `team`, `project_configuration`, and
-`enforcement_scope` mean the version-1 closed
-objects defined immediately below; arrays preserve order unless
+`enforcement_scope` mean the closed
+objects defined immediately below, including the explicit self-versioned
+`project_configuration` v2 variant; arrays preserve order unless
 the row explicitly calls them sets, in which case RFC 8785 lexical byte order
 is required. Implementations reject a field belonging to another row.
+The prospective recovery extension in §9.1.1 adds one distinct schema-version-2
+event; it does not broaden this closed v1 union or reinterpret historical bytes.
 
 | `type` | Exact `target` members | Exact `payload` members |
 |---|---|---|
@@ -629,6 +667,16 @@ examples:
   confirmation labels are unique; both arrays preserve portal display order.
   Recipient identity and enforcement scope are deliberately outside this
   mutable object.
+- M4 supplies the compatible configuration-v2 form for the already permitted
+  trailer-blocking opt-in. It has the same five fields plus exactly
+  `configuration_version: 2` and
+  `trailer_coauthors: "advisory" | "blocking"`. V1 historical configuration
+  remains unchanged and means advisory. Current writers emit complete v2;
+  after a project's first v2 configuration, replay rejects a later v1 update
+  rather than silently resetting an opted-in policy. Existing records-admin
+  authorization owns both forms; no service/route/local flag can change policy.
+  Canonical event envelopes retain version1 with this self-versioned nested
+  value; the encrypted `project-config` artifact uses schema version2 for v2.
 - An `enforcement_scope` is a set of `scope_selector` objects. A selector is
   exactly either
   `{"kind":"repository","repository_id":<positive integer>,
@@ -1013,8 +1061,24 @@ The event-type side-artifact set is closed:
   status-detail, or reader-authority result updates,
   `config/materialization-generations.enc.json`. Each affected class is set to
   that event's `event_id`; unaffected class generations are carried forward;
+- schema2 `project_repositories_rebound` replaces that same complete schema1
+  generation artifact in the very same canonical event commit, setting exactly
+  `derived_index`, `status_detail` and `reader_authority` to the rebind event ID.
+  It adds no agreement/config/other canonical side artifact. Full materialization
+  of all three classes on the separate derived branch must match those values;
   and
 - every other event type adds no `events`-branch side artifact.
+
+For the rebind, prepared-package construction, append, crash recovery and strict
+read/replay validation all require the exact generation file and values above.
+The prospective M6 extension must add the event's fixed side-artifact and
+required-precondition dispatch and the all-class generation transition to the
+existing codecs/engine, rather than an exceptional caller-supplied file list.
+An absent/extra artifact, carried-forward old generation, partial class or
+mismatched event/envelope version is corruption, not a recoverable success.
+Post-event normal history opening can verify the canonical package even before
+derived rebuilding finishes; routes remain unavailable until full rebuild and
+readback. A landed repeat validates the same package before returning no-op.
 
 The snapshot bytes, metadata, digest, source commit OID, and event must agree
 before publication. Likewise, the config payload, event, encrypted current
@@ -1088,6 +1152,21 @@ details remain in canonical events and records-key derivatives. The enforcer
 receives only effective decisions and fixed generic codes needed to select the
 bounded check output.
 
+The active-agreement artifact also has an exact schema-version2 variant:
+all listed fields, `projection_format: 2`, `shard_count: 32`, and one additional
+`trailer_coauthors: "advisory" | "blocking"` value. It materializes only the
+safe enforcement-policy enum from the canonical v2 project configuration, never
+its private policy/retention text. Schema-version1/projection-format1 means
+advisory. New v2 configuration may not be materialized as format1. Both formats
+retain the same 37 coverage files and fixed 32-shard layout. M4 owns the
+Python-first schema/identity/AAD/validator/materializer/vector extension and
+matching TypeScript/runtime/M3 adapter support; completed M1 deliveries retain
+their exact original v1 scope and evidence. Unsupported readers fail closed.
+Deploy compatible pinned readers/writers before enabling v2 writes. Policy
+updates use the existing project-wide mutation fence, canonical append,
+projection readback and completion ordering; they do not rewrite prior events
+or completed authoritative decisions.
+
 Every user-shard object requires both closed `agreements` and `overrides` maps.
 An override member has exactly the six fields shown above; its
 `subject_user_id` must equal the containing user key, and recomputing §4's tuple
@@ -1152,8 +1231,9 @@ read after decrypting the same committed `agreements/active.enc.json` revision a
 layout; neither value is inferred from which files happen to exist.
 
 The count is projection metadata, not CLA evidence, but it is not configurable
-in the initial release. Projection format 1 requires `shard_count: 32`; any
-other value is unsupported and fails closed rather than being guessed from the
+in the initial release. Projection formats1 and2 both require `shard_count: 32`;
+format2 adds only the authenticated trailer-policy enum above, not resharding.
+Any other format/count is unsupported and fails closed rather than being guessed from the
 files. A future profile can in principle rebuild this derived projection from
 canonical evidence without changing an acceptance or requiring re-signing, but
 live migration is not implemented or specified here. Supporting another count
@@ -1377,7 +1457,8 @@ sequence:
    that encrypted fence blob SHA, evaluate the remaining files at `C`, and
    derive a deterministic check identity from repository, merge-group head,
    associated PR, and delivery;
-2. reserve success by replacing that exact idle fence blob with
+2. ask the private portal coverage-fence service to reserve success by
+   replacing that exact idle fence blob with
    `success_reserved(check_identity, C)`. If any mutation or reservation changed
    the branch after `C`, the expected-head precondition conflicts and the check
    restarts;
@@ -1391,8 +1472,9 @@ sequence:
    reservation;
 4. while both reservations remain held, create the named GitHub check run
    directly as completed `success` and validate the create response's external
-   identity, expected head, status, and conclusion. Then replace only the exact
-   coverage reservation with `idle` at the next generation. The routing
+   identity, expected head, status, and conclusion. Then ask the private portal
+   coverage-fence service to replace only the exact coverage reservation with
+   `idle` at the next generation. The routing
    reservation is deliberately not cleared by this request: an authenticated
    `check_run` completion delivery, or scheduled recovery after an exact GitHub
    read, must independently confirm the completed run under `check_identity`
@@ -1403,6 +1485,26 @@ sequence:
 5. if reservation fails because a mutation is open or the coverage head is stale,
    publish no success—return a conservative non-passing result or restart from
    the newer coverage commit.
+
+The private coverage-fence service is a named service-binding entrypoint in
+`worker-portal`, separate from the routing gate entrypoint. It exposes only
+`reserve(route, coverage_commit, idle_fence_blob, check_identity)` and
+`release(reservation, terminal_check_observation)`. Reserve independently
+resolves one active project from the exact route/gate binding and uses that
+project's fixed coverage repository and fence path; the caller cannot name an
+arbitrary repository, ref, path or plaintext replacement. It reads and validates
+the exact head, encrypted cell and matching operational state, then applies the
+existing branch-wide CAS. Release verifies the exact held reservation and the
+trusted enforcement handler's App/head/external-ID/terminal-check observation;
+it may release that same reservation after a route transition won, without
+selecting a new project or requiring the old route to remain active. A lost
+service response is recovered by exact immutable fence identity, not a blind
+second operation. No durable receipt, extra fence schema, raw credential or
+records/namespace mutation surface is added. Normal GitHub coverage reads remain
+in enforcement with read-only tokens; only this fixed CAS uses the portal's
+existing exact-repository contents-write token. The normal path adds one reserve
+and one release RPC, and both their invocation costs and crash/retry paths are
+part of A2/A3 and the M4 estimate.
 
 `check_identity` is the unpadded base64url SHA-256 of
 `"dracla-authoritative-check-v1\0" || JCS({repository_id,
@@ -1434,11 +1536,19 @@ publication reservation, is non-passing. An ordinary pull-request check may
 evaluate a schema-valid `success_reserved` state or a non-overlapping
 subject-scoped `mutation` as specified above; neither permits authoritative
 success.
-Install creates the schema-valid idle fence alongside the empty projection and
-the schema-valid idle prepared-operation cell on the records `operations`
-branch;
-reconciliation reconstructs it only from canonical replay plus a complete,
-read-back-verified coverage rebuild while the project route is unavailable.
+Install creates the schema-valid idle fence and empty in-flight marker as
+independently authenticated guard objects, plus the schema-valid idle prepared
+cell on records `operations`. These objects are not a complete coverage
+projection. Before genuine Connect there is no coverage source, active-agreement
+object, shard set or private derived generation. The first `project_connected`
+uses the same prepared/fence/marker/append protocol with its existing
+`generations-absence` precondition and authenticated root/K/B/key bindings,
+rather than fabricating a connected before-state. Its canonical append precedes
+the first complete coverage and private derived materialization. A normal full
+projection has lifecycle `active` or `succeeded`; an unconnected projection is
+invalid. Routes remain absent/pending throughout this first write and recovery.
+After connection, reconciliation reconstructs guards only from canonical replay
+plus a complete read-back-verified rebuild while the route is unavailable.
 
 An open mutation is likewise never cleared because it is old or because its
 separate in-flight marker is absent. Recovery verifies the fence's immutable
@@ -1927,7 +2037,8 @@ pull_request opened / synchronize
         PR opener
         every commit author        (GitHub-resolved user ID)
      dedupe by numeric user ID
-     Co-authored-by: trailers are collected but NOT subjects  (§6.3.1)
+     advisory mode: Co-authored-by trailers collected, NOT subjects (§6.3.1)
+     configured blocking mode: also resolve required trailer subjects (§6.3.1)
   -> commit listing incomplete (pagination bound or >250)  -> action_required
   -> any subject unresolved to a user ID                   -> action_required
   -> resolve the associated PR number and its current head's root tree OID;
@@ -2041,7 +2152,7 @@ permission result bound to the viewer, repository, and short expiry. No token
 crosses the boundary, and the response carries no repository data beyond that
 authorization bit. This preserves D3 while making the tier implementable.
 
-#### 6.3.1 Co-authored-by trailers do not block
+#### 6.3.1 Default advisory trailers and explicit blocking policy
 
 A `Co-authored-by:` trailer is unauthenticated commit-message text that any
 commit author can write. Treating it as a blocking public subject produced three
@@ -2062,7 +2173,7 @@ Trailers are still collected and still matter — they are the project's only
 signal that someone else contributed:
 
 ```
-public check          opener + commit authors only
+default public check  opener + commit authors only
                       -> state cannot be steered by an injected trailer
 
 /p/<repository-owner>[/<project-slug>]/pr/<n>
@@ -2072,10 +2183,19 @@ public check          opener + commit authors only
                          or issues an override
 ```
 
-**The residual gap, stated plainly:** a co-author declared only by a trailer can
+**The default-mode residual gap:** a co-author declared only by a trailer can
 contribute without signing unless a maintainer acts on the surfaced list. That is
 the cost of the change, and it is why a project may configure trailers to block
 its own checks where its threat model prefers the older behaviour.
+
+That opt-in is the versioned canonical configuration and safe coverage
+materialization in §4/§5.3, not an enforcer deployment setting. A check reads it
+from the same immutable coverage observation as its other controls. Blocking
+mode includes trailer subjects under the existing resolution rule and fails
+non-passing for unresolved required identities; advisory mode never puts them
+in the blocking set. M5 presents the existing oracle/jamming warning before an
+administrator enables blocking. Ordinary, queue and push-fallback paths use the
+same source; changing policy never revises a completed queue decision.
 
 **This does not close the oracle entirely.** Commit author email is equally
 attacker-controlled: authoring a commit as
@@ -2525,11 +2645,18 @@ means.
 
 ### 6.8 Administrative flows (`REQ-AGR-1`, `REQ-CHECK-2`, `REQ-OPS-4`)
 
-Every administrative action is an append-only event with an `actor`, authorized
-the same way and through the same portal — there is no separate admin console
-and no source-code edit, which `REQ-OPS-4` requires.
+Ordinary agreement, configuration, exemption/reader, scope and override
+administration uses the same portal and attributable append-only events; there
+is no separate general admin console or source-code edit. The sole recovery-only
+exception is §9.1.1's local `dracla restore --execute`: it restores an already
+recorded project and appends only its authenticated repository-rebind transition
+through the existing guarded writer. It grants no local agreement/legal/config/
+reader-administration interface. The current local GitHub actor, all seven
+successor owner/repository/App authorization rows, adopter recovery possession,
+protected source and full initial-installation proofs remain mandatory.
 
-Every **mutating** row below uses §5.4's authenticated form state with its exact
+Every **mutating** row below other than that recovery-only row uses §5.4's
+authenticated form state with its exact
 Table 5.4-A event type and mapping, canonical target and payload digest, fresh
 operation nonce, and `confirmed_canonical_oid`. Rendering an
 already-satisfied action binds the terminal canonical event that proves that
@@ -2541,6 +2668,7 @@ conflict inspection has no mutation form or idempotency key.
 |---|---|---|---|
 | Connect a project or explicit successor | `project_connected` | owner control for the repository-owner account; `admin` on all three project repositories; GitHub authorizes every bound App installation | Records immutable repository-owner/slug identity and the independent recipient, plus `successor_of` when applicable |
 | Complete transfer of all three project repositories to a new owner | `project_repository_owner_changed` | control of the new owner; `admin` on all three transferred repositories; every App binding reverified | Moves only the owner-qualified route claim through one bound registry generation; recipient and evidence do not change |
+| Restore an exact backed-up project into a verified successor repository set | schema2 `project_repositories_rebound` | Current successor owner control, admin on all three role repositories, all three service App bindings, adopter recovery possession and exact authenticated source snapshot (§9.1.1) | Local recovery-only command with exact restore-point confirmation and existing guarded writer; preserves old legal records, rematerializes/readbacks and conditionally restores routing; no portal form or ordinary admin shortcut |
 | Close an old project in favor of its connected legal successor | `project_succeeded` | `admin` on the old records repository; successor connection is verified | Stops new signing and legal-state expansion while preserving revocation, scope removal, reader maintenance, recovery, and history (§5.5) |
 | Activate a verified project-key generation | `keyring_activated` | `admin` on every repository whose project-key material changes | Pins the `keys` commit and current records/coverage `kid` values after live and recovery verification (§6.10.2) |
 | Publish a version | `agreement_published` | `admin` on records | Records the immutable recipient, reference, digest, and snapshot (§6.5) |
@@ -2696,17 +2824,24 @@ operator's GitHub credentials and decrypts only after receiving the project's
 recovery key through an interactive prompt or local secret-manager command; the
 key is never accepted as a command-line value or written to shell history.
 
-**The CLI provisions and reports. It does not administer.**
+**The CLI provisions, verifies/reconciles and reports. Ordinary legal and
+project administration stays in the portal.** Its sole new canonical recovery
+operation is `restore --execute` under §9.1.1; this exception cannot sign,
+change agreement/config/reader policy, or mint ordinary administration authority.
+It resumes only an authenticated old operation and appends the exact repository
+rebind with the current local GitHub actor and full successor/source proofs.
+It uses the same protected writer/replay machinery, not a second admin engine.
 
 | Command | Purpose | Status |
 |---|---|---|
-| `dracla install github.owner=<account>` | Provision the records, coverage, and control repositories, keys, recovery material, Apps, and workflow; everything else is configured in the portal (§6.10.3) | designed — implementation removed pending this redesign |
+| `dracla install github.owner=<account>` | Provision the records, coverage, and control repositories, keys, recovery material, Apps, and workflow; legal/project configuration stays in the portal (§6.10.3) | Read-only planning exists; executing installation is prospective M6 |
+| `dracla restore --snapshot BACKUP.json --target TARGET.json [--execute]` | Read-only plan by default; explicit confirmed recovery-only rebind and guarded rebuild for the selected snapshot/successor set (§9.1.1) | Prospective M6 extension; not a current CLI handler |
 | `dracla config show` | Print the resolved configuration the portal wrote | designed |
 | `dracla status <user>` | Coverage for one contributor | designed |
-| `dracla export --json --csv` | Portable formats (`REQ-REC-5`) | designed |
-| `dracla reconcile` / `dracla verify` | Replay canonical and check the projection matches | designed — M2 |
+| `dracla export --json PRIVATE_PATH [--csv PRIVATE_PATH]` | Explicit private local snapshot export (`REQ-REC-5`; existing JSON and/or CSV output rules) | Implemented in approved unmerged M3 source; authentic release/production acceptance remains separate |
+| `dracla reconcile` / `dracla verify` | Existing exact project/repository inputs, authenticated replay, projection/operation verification and repair | Implemented in approved unmerged M3 source; new-ID recovery requires the prospective extension |
 | `dracla audit <pr>` | Why a check decided what it did | designed |
-| `dracla rotate-key --capability records|coverage|transport` | Rotate a project data key or repository transport key with recovery verification (§6.10.2) | designed |
+| `dracla rotate-key --capability records\|coverage\|transport` | Planned local key generation/installation/proofs or transport rotation; canonical data-key activation remains the authenticated portal action (§6.10.2), not another local admin append | designed; no current CLI handler |
 
 **Agreements are managed in the portal, not here** (§6.8). Publishing and
 activating a version are attributable events, and the portal is where
@@ -2716,9 +2851,12 @@ token is a weaker attribution story for an act with legal weight, and §6.8
 already states there is no separate admin console. A CLI surface for agreements
 may follow if there is demand; it is not the first-class path.
 
-Only `install` is specified here. A first attempt was implemented without
-§6.10 and removed after review rather than patched; its reimplementation
-follows this design.
+The installation contract is §6.10; the replacement-recovery command and its
+sole local canonical-mutation exception are specified in §9.1.1. Existing M3
+verify/reconcile/export handlers retain their approved exact inputs and private
+output/key-prompt rules. Other command-table concepts marked designed remain
+prospective and do not assert current handlers or authorize another local
+administration surface.
 
 Two things this buys beyond convenience. `REQ-REC-5` requires records to be
 readable without the DraCLA service when the adopter has repositories and
@@ -2867,7 +3005,7 @@ contains no CLA event or derived plaintext.
 | `operations` (records) | one encrypted bounded prepared-operation cell | portal prepares and advances synchronous mutations; control reconciler repairs them (§5.4) |
 | `keys` (records) | immutable bootstrap manifest plus wrapped records, coverage-recovery, and portal key copies | installer initially; authorized key-rotation paths thereafter (§6.10.2) |
 | `derived` (records) | encrypted state plus index, status-detail, and reader-authority shards; explicit request-scoped JSON/CSV exports | portal writes bounded affected shards; control reconciler repairs and serves hosted export jobs |
-| `coverage` (coverage default) | immutable bootstrap-manifest copy, encrypted projection, and wrapped coverage keys | installer initially; portal writes projection synchronously; control reconciler repairs |
+| `coverage` (coverage default) | immutable bootstrap-manifest copy, wrapped coverage keys and independent fence/marker guards; full encrypted projection only after connection | installer creates bootstrap/idle guards; portal first materializes after `project_connected` and updates synchronously; control reconciler repairs |
 | control default | pinned workflow, provenance/bootstrap manifests, and inert wrapped control keyring | installer initially; administrator-controlled upgrade/rollback thereafter |
 
 #### 6.10.2 First-write, transport-key, and data-key lifecycle
@@ -2982,15 +3120,20 @@ artifact is written:
    prominent instruction to keep it in a password manager or other safe
    storage, then creates the records `keys` and `operations` branches, stores
    the wrapped keyrings in `keys` and in the repositories that consume them,
-   and writes the non-secret bootstrap manifest plus the encrypted idle
-   prepared-operation cell alongside encrypted empty state;
+   and writes the non-secret bootstrap manifests, encrypted idle prepared
+   cell and independent idle coverage fence/empty marker. It writes no full
+   semantic coverage or private derived generation before Connect;
 6. after the three Apps are installed, Connect asks the hosted or self-hosted
    portal and enforcer plus the protected control workflow to unwrap their
    copies and decrypt fresh records/coverage challenges; and
 7. only after those repository-bound live-path proofs succeed does Connect
    append the first `project_connected` private event, which activates the
    exact bootstrap manifest, `keys` head and candidate commit, generation,
-   repository IDs, and current `kid` values.
+   repository IDs, and current `kid` values. The same guarded writer then
+   materializes full normal coverage and private derived state from that real
+   event, verifies publication/readback, and completes its guards. The project
+   is active with no active agreement yet; no `unconnected` coverage format or
+   invented activation is introduced. Initial routing follows §7 separately.
 
 **One-time bootstrap anchor.** The first wrapped keyring commit on `keys` is
 `K`, containing both the wrapped recovery keyring and the actual-data-key
@@ -3040,9 +3183,10 @@ production execution before project keys are supplied.
 
 A records reader with no prior canonical state bootstraps as follows:
 
-1. verify the live records repository ID against its manifest, or verify its
-   source ID through the backup manifest before an authorized
-   replacement-repository rebind;
+1. for an unchanged arrangement, verify the live records repository ID against
+   the manifest. For replacement recovery, use §9.1.1's restricted origin-bound
+   acquisition to verify the source ID and exact source refs before rebind; a
+   caller-supplied alias or a missing-ID exception is not authority;
 2. validate the canonical manifest bytes and declared `K`/`B` ancestry;
    inspect `K` for the pinned install-generation recovery-key metadata and
    exact actual-data-key binding proof for both initial capability/`kid` pairs;
@@ -3056,7 +3200,11 @@ A records reader with no prior canonical state bootstraps as follows:
    SHA-256 digest of the manifest bytes, the same install generation,
    repository IDs, and both current `kid` values; and
 5. only after every comparison succeeds accept the event and use canonical
-   activation events for all current-key selection and later replay.
+   activation events for all current-key selection and later replay. For a
+   history containing §9.1.1 rebind events, the immutable bootstrap manifest
+   must match genesis repository IDs, while the final replayed current set
+   must match actual live bindings. Each intervening transition must validate;
+   do not compare later live IDs to genesis or relax either comparison.
 
 Missing or duplicate candidates, changed manifest bytes, wrong ancestry,
 unwrap or event-decryption failure, a different first event type, or any field
@@ -3088,11 +3236,12 @@ abandons it and creates fresh keys.
 **Data-key rotation.** `dracla rotate-key --capability records|coverage`
 generates a successor, appends all required wrapped copies as a non-current
 candidate, and verifies the actual new key through the live service, control,
-and adopter recovery paths. Before activation it opens the project-wide marker
-and prepares a complete current coverage projection or records-derived snapshot
-under the successor; otherwise unchanged current data would remain readable
-with the predecessor indefinitely. The authorized administrator then appends
-one `keyring_activated` event, encrypted under the prior records key, that pins
+and adopter recovery paths. Once the administrator confirms the authenticated
+portal key-activation form, the existing shared guarded operation opens the
+project-wide marker and prepares a complete current coverage projection or
+records-derived snapshot under the successor; otherwise unchanged current data
+would remain readable with the predecessor indefinitely. The same accepted
+operation then appends one `keyring_activated` event, encrypted under the prior records key, that pins
 the candidate `keys` commit, generation, and new current `kid`. Replay makes
 that event the activation point; the prepared current-state commit is published
 and the marker closes. New events and subsequent state use the successor.
@@ -3310,9 +3459,9 @@ the cheapest failures first.
 9. initialize operation, coverage,   create `keys` and `operations` from the
    and keyring state                 README root; write wrapped copies, the
                                      identical non-secret bootstrap manifests,
-                                     the idle prepared-operation cell, and the
-                                     empty §4-encrypted projection; no signer
-                                     data exists
+                                     idle prepared cell, and independent idle
+                                     coverage fence/empty marker; no full coverage
+                                     or private derived generation exists
 10. print the three App install links records, enforcer, and trigger-only
 ```
 
@@ -3320,8 +3469,12 @@ the cheapest failures first.
 repository this command made: records must carry its `events` branch rooted at
 the exact DraCLA genesis README plus `keys` and `operations` branches descended
 from that root, with a schema-valid idle or recoverable prepared-operation
-cell; coverage must carry its `coverage` genesis and encrypted empty
-projection, and control the exact release provenance plus pinned workflow. The
+cell; pre-Connect coverage must carry its exact `coverage` genesis,
+bootstrap/wrapped copies and valid independent guards, with semantic projection
+and derived generations absent. A connected or in-progress first operation is
+verified and recovered through its exact canonical/operation ancestry, not
+misclassified as an idle installation or overwritten with bootstrap state.
+Control must carry the exact release provenance plus pinned workflow. The
 three bootstrap copies bind
 all repository numeric IDs, `K`, and one install generation; the control install
 provenance additionally records the resulting initial `keys` head `B`. The
@@ -3604,6 +3757,12 @@ any of them, so these properties are asserted across modules:
   recreates the publication reservation, an idle fence is accepted only under
   the acquire-first/release-after-completion invariant, and every unavailable,
   malformed, or mismatched observation leaves the route unavailable
+- first-install-through-Connect tests use the actual installer, M5 bootstrap
+  acquisition and single M4 writer: valid idle guards with absent semantic
+  projections before connection; rejection of fabricated active/unconnected
+  coverage; first genuine event/config before full normal coverage/derived;
+  interruption and lost response at every guard/append/materialization boundary;
+  exact same-operation M3 recovery and write-free repeat after completion
 - initial-connect vectors prove that `project_connected` alone publishes no
   route. The complete initial desired scope runs through the ordinary §7.1
   request, prepared generation, pending-gate, activation, route-publication,
@@ -3962,7 +4121,10 @@ internal gate service. It may compare a route and conditionally reserve or
 confirm only the transient publication fields for an exact check identity; it
 cannot change route state, generation, prepared identity, or registry data and
 receives neither namespace-transition capability, registry access, nor a
-records-App token.
+records-App token. The separate coverage-fence service permits only §5.4's
+exact check-reservation CAS using the portal's existing coverage-write
+capability. It cannot append canonical events, edit projections, mutate a route
+or accept caller-supplied paths or plaintext.
 
 No layer is silently substituted for another. A prepared registry generation
 records the exact canonical request event IDs it used, the GitHub repository
@@ -4214,7 +4376,9 @@ usable only when the object names that same state, generation, OID, and digest;
 mismatch, an object error, or exhausted Durable Object quota fails closed for
 that repository. The gate returns no route or project identifier. The
 coordinator alone holds the namespace-transition binding. `worker-enforce`
-receives the comparison RPC and only the two publication methods below; it
+receives the comparison RPC and the two routing-publication methods below
+through this gate entrypoint. Its separate §5.4 coverage-fence binding exposes
+only exact coverage reservation/release, never namespace transitions. It
 cannot call `begin_pending`, `commit`, `restore`, reconciliation, or
 unavailable transitions.
 
@@ -4396,8 +4560,8 @@ records-derived state under those keys. Transport App private keys do not expire
 automatically and rotate on a fixed schedule and on departure of a principal
 able to read an assigned control secret. Shared-App rotation covers every
 assigned arrangement; short-lived token expiry does not revoke a stolen App key. `dracla rotate-key` runs with the
-administrator's own authority and stages each successor transaction defined in
-§6.10.2.
+administrator's own authority to stage key material and proofs under §6.10.2;
+canonical data-key activation remains the portal's authenticated operation.
 
 `REQ-SEC-9` applies to every long-lived credential DraCLA provisions or
 requires:
@@ -4414,7 +4578,7 @@ requires:
 | Action-form HMAC keys | Separate `worker-portal` secrets, identified by `kid` | Add a successor, sign new forms with it, accept the predecessor only until its last parent-session-bounded form expires (at most 7 h 55 min), then remove it | DraCLA **operator** departure rotates it; outstanding forms under the predecessor fail closed and must be rendered again | Forge contributor or administrative form state, but not satisfy the required live parent session, matching actor, current authority, exact Table 5.4-A type/event mapping, or exact-head checks |
 | Private-read proof HMAC keys | `worker-portal` secrets, identified by `kid` | Add a successor, sign new proofs with it, accept the predecessor only until its last proof expires (at most 5 min), then remove it | DraCLA **operator** departure rotates it and invalidates outstanding proofs at the end of that bounded overlap | Forge a scoped reader proof, but not bypass its parent-session, canonical-generation, or continuous-team live-membership checks |
 | GitHub App OAuth client secret | `dracla-records` App config and `worker-portal` secrets | Add a successor at GitHub, deploy it alongside the predecessor, complete a test OAuth exchange, then revoke the predecessor | DraCLA **operator** departure rotates it | Complete or interfere with OAuth exchanges; it does not mint installation tokens without the App private key |
-| Service App private keys, all three service Apps | DraCLA operators | Stage a successor key, redeploy, then revoke predecessor — no downtime | DraCLA **operator** departure rotates every key the operator could read | Records: append encrypted evidence and invoke records decryption; enforcer: write checks and decrypt coverage; trigger: dispatch, rerun, cancel, or disable Actions in project control repos and inspect non-PII run metadata, but cannot change code or read contents/secrets |
+| Service App private keys, all three service Apps | DraCLA operators | Stage a successor key, redeploy, then revoke predecessor — no downtime | DraCLA **operator** departure rotates every key the operator could read | Records: append encrypted evidence and invoke records decryption; enforcer: write checks, PR comments and issues wherever its installation grants those permissions, and decrypt coverage; trigger: dispatch, rerun, cancel, or disable Actions in project control repos and inspect non-PII run metadata, but cannot change code or read contents/secrets |
 | Webhook secrets, per webhook-receiving App | App config + Worker secrets | Stage the new secret beside the old on the same App's route, update App config, then drop the old; never try different Apps' secrets on one route | Operator departure rotates every secret they could read | Forge webhook deliveries to that App's route |
 | KV entry signing key | `worker-portal` secrets; public verification keys in `worker-enforce` configuration | Add the new key beside the retiring one and verify against either; re-sign and revalidate every stable route entry, whose unsigned-payload digest and gate remain unchanged, then drop the retiring key (§7.2) | Operator departure rotates it | Forge cross-project routing consumed by the honest enforcer and therefore misapply one project's coverage to another repository; token/repository binding still prevents access outside the named installation and repository |
 | Cloudflare deployment, KV, and Durable Objects API tokens | DraCLA deployment secret store, scoped separately by environment and capability | Issue a least-privilege successor, deploy and reconcile KV and gate state with it, then revoke the predecessor | DraCLA **operator** or CI administrator departure rotates every token they could read | Deploy Worker code or read/write the bindings, KV namespaces, and routing gates permitted by that token |
@@ -4869,6 +5033,7 @@ merge-group checks across all adopters. The deployment is therefore split into
 worker-enforce    webhook secret + enforcer App key + coverage wrapping root
                   + signed-routing verification keys
                   + route-compare and exact-check publication-reservation RPCs
+                  + exact coverage-fence reserve/release RPCs
                   most exposed (anonymous internet), least privileged
 worker-portal     OAuth client secret + session, action-form, and private-read
                   proof keys + records App key
@@ -4883,11 +5048,16 @@ There is no third public Worker. The third App is the trigger-only principal:
 control repository, but the App has no contents, administration, workflows, or
 secrets permission. Provisioning still runs in the CLI on the administrator's
 machine (D11), so no hosted isolate holds those setup powers. The gate check is
-a narrow Cloudflare service-binding RPC entrypoint, not an Internet route. It
-returns only match or fail-closed state and exposes no mutation method to
+a narrow Cloudflare service-binding RPC entrypoint, not an Internet route. Its
+comparison operation returns only match or fail-closed state. Its exact
+check-publication reserve/confirm operations mutate only transient publication
+fields; it exposes no route-state or namespace-transition method to
 `worker-enforce`. The project decision fence is an encrypted coverage-repository
-file accessed through the already-bound project credentials (§5.4), not a
-service binding. The Setup URL route in `worker-portal` persists nothing: it
+file read by the enforcer with its already-bound read-only coverage token.
+Its exact reserve/release CAS runs in the portal through §5.4's separate narrow
+coverage-fence service, using existing portal coverage-write authority. The
+enforcer App does not gain Contents write on contributing or coverage repos.
+The Setup URL route in `worker-portal` persists nothing: it
 only directs the browser to Connect, which authenticates and discovers
 installations independently (§6.10.3).
 
@@ -5001,11 +5171,11 @@ How the design sits against them:
   stays fail-closed, and the administrator is directed to the control repair or
   larger tested profile rather than being served stale data.
 - **Requests — a ceiling shared across all tenants** in the hosted deployment.
-  Under the normal inputs, 8 pull-request + 1 merge-group + 20 event-wide
-  check-run deliveries allocate 29 webhook requests per pull request before
-  portal and maintenance traffic. The 100,000/day Free ceiling therefore admits
-  roughly 3,400 such pull requests per day across all adopters; GitHub provides
-  no check-run-delivery bound, so telemetry must reduce that envelope (risk R7).
+  Use §9.2's complete request inputs, including event-wide push, check-run and
+  merge-group traffic, portal/maintenance work and extra fallback invocations.
+  An ignored delivery still consumes a request. Derive the supported envelope
+  from the completed model and release measurements; a pull-request count
+  alone is not a capacity guarantee (risk R7).
 - **Actions minutes are metered where the reconciler runs.** §2's "Actions
   minutes are free on public repos" is true and irrelevant here: the reconciler
   runs in the private **control** repo, where GitHub Free meters minutes
@@ -5020,28 +5190,25 @@ Durable Objects have separate Free usage dimensions, all shared by the projects
 inside that account. This scopes the two deployment modes differently:
 
 - **Hosted shared** — one account, so the Workers and Durable Objects daily
-  allowances are divided across every adopter (risk R7). The stated initial
-  250-project envelope uses 44.5% of Workers requests, 13.75% of Durable Objects
-  requests, and 13.22% of Durable Objects duration in the normal merge-group
-  and check-run-delivery case. The ten-delivery/100-check-run sensitivity uses
-  155.75%, 47.5%, and 45.67%
-  respectively under the one-second-per-gate-call design budget. The full
-  32-page dashboard sensitivity uses 83.25% of Workers requests while leaving
-  Durable Object usage unchanged. Normal and dashboard cases fit Free at 250
-  projects; the event-heavy sensitivity requires Paid or an envelope below 160
-  projects. Paid remains the growth and abuse-response path rather than a
-  prerequisite under the explicit normal assumptions.
+  allowances are divided across every adopter (risk R7). Section 9.2 is the
+  canonical calculation for normal and sensitivity cases. Its old zero-push
+  figures are lower bounds on consumption, not proof that the initial
+  250-project target fits Free. Complete A2/A3 measurement, including fallback
+  and gate work, before stating the supported hosted envelope. Paid capacity
+  remains a growth/abuse-response option; it is not silently made a prerequisite
+  for the required documented Free baseline.
 - **Self-hosted** — each project runs in its own Cloudflare account and
   receives the full per-account Workers and Durable Objects allowances.
 
-**This is how `REQ-OPS-3` is satisfied.** Both the shared hosted deployment at
-the stated 250-project envelope and a self-hosted single-project deployment fit
-the published Free limits. Adopters are not required to provide Cloudflare
-credentials for the shared service. If the required real-account verification
-shows that Worker CPU or Durable Object duration does not fit, the initial
-capacity claim must be reduced to the measured envelope or the documented free
-provider must change before release; the design must not silently make paid
-service or adopter credentials mandatory.
+**`REQ-OPS-3` acceptance remains measurement-gated.** The deployment design
+identifies the proposed Free provider and capacity inputs; it does not by itself
+prove the shared hosted target or self-hosted single-project case fits. Adopters
+are not required to provide Cloudflare credentials for the shared service.
+Complete the §9.2 model and A2/A3 real-account verification against all applicable
+request, CPU, subrequest and Durable Object limits. If a case does not fit,
+reduce the documented envelope to the measured result or change the documented
+free provider before release. Do not silently make paid service or adopter
+credentials mandatory.
 
 **Fail-closed is mandatory.** On exceeding the Workers daily limit Cloudflare either
 fails open — "Bypasses the Worker. Requests behave as if no Worker is
@@ -5310,43 +5477,294 @@ the first private write.
 
 **Snapshot manifest, not a second log.** Each backup atomically records the
 snapshot time and every backed-up branch name and head OID in a manifest stored
-with that snapshot. Recovery checks that each named commit exists and each
-restored ref equals the manifest before replay starts. This detects an
+with that snapshot. Copy verification checks that each named commit exists and
+each restored ref equals the manifest, including exact ref-set equality. This detects an
 incomplete or mismatched restore. It is not an external checkpoint and makes no
 tamper-detection claim against an administrator who controls both repository
 and backups, which is the explicit `REQ-REC-4` trust boundary. Independent
 signed checkpoints remain optional future hardening.
 
-**Recovery procedure**
+**Exact copy, then separate live activation**
+
+Restoring a snapshot preserves its application state exactly. Missing branches,
+unfinished Connect, non-idle operations, stale projections and corrupt or
+otherwise invalid application content remain missing, unfinished, stale or
+invalid. Copying never repairs, replays an accepted operation, synthesizes a ref
+or appends an event. A verified exact copy is not a readiness claim. Report copy
+equality and application defects separately; do not reject an exact copy merely
+because the backed-up application was broken.
+
+The mirror procedure verifies current authority, private targets and execution
+isolation before import, as specified below. It then copies the exact recorded
+Git objects and refs. It does not restore account settings, secrets or runnable
+service configuration. The following activation is a separate, explicit request:
 
 ```
-1. restore records, coverage, and control repos (all refs, full history)
-2. verify every source identity and restored branch/head OID against the
-   manifest; if restoring into replacement repositories, record their new IDs
-   for the later administrator-authorized rebind
-3. follow §6.10.2's bootstrap algorithm with the adopter recovery wrapper to
-   authenticate the initial records key and first `project_connected` event;
-   replay activation events, then unwrap every retained records and coverage
-   key and authenticate a recovery challenge for each current key
-4. create replacement portal, enforcer, and control wrapped copies; provision
-   replacement transport App credentials and verify each live path before activating it
-5. run the pinned control reconciler in full-replay mode to rebuild encrypted
-   coverage and the sharded derived index, status detail, and reader authority
-   from encrypted canonical events; generate an export only if explicitly
-   requested
-6. rebind Apps and re-point the registry entry if repository identities changed
-7. invoke the enforcer sweep for open pull requests in enforcement scope
+1. after exact mirror-copy verification, authenticate source IDs, root/K/B/
+   genesis, retained keys and full history with adopter recovery material;
+   require an already consistent source, complete current projections and idle
+   operation/fence/marker state; establish any known later source history
+2. if source health is unproved, report blocked activation and leave every
+   imported Git ref and object unchanged; perform no repair or protected job
+3. verify current target authority and confirm the exact intent; conditionally
+   stage the registry generation and quarantine current affected routes, then
+   revalidate frozen heads before protected jobs/keys; complete the original-
+   installation proofs in §9.1.1 with protected code verified before keys
+4. if any repository ID changed, append §9.1.1's authenticated rebind event
+   through the existing guarded writer; otherwise retain ordinary strict binding
+5. run verified full replay/rebuild for encrypted coverage and all private
+   derived classes; verify actual keys, complete materialization and guard state
+6. conditionally complete the exact App/registry/scope generation and bounded
+   open-PR sweep before allowing normal routing; never reopen a newer incident
+7. verify the ordinary reader and a write-free completed repeat; export only
+   when explicitly requested
 ```
 
-Step 5 is the same code path the reconciler already runs, which is what
-`REQ-REC-6`'s rebuildability requirement buys. Hosted-to-self-hosted migration
-uses steps 3–7 against the existing repositories and does not require the former
-operator. An ordinary migration may rewrap the same project keys and converts
+Step 5 reuses the reconciler's replay/materialization engine to publish the
+authorized identity transition. It does not repair source defects as part of
+copy or activation. An explicitly requested repair/rebuild is a separate
+operation under its own existing authority; the restore-then-rebuild acceptance
+scenario records those distinct requests. The new identity transition and
+restricted acquisition are prospective M6 work, not an existing M3 feature.
+Hosted-to-self-hosted migration keeps the existing repositories when possible,
+uses the ordinary binding path, and does not require the former operator. An ordinary migration may rewrap the same project keys and converts
 neither envelopes nor canonical events; that changes the live operator but does
 not revoke a former operator who retained old material. A migration intended as
 a security cutoff additionally rotates both project data keys and rebuilds the
 current coverage and records-derived state under them. Canonical history remains
 unchanged and may remain readable with copied old keys.
+
+
+#### 9.1.1 Authenticated replacement-repository recovery
+
+A restore may replace any subset of the three repositories. The complete
+successor set must contain three distinct role-bound private repositories under
+one verified owner. Reusing a role for copying is permitted only when its exact
+snapshot refs and current Git state match; a changed retained head cannot be rolled back
+or adopted by name. When a coherent partial restore cannot be established,
+restore the complete coherent snapshot to verified new repositories instead.
+Project ID, recipient, agreement, signatures, revocations and old Git objects
+remain unchanged. Original README/root, K/B and bootstrap manifest copies are
+historical origin evidence; do not write a fresh genesis or edit their IDs.
+
+**Adopter-facing local interface.** The prospective command is:
+
+```text
+dracla restore --snapshot BACKUP.json --target TARGET.json [--execute]
+```
+
+This plans or explicitly activates a snapshot already copied into the target
+repositories using the documented full-history mirror procedure. It does not claim to restore
+GitHub account settings, secrets or App installations from repository content.
+The separate mirror import preserves original Git objects/refs and creates no
+new canonical README/genesis. Restore only into freshly created private targets
+or exact verified matching companion roles; copying onto an advanced/unproved
+existing repository is not authorized. GitHub's documented repository mirror
+transport is reused; M6 does not implement another Git object-copy protocol.
+M6 supplies concrete safe instructions, readback and separately reported exact-
+copy and activation acceptance, including privacy/empty-target checks before
+import. A broken snapshot can be copied exactly and remain offline and broken.
+
+`BACKUP.json` is the exact non-secret canonical snapshot manifest selected by the
+adopter, with closed fields `snapshot_version:1`, `project_id`, `captured_at` and
+`repositories`. The latter is exactly three entries ordered records, coverage,
+control, each `{role,repository_id,default_branch,refs}`; `refs` maps each recorded
+full ref name to its exact Git OID. Validate unique roles/IDs/ref names and OID
+syntax, then require complete recorded objects/history and exact imported ref
+equality for copy verification. Missing application branches and invalid
+application content are preserved, not filled in. Existing application codecs,
+mandatory branches, cryptographic validity and healthy idle state gate later
+activation, not raw copying. Hash
+these exact canonical bytes for the event's snapshot digest. It contains no
+credential, raw/wrapped recovery secret or executable instruction. Reject
+unknown fields, duplicate JSON keys, noncanonical or oversized input before
+authorization; use the existing 1-MiB bounded JSON policy, never a partial parse.
+
+`TARGET.json` is the closed non-secret existing ProjectBinding-shaped object
+`{project_id,owner_id,repositories}`, with the same project and exactly three
+ordered `{role,owner,name,id}` entries. It selects numeric GitHub resource
+identities only, not origins, verification roots, code, credentials or providers.
+Deployment selection and protected configuration use the same trusted local
+configuration as installation. Reject a supplied arbitrary URL/key/module and
+validate the complete current target after parsing. Both files are bounded
+regular-file inputs, never secret input channels.
+
+Without `--execute`, perform read-only copy-equality inspection and source/target/
+release/proof planning for activation:
+create no repository, ref, key, wrapping copy, secret, dispatch, route or event.
+Recovery material, when needed to authenticate the backup, uses the existing
+non-echoing recovery-key prompt after current target authorization; unavailable
+safe prompting blocks. With `--execute`, require an already consistent source
+before any Git write, secret installation, protected execution or registry
+mutation. Repeat current checks and display exact
+source/current heads, old/new IDs, recoverable snapshot point, any inaccessible-
+later-history limit, protected release, selected deployment/controllers and
+remaining GitHub consent. Require explicit confirmation of that exact restore
+point and successor set before writes. There is no force/automatic-yes option;
+`--execute` alone is not authority or confirmation. Denial or noninteractive
+confirmation failure leaves a truthful blocked result. No recovery key, App key
+or token enters argv, either JSON file, ordinary output, URLs or logs.
+
+Read an existing accepted activation cell/event before preparing another one.
+Match exact snapshot digest, healthy frozen source identity and complete target
+to its package; reuse only this new activation operation and registry generation
+after lost replies. Reconstruct its pre-activation health from frozen source
+heads and actual guarded effects; do not mistake its own incomplete effects for
+an imported broken snapshot. An operation present in the backup is never this
+activation request and must not be resumed by restore.
+Only when none exists may the shared writer issue a fresh CSPRNG operation nonce.
+A different intent or newer canonical/registry state conflicts rather than
+retargeting. Completion reports exact rebind event/source OIDs and verified
+binding/generation, with a write-free repeated invocation. Use existing CLI exit
+conventions:0 for a verified plan or completed result,2 for invalid/blocked/
+conflicting/uncertain evidence,1 for an internal execution failure. Never print
+completed merely because a write or dispatch was accepted. Report verified copy
+equality separately from blocked activation, with exit2 when activation is
+blocked. After authorized activation advances refs, report its matching event
+and current state rather than claiming refs still equal the original snapshot.
+The concrete command
+implements the already approved restore behavior and standard; it adds no new
+credential grant, controller, legal effect or hosted provisioning authority.
+
+**Same standard as initial installation.** Before any new key-bearing execution
+or newly encrypted recovery output, require all applicable §6.9/§6.10 checks:
+current owner and administrator authority on every target; complete private
+visibility and immutable numeric role bindings; exact least-privilege service
+Apps and selected transport assignment; verified release/dependencies and actual
+protected workflow/repository identity; independent records/coverage recovery
+proofs and portal-records, portal-coverage, enforcer-coverage and control live
+proofs. Reinstall current protected inert bindings and secret copies rather than
+trusting restored secret names or runnable old control files. Restored control
+history is inert until verified code is installed and before secrets are made
+available. Preserve GitHub Free/private control support. Force, matching names,
+backup possession, successful secret writes and an old setup receipt bypass none
+of these requirements. Credentials and recovery keys remain outside backups.
+
+**One prospective canonical transition.** Add `project_repositories_rebound`
+with semantic event `schema_version: 2`. It uses the same closed top-level event
+members as §5.1, a GitHub actor, `confirmed_canonical_oid: null` and the existing
+nonce/operation fingerprint rules. Schema2 admits only this new event type;
+all existing event types keep their v1 contracts. The encrypted event uses the
+existing artifact-envelope version with event schema2 bound in authenticated
+additional data. The exact target is
+`{prior_repository_ids,prior_repository_owner}` using §5.1's closed objects.
+The exact payload is
+`{repository_ids,repository_owner,project_slug,snapshot_sha256,source_heads,
+registry_commit_oid,registry_generation}`. `source_heads` is exactly
+`{events,keys,operations,coverage,derived,control}` of Git object IDs from the
+selected backup; `control` names its recorded default-branch head, not an assumed
+branch name. `snapshot_sha256` hashes the exact canonical snapshot manifest;
+this event's single parent is exactly `source_heads.events`. All six source
+heads are required Git OIDs from a consistent completed snapshot; there is no
+nullable-derived exception. Other IDs, digests and positive registry generation
+use existing codecs.
+The original full-ref manifest stays with the backup; its hash identifies the
+restore point, not a new canonical log or independent integrity authority.
+
+The prior set and owner must match replay at `source_heads.events`, the slug
+must stay unchanged, and at least one role ID must change. The new set/owner
+become replay's current binding only at this event. Genesis IDs remain derivable
+from the unchanged first event. Historical resource authorizations use the set
+in force at their event; later administrative/key evidence must name the new
+set. Exactly seven current authorization rows are required, with the same
+minimum authorities as Connect: `project_rebind_owner`,
+`project_rebind_records_repository`, `project_rebind_coverage_repository`,
+`project_rebind_control_repository`, `project_rebind_records_app`,
+`project_rebind_enforcer_app`, `project_rebind_trigger_app`. Their resource kinds
+are respectively account, repository/repository/repository, and three
+installations; minimum authority tokens are respectively
+`repository_owner_control`, three `project_repository_admin`, then
+`records_app_binding`, `enforcer_app_binding`, `trigger_app_binding`. They bind
+only current successor resources and actual service installations. The protected
+recovery coordinator must also verify adopter recovery-key possession and full
+origin replay before producing the event; admin on unrelated new repositories
+alone does not authorize claiming an existing project. No ordinary browser form
+or general append endpoint exposes this operation.
+
+**Restricted admission and ordering.** M6's authenticated local coordinator
+binds one exact snapshot, source arrangement, complete successor arrangement,
+current actor, compatible release and registry transition. It calls a fixed
+recovery operation on the existing M4/M3 mutation machinery, not a second writer.
+Until the event exists, an invocation-local typed recovery binding distinguishes
+historical origin validation from actual successor transport authorization.
+It permits only read-only origin acquisition and this exact new activation/
+rebind, including its own accepted retry. It cannot authorize normal private
+reads, new ordinary mutations, alternate refs or another project. It is rebuilt
+from current proofs and source objects on rerun, never accepted from a boolean,
+JSON alias table or independent persisted mapping.
+
+Authenticate complete source history, configuration, keys, projections, operation
+cell and fences/marker. The source must already be consistent and idle. An
+unfinished first Connect, absent derived head, imported pending operation,
+projection mismatch or unverifiable state blocks activation without any Git
+write, guard clearing, replay, rebind or invented materialization. The exact
+copied state remains available for inspection or a separately requested repair;
+restore does not promise that an arbitrary broken copy can be activated. Once
+this explicit activation has accepted its own new rebind operation, its retries
+may resume only that exact frozen package under current successor authority.
+Rebind retries retain the same fingerprint; a completed repeat is write-free.
+
+During mirror copy and read-only health acquisition, successor targets remain
+unbound and unroutable; leave existing source routes and registry unchanged.
+An unhealthy activation has no route or registry effect. After source health,
+exact current heads, current target authority and explicit confirmation pass,
+conditionally stage the exact registry generation and put every currently
+routable affected gate into pending/quarantine against its observed generation,
+using the existing §7 coordinator. Revalidate frozen source heads, successor
+refs and the registry state after that transition and before secrets, protected
+jobs, key-bearing writes or rebind append. A changed source blocks activation.
+On failure before event acceptance, use the existing conditional gate restoration
+only if the staged identity/generation still matches; never override a newer
+quarantine. After event acceptance, retain pending gates until full completion.
+
+Keep both affected route sets unavailable through activation, rebind,
+materialization and sweep. Bind the exact staged registry OID/generation into
+the transition. Use existing project-wide fence/marker,
+one-event non-forced append, full coverage/private-derived rebuild and readback,
+then the existing landed marker-close/readback, terminal/readback,
+fence-release/readback and cell-clear order. Carry unaffected class generations
+only where semantics permit; the rebind advances all private derived generations
+and rematerializes their complete classes. Never publish from mixed epochs.
+Ordinary strict reading must then validate manifest-to-genesis and final-replay-
+to-live bindings, all intermediate transitions and current live capabilities.
+Only conditionally restore the exact matching registry/gates after full proof
+and sweep; neither old nor new permissions can reopen a newer quarantine.
+
+**Stale sources and limits.** Show the snapshot's exact recoverable point; an
+unbacked later event cannot be invented. Copying an older snapshot into fresh
+isolated targets preserves that chosen snapshot. If the original is observable
+and has unaccounted later history, refuse live activation from the older snapshot. Never
+force-update or erase an original or advanced retained repository to match it.
+When an original is unavailable, current target authority, complete snapshot
+verification and explicit restore-point confirmation are still required; no
+claim of proving that no later inaccessible event existed is made. The existing
+registry coordination domain must quarantine conflicting old/current claims.
+Independent deployments cannot be made globally single-writer by a backup:
+controller possession of all keys/backups can fork history, and a former operator
+retaining keys is not cryptographically revoked by rebind. Source retirement,
+shared-App reach and actual token/data-key containment retain §9 and incident
+requirements. Rebind grants no hidden cross-domain routing precedence or trust.
+
+**Compatibility and ownership.** Install readers, replay/vector codecs, protected
+control and shared writer capable of schema2 before enabling a rebind. Unknown
+schema/type/capability fails closed; no v1 downgrade or historical conversion.
+Existing completed M1/M3 plans/source/IDs remain historical and unchanged by this
+design campaign. Prospective M6 slices own the bounded event/replay/vector,
+origin-aware reader/recovery admission and M4/M5 integration extensions and count
+them once, after existing M4/M5 foundations. M4/M5 initial delivery must not
+pretend these later extensions exist or depend on M6 to pass ordinary tests.
+
+Acceptance covers one-role/all-role replacement and repeated restore, unchanged
+roles, every private/owner/admin/App/transport/source/provenance/key/live-path
+negative from first installation, source/ref/genesis tampering, wrong origin or
+new IDs, stale snapshots, incomplete history, old/new evidence substitution,
+exact copy of missing/corrupt/stale/non-idle source state, write-free activation
+denial for each such state, prepared/appending/landed retries of the new rebind
+only, crash and lost reply at every
+boundary, canonical-side-artifact consistency, stale registry/newer quarantine,
+ordinary post-restore read/admin/sign/revoke/export behavior, write-free repeat,
+unknown/old reader denial, compatible rollback and honest controller/fork limits.
+Offline fixtures and an unrun live driver do not establish production readiness.
 
 ---
 
@@ -5369,6 +5787,8 @@ the completed model whenever an assumption changes.
 | `pull_request` webhook deliveries per pull request | 8 | sampled from live repos: median 3.5 (`astral-sh/uv`) to 10.5 (`cli/cli`) |
 | `merge_group` deliveries | 1 per pull request normally; 10 per pull request sensitivity | one is the no-rebuild case; ten exposes rebuild sensitivity, but GitHub supplies no per-PR upper bound because failures and queue reordering can rebuild groups |
 | Event-wide `check_run` deliveries | 20 per pull request normally; 100 per pull request sensitivity | assumed allocation across all `created`, `completed`, and other delivered actions for every App's checks in contributing repositories; includes DraCLA's own created/completed pair and is not a provider bound |
+| Event-wide `push` deliveries | `P` per project per day; measurement required | include all delivered selected-repository pushes, including ignored refs and coverage updates; `push` is required for §6.4's no-required-queue fallback |
+| Additional fallback invocation/fan-out requests | `F` per project per day; detailed-design and measurement input | bounded detection work split into extra Worker invocations must be charged rather than hidden inside one invocation |
 | Signings | 2 | assumed |
 | Requests per signing | 8 | OAuth start and callback, agreement fetch, POST, status |
 | Daily project maintenance | 2 Worker requests per project | one portal pass for configured continuous-team materialization and data-repository visibility, plus one enforcer pass for visibility and check recovery; there is no repository ACL scan |
@@ -5397,13 +5817,28 @@ not provider guarantees. Release telemetry must record both
 observed multipliers and reduce the stated project envelope if either exceeds
 the modelled case.
 
+The `push` subscription also charges a Worker request for every delivered push,
+including non-default refs and selected coverage repositories that require no
+fallback evaluation. Early authenticated filtering reduces work, not requests.
+The tables below are the existing pull-request/check-run model with `P = F = 0`;
+they are lower bounds until the push and fallback terms are measured and added
+to the model. For `N` projects, add `N × (P + F)` requests/day: the normal case
+is `N × (178 + P + F)`, full-dashboard sensitivity is
+`N × (333 + P + F)`, and queue/check-run sensitivity is
+`N × (623 + P + F)`. The old normal ceiling near 560 projects is therefore an
+upper bound from omitted push/fan-out work, not a verified deployment capacity.
+A3 must include those terms and any fallback gate/CPU/subrequest costs before
+claiming the release envelope. M4 owns the fallback and its measurement seams;
+M7 owns the completed model and release measurements. This correction does not
+claim the existing `core/capacity.py` already implements those dimensions.
+
 An agreement activation or restore costs one project-wide marker update and one
 encrypted `agreements/active.enc.json` compare-and-swap regardless of how many
 contributors it affects (§6.5); no shard fold is required, so the transition does not appear in
 the per-subject request budget.
 
-**Result** (Cloudflare requests, normal one-delivery merge-group case,
-including the daily project-maintenance allowance)
+**Unadjusted result** (Cloudflare requests, normal one-delivery merge-group
+case, daily project maintenance included, `P = F = 0`)
 
 | Projects | Requests/day | % of Free | % of Paid | Pre-encryption CPU lower bound/day |
 |---|---|---|---|---|
@@ -5412,21 +5847,21 @@ including the daily project-maintenance allowance)
 | 100 | 17,800 | 17.8% | 5.3% | ≥9.6 s + crypto/team/publication/filter probes |
 | 250 | 44,500 | 44.5% | 13.4% | ≥24.0 s + crypto/team/publication/filter probes |
 
-Cloudflare Free saturates at roughly **560 projects** under the normal
-check-run-delivery assumption. This remains above the initial 250-project
-envelope, but it is an assumption-sensitive constraint rather than a provider
-guarantee.
+With push and fallback fan-out omitted, the normal check-run model reaches the
+Free request ceiling near **560 projects**. Actual capacity is lower when
+`P + F > 0`. The initial 250-project envelope remains a measurement-gated target,
+not a verified result of this unadjusted arithmetic.
 
 If all five assumed dashboard views instead scan all 32 index pages, each
-project produces 333 Worker requests/day. The 250-project envelope then uses
-83,250 requests/day (83.25% of Free), and the request ceiling moves to roughly
-300 projects. This is a dashboard-volume sensitivity, not extra work hidden
+project produces `333 + P + F` Worker requests/day. At `P = F = 0`, the
+250-project case uses 83,250 requests/day (83.25% of Free), and the request
+ceiling is at most roughly 300 projects. This is a dashboard-volume sensitivity, not extra work hidden
 inside one invocation; every page still has the private-read bound above.
 
 At ten `merge_group` deliveries and 100 event-wide `check_run` deliveries per
-pull request, each project instead produces 623 Worker requests/day. The
-250-project envelope produces 155,750 requests/day (155.75% of Free and 46.7%
-of Paid), and the Free request ceiling moves to roughly 160 projects. The
+pull request, each project instead produces `623 + P + F` Worker requests/day.
+At `P = F = 0`, the 250-project case produces 155,750 requests/day (155.75% of
+Free and 46.7% of Paid), and the Free request ceiling is at most roughly 160 projects. The
 initial 250-project hosted envelope therefore requires Paid capacity under this
 sensitivity. Per-entry merge-group CPU and subrequests remain the separate A2
 release probe.
@@ -5450,7 +5885,7 @@ every sampled webhook as a routing-gate check)
 | 100 | 5,500 | 5.50% | 687.50 GB-s | 5.29% | 12 MB plus gate rows |
 | 250 | 13,750 | 13.75% | 1,718.75 GB-s | 13.22% | 30 MB plus gate rows |
 
-At the Workers-request saturation point of roughly 560 projects, this bound
+At the unadjusted (`P = F = 0`) Workers-request ceiling near 560 projects, this bound
 is about 30,800 Durable Object requests/day, 3,850 GB-s/day at the
 one-second duration budget, and about 67.2 MB of empty SQLite object overhead
 plus one small row per repository, using Cloudflare's documented
@@ -5471,15 +5906,17 @@ per day. At 250 projects that is 47,500 Durable Object requests and row reads
 
 That separates two risks. **R7** — one busy adopter consuming the shared
 ceilings — remains assumption-sensitive because unrelated Apps' check runs are
-delivered to the enforcer; the normal and stress inputs make that dependence
-explicit. **R9** — an outsider deliberately exhausting the public endpoint,
+delivered to the enforcer alongside push and fallback traffic; the completed
+model must include their measured inputs. **R9** — an outsider deliberately exhausting the public endpoint,
 which needs no adopter activity at all — remains the sharper exposure. The
 hosted paid budget and monitoring reduce their likelihood and duration but do
 not prevent them; the two Workers' route split and repository-scoped objects
 cannot isolate shared account quotas (§9).
 
-**Subject to A2's continuous-team CPU probe, the binding modelled constraint remains
-GitHub Actions minutes, not Cloudflare requests.**
+**Actions minutes are a separate adopter-owned constraint.** The unfinished
+push/fallback and platform measurements do not establish which Cloudflare or
+Actions resource binds first. The request/gate calculations above and A2/A3
+remain authoritative for that release conclusion.
 
 The reconciler runs inside each project's private **control** repository, where
 GitHub Free meters 2,000 minutes per month against the org's whole private-repo
@@ -5575,7 +6012,7 @@ status `superseded`.
 | Req | Change | Where |
 |---|---|---|
 | `REQ-AGR-2` | Publishing is separate from immediate activation; only the active version is signable; ordinary activation never revives retired currency; an explicit authorized restore may reinstate one prior activation state without reviving independently invalid signature bases | §6.5, D10 |
-| `REQ-CHECK-2` | `Co-authored-by` trailers no longer determine a public check result, and are surfaced to authorized viewers instead; exemptions use individual, snapshot, and explicit continuous sources whose effective result is their union; exact PR/tree/subject overrides are consumed from the already-fetched subject shards | §5.3, §6.3, §6.3.1, §6.4, §6.8, D14 |
+| `REQ-CHECK-2` | By default, `Co-authored-by` trailers do not determine a public check result and are surfaced to authorized viewers; the explicit project opt-in deliberately restores blocking and its documented oracle/jamming/unresolved-identity risks. Exemptions use individual, snapshot and explicit continuous sources whose effective result is their union; exact PR/tree/subject overrides are consumed from already-fetched subject shards | §5.3, §6.3, §6.3.1, §6.4, §6.8, D14 |
 | `REQ-CHECK-3`, `REQ-CHECK-4` | Every merge-queue entry resolves and freshly evaluates exactly one associated pull request; preceding entries retain their completed decisions, while a rebuilt entry observes current canonical state; successful publication holds both the coverage fence and a routing-gate publication reservation until GitHub completion is confirmed | §5.4, §6.4, §7.2, §9, A2 |
 | `REQ-SIGN-5` | Every mutating contributor and administrative form is bound to one exact canonical head and action digest; an already-satisfied action binds its terminal canonical event, so a delayed no-op retry cannot become a later write | §5.4, §6.8 |
 | `REQ-REC-1`, `REQ-REC-2`, `REQ-SEC-2`, `REQ-SEC-6` | Private GitHub artifacts are authenticated ciphertext; records and coverage keys are separate; canonical individual and snapshot sources authorize plaintext independently of repository read access, while a canonical continuous source additionally requires live membership before proof issuance and every plaintext page | §4, §5.4, §6.6, §6.10.4, §8 |
@@ -5730,20 +6167,19 @@ affected IDs, and what it does not resolve, as section 19 requires.
   crash-rebuild, latency, and duration behavior against A3's one-second budget
   rather than extrapolating them from a development machine. The shared daily request
   ceilings are volume questions for A3 rather than per-request ones.
-- **A3 — Capacity assumptions complete; model update and release measurements pending.**
+- **A3 — Capacity model completion and release measurements pending.**
   §9.2 states the assumptions, their provenance, the resulting envelope, and
   the behaviour on reaching each limit, as `REQ-OPS-3` requires. The existing
   `core/capacity.py` model remains parameterised for Worker traffic; it must
-  incorporate the new Durable Objects dimensions and reproduce the table before
-  release.
+  incorporate the new Durable Objects dimensions, event-wide push input `P`,
+  fallback invocation/fan-out input `F`, and their measured CPU/subrequest costs
+  before release. The existing table's `P = F = 0` cases do not establish a
+  measured envelope.
 
-  Two conclusions worth carrying: under the normal assumptions, neither the
-  Workers nor Durable Objects Free request ceiling is a constraint at the
-  250-project envelope; the event-heavy sensitivity exceeds Workers Free at
-  that size. Workers saturates first, near 560 projects under the normal
-  check-run assumption, near 160 under the ten-delivery/100-check-run
-  sensitivity, and near 300 when every assumed dashboard view scans all 32
-  pages. Actions minutes in each
+  Section 9.2 owns the capacity calculations and their zero-push qualifications.
+  The initial hosted target remains measurement-gated after push, fallback and
+  routing costs are included. Release telemetry must include push and fallback
+  volume as well as merge-group and check-run multipliers. Actions minutes in each
   adopter's private control repository — billed to *their* org, not DraCLA's —
   set the reconciler schedule. The daily schedule costs 1.5% to 3% of the
   allowance; failure-triggered repair and explicit hosted-export runs are
@@ -5802,16 +6238,16 @@ affected IDs, and what it does not resolve, as section 19 requires.
 
 | ID | Risk | Mitigation |
 |---|---|---|
-| R1 | ~~Co-author emails unresolvable, so co-authored PRs fail by default~~ **Closed** by `REQ-CHECK-2` rev 2 — trailers no longer block (§6.3.1) | Residual: a trailer-only co-author may contribute unsigned unless a maintainer acts on the surfaced list |
+| R1 | ~~Co-author emails unresolvable, so co-authored PRs fail by default~~ **Closed for default advisory mode** by `REQ-CHECK-2` rev 2 (§6.3.1) | A trailer-only co-author may contribute unsigned unless a maintainer acts. Explicit blocking opt-in deliberately restores unresolved-trailer failures and the aggregate-oracle/jamming risks, with the administrator warning. |
 | R2 | A substantive version activation invalidates every contributor at once | Publish the immutable version in advance for project communication, then activate deliberately; `supersedes_coverage: false` handles non-invalidating changes, but DraCLA intentionally offers no early signing (§6.5, D10) |
 | R3 | Non-atomic write across records and coverage repos (§5.4 steps 1–10) | The records-key prepared-operation cell makes the complete authorized request durable before the coverage fence blocks success; immutable cross-binding, append-right CAS, and the in-flight marker let the control reconciler recover every crash point without timeout or the original browser request |
 | R4 | Index proxy carries all dashboard traffic and records-key decryption through the portal tier | Bound every shard; issue authorization only after all reader shards validate; recheck its canonical generation on every page and its bound continuous-team membership before issuance and each page; fail closed on absent or indeterminate membership; return `private, no-store`; include proof issuance, live checks, unwrap, decrypt, and full-page-scan sensitivities in A2/A3 |
 | R5 | Provisioning failure leaves a half-installed project | `dracla install` is idempotent and re-runnable locally; the three App installs are GitHub's own flow and resumable; encrypted bootstrap state follows actual-key recovery and wrapping/control challenges, while no private event or route is enabled before repository-bound live checks; the Setup URL callback persists nothing, and the registry entry is written last by the portal when the administrator **connects** (§6.10.3.1) |
 | R6 | An encrypted ordinary or merge-group check may exceed the 10 ms Free CPU limit when it unwraps its key and parses/decrypts the maximum coverage-shard distribution | The old plaintext one-shard fixture measured 1.26 ms but is only a lower bound; the encrypted ordinary path, selected 32-shard maximum, and per-entry merge-group path are mandatory A2 release probes. Any exceeded bound fails closed. Larger projects require a separately designed and verified future profile; v1 does not promise live re-sharding (§5.3, §9, A2). |
-| R7 | One busy adopter's pull-request and unrelated-App check-run traffic consumes the shared hosted ceiling | The A3 model makes the event-wide input explicit: normal saturation is near 560 projects, the ten-delivery/100-check-run sensitivity near 160, and the full-dashboard sensitivity near 300 (§9.2). No persistent per-project counter is added; release telemetry must track both merge-group and check-run multipliers, while a reduced envelope, paid capacity, and monitoring are the operational guards |
+| R7 | One busy adopter's pull-request, unrelated-App check-run, push and fallback traffic consumes the shared hosted ceiling | Use §9.2's canonical calculations and A2/A3 measurements; the zero-push arithmetic does not establish the hosted envelope. No persistent per-project counter is added. Release telemetry must include event-wide push and fallback volume plus merge-group and check-run multipliers; measured limits, a reduced envelope, paid capacity and monitoring are the operational guards |
 | R8 | A daily Workers or Durable Objects limit is exceeded while routing is changing or checks are running | Routes, routing gates, and coverage-repository decision fences fail closed (`REQ-CHECK-5`, §5.4, §7.2, §9); after service recovers, reconciliation rebuilds gate state, repairs any open fence, and the enforcer sweep creates the *temporarily unavailable* check the dead route could not |
 | R9 | `dracla-enforcer` is a public App, so an outsider can exhaust the shared per-account Workers or Durable Objects budget and halt checks, signing, and revocation for every adopter | Residual: signature verification limits downstream work but not counted requests; DraCLA uses no IP logic. Paid capacity, monitoring, and operator response reduce impact. The Worker split and repository-scoped objects limit state-corruption blast radius but do not isolate an account-wide quota (§9) |
-| R10 | ~~Revocation-as-griefing via co-authoring~~ **Closed for injected trailers** by `REQ-CHECK-2` rev 2 — a trailer alone cannot block (§6.3.1) | Residual: Git author metadata is unauthenticated. A griefer can revoke coverage for their own selected identity, or inject an uncovered or revoked third party as a commit author to block a pull request without that person's participation. Required commit signing alone does not remove this attribution/griefing risk. |
+| R10 | ~~Revocation-as-griefing via co-authoring~~ **Closed for injected trailers in default advisory mode** by `REQ-CHECK-2` rev 2 (§6.3.1) | Explicit blocking opt-in restores trailer jamming and the aggregate oracle/unresolved-identity failures, with the administrator warning. Git author metadata is also unauthenticated: a griefer can inject an uncovered/revoked commit author or revoke their own selected identity. Required commit signing alone does not remove that attribution/griefing risk. |
 | R11 | Reconciler and hosted exports consume the project owner's private-repo Actions allowance, shared with the owner's other private repos | Normal operation uses one daily control-repository run, modelled at 1.5–3% of the Free allowance. Successful mutations do not dispatch; failed synchronous materializations and explicit hosted exports add separately measured runs, while local CLI export uses none (§9.2) |
 | R12 | Loss of the adopter recovery key plus every live wrapping path makes retained ciphertext unrecoverable | Verify both actual initial data keys before the first private write and every successor before activation; recommend password-manager or equivalent safe storage; retain older key generations while referenced (§6.10.2, §9.1) |
 | R13 | Compromise of hosted wrapping roots, the control wrapping key, or key-bearing pinned code exposes plaintext beyond ordinary reader authorization | Treat every controller as trusted and disclose its reach; separate records and coverage capabilities; bind wraps to project and purpose; pin executable inputs; support self-hosting with adopter roots (§4, §8.1.2, §8.3) |

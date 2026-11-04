@@ -1,0 +1,694 @@
+{
+  "schema_version": 2,
+  "slices": [
+    {
+      "id": "m4/1",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/1] Production Worker entrypoints and real runtime test harness",
+        "responsibility": "Replace the missing production foundation with two separately configured Workers and named service capability boundaries. Supply shared typed configuration, safe errors and one real Worker/SQLite test harness; retain benchmark isolation. No portal user flows or new persistence.",
+        "paths": [
+          "api/src/enforce/index.ts",
+          "api/src/portal/index.ts",
+          "api/src/runtime/config.ts",
+          "api/src/runtime/errors.ts",
+          "api/wrangler.enforce.jsonc",
+          "api/wrangler.portal.jsonc",
+          "api/tsconfig.runtime.json",
+          "api/vitest.config.ts",
+          "api/package.json",
+          "api/test/runtime/harness.ts",
+          "api/test/runtime/config.test.ts",
+          "api/src/runtime/limits.ts",
+          "conformance/runtime-profile-v1.json"
+        ],
+        "dependencies": [],
+        "acceptance": [
+          "Both production configurations build and local Workers start with named bindings; benchmark stays separate.",
+          "Missing/wrong App, origin, key IDs, namespace or entrypoint fails closed; public HTTP cannot invoke internal RPC.",
+          "Actual Worker/SQLite harness runs locally with isolated repository identities and observable persistence; later slices extend it rather than duplicate it.",
+          "The shipped closed runtime-profile-v1 byte/count maxima match Python/TS and cannot be raised by environment or request inputs."
+        ]
+      },
+      "display": {
+        "summary": "Production Worker entrypoints and real runtime test harness",
+        "production": [
+          400,
+          650
+        ],
+        "tests": [
+          550,
+          880
+        ]
+      }
+    },
+    {
+      "id": "m4/2",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/2] Bounded GitHub transport and repository-scoped credentials",
+        "responsibility": "Create the missing runtime REST/GraphQL client, fixed-origin bounded reads, complete pagination, exact installation-token validation and shared nested request accounting. Reuse existing crypto; no persistent token cache or alternate transport framework.",
+        "paths": [
+          "api/src/runtime/github.ts",
+          "api/src/runtime/credentials.ts",
+          "api/src/runtime/budget.ts",
+          "api/test/runtime/github.test.ts",
+          "api/test/runtime/credentials.test.ts",
+          "api/test/runtime/budget.test.ts",
+          "api/test/runtime/http-script.ts"
+        ],
+        "dependencies": [
+          "m4/1"
+        ],
+        "acceptance": [
+          "Reject redirects, partial GraphQL data/errors, oversized/truncated replies, incomplete pages and lossy numeric IDs.",
+          "Tokens name exact repository IDs and minimum permissions; cross-App/project/repository and expiry drift deny; cleanup failures remain visible.",
+          "Cold/nested/retry calls debit shared budgets, stop before 49, and never leak tokens through captured exceptions.",
+          "Every byte/count cap is checked before allocation or next-page/child work; limit-minus-one/at/plus-one, dishonest lengths and nested retry accounting are executable cases."
+        ]
+      },
+      "display": {
+        "summary": "Bounded GitHub transport and repository-scoped credentials",
+        "production": [
+          480,
+          740
+        ],
+        "tests": [
+          730,
+          1120
+        ]
+      }
+    },
+    {
+      "id": "m4/3",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/3] Authenticated bounded coverage reads with shared decision semantics",
+        "responsibility": "Add immutable partial-observation conformance APIs and batched encrypted transport, extracting the existing semantic evaluator once. Preserve full-projection write validation and Python vector authority. No fabricated empty shards or second evaluator.",
+        "paths": [
+          "api/src/conformance/coverage.ts",
+          "api/src/enforce/coverage.ts",
+          "api/test/conformance.test.mjs",
+          "api/test/enforce/coverage.test.ts",
+          "core/dracla/conformance/vectors.py",
+          "core/tests/test_conformance_coverage.py",
+          "api/test/corpus-consumption.mjs",
+          "core/tests/corpus_consumption.py"
+        ],
+        "dependencies": [
+          "m4/2"
+        ],
+        "acceptance": [
+          "Each required member is fetched once at one immutable OID, authenticated and schema/cross-binding checked; all 32 required shards work.",
+          "Unobserved subject, missing/corrupt key or member, invalid marker absence, mutation overlap and lifecycle errors cannot pass.",
+          "Full and partial APIs reproduce Python-produced decisions including version retirement, exemptions, exact content overrides, unrelated subject and success-reservation cases; full updates still require all 37 members."
+        ]
+      },
+      "display": {
+        "summary": "Authenticated bounded coverage reads with shared decision semantics",
+        "production": [
+          270,
+          440
+        ],
+        "tests": [
+          450,
+          740
+        ]
+      }
+    },
+    {
+      "id": "m4/16",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/16] Versioned canonical trailer policy and immutable coverage support",
+        "responsibility": "Make the already permitted records-admin trailer opt-in executable: default-advisory legacy configuration, explicit v2 configuration and safe v2 active-agreement materialization. Preserve historical canonical bytes and same 37 files/32 shards; add no local/route policy source.",
+        "paths": [
+          "core/dracla/conformance/events.py",
+          "core/dracla/conformance/replay.py",
+          "core/dracla/conformance/artifacts.py",
+          "core/dracla/conformance/coverage.py",
+          "core/dracla/conformance/vectors.py",
+          "core/dracla/records/history.py",
+          "core/dracla/records/append.py",
+          "core/dracla/records/reconcile.py",
+          "api/src/conformance/events.ts",
+          "api/src/conformance/artifacts.ts",
+          "api/src/conformance/projections.ts",
+          "api/src/conformance/coverage.ts",
+          "core/tests/test_conformance_events.py",
+          "core/tests/test_conformance_replay.py",
+          "core/tests/test_conformance_coverage.py",
+          "core/tests/test_conformance_event_artifacts.py",
+          "core/tests/test_records_3.py",
+          "api/test/conformance.test.mjs",
+          "api/test/corpus-consumption.mjs",
+          "core/tests/corpus_consumption.py",
+          "api/src/conformance/envelope.ts",
+          "core/dracla/conformance/envelope.py"
+        ],
+        "dependencies": [
+          "m4/3"
+        ],
+        "acceptance": [
+          "Exact v1/v2 canonical configuration and project-config/active-agreement schema/AAD variants match Python-produced vectors; defaults advisory and unknown/mismatched versions deny.",
+          "Historical event bytes/fingerprints remain unchanged; downgrade after v2 fails rather than silently resetting policy; current writers/readers install compatible versions before v2 writes.",
+          "Project-wide policy fence and same-head materialization hold under every crash; Python full reference and TS incremental output agree, preserving encrypted formats of unrelated artifact kinds.",
+          "All three enforcement paths consume one authenticated immutable policy and preserve prior completed queue decisions; unsupported/forged/local policies cannot select blocking subjects.",
+          "Supported schema_version2 dispatch is allowed only for the two named fixed artifact identities; bounded header selection does not replace authenticating that exact version in AEAD AAD."
+        ]
+      },
+      "display": {
+        "summary": "Versioned canonical trailer policy and immutable coverage support",
+        "production": [
+          400,
+          680
+        ],
+        "tests": [
+          670,
+          1060
+        ]
+      }
+    },
+    {
+      "id": "m4/4",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/4] SQLite routing gate and narrow coverage reservation service",
+        "responsibility": "Implement exact HLD gate transitions in real local SQLite and the portal reserve/release CAS service using existing portal coverage-write capability. Integrate existing M1 fence transitions without exporting arbitrary paths, plaintext, tokens or route mutation to enforcement.",
+        "paths": [
+          "api/src/routing/gate.ts",
+          "api/src/routing/types.ts",
+          "api/src/portal/fences.ts",
+          "api/src/portal/index.ts",
+          "api/test/routing/gate.test.ts",
+          "api/test/portal/fences.test.ts",
+          "api/test/runtime/service-boundaries.test.ts"
+        ],
+        "dependencies": [
+          "m4/1",
+          "m4/2",
+          "m4/3",
+          "m4/16"
+        ],
+        "acceptance": [
+          "Actual transaction tests cover identical retry, stale expectations, absent row versus read error, pending/publication exclusion, quota denial and retained state/restart.",
+          "Exact reserve/release authenticates route/project/head/fence/marker/key; CAS conflict/lost response and release after route change recover without clearing another reservation.",
+          "Service exports cannot mutate namespace/records or reveal credentials; wrong project, terminal check and malicious path inputs deny."
+        ]
+      },
+      "display": {
+        "summary": "SQLite routing gate and narrow coverage reservation service",
+        "production": [
+          480,
+          760
+        ],
+        "tests": [
+          740,
+          1140
+        ]
+      }
+    },
+    {
+      "id": "m4/5",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/5] Complete registry derivation and signed route publication",
+        "responsibility": "Implement canonical operational registry/route codecs, complete selector/claim validation, current request-bound repository facts and repository-local route diffs. Reuse canonical JSON; no new current-scope truth store or selector precedence.",
+        "paths": [
+          "api/src/routing/registry.ts",
+          "api/src/routing/routes.ts",
+          "api/src/routing/derive.ts",
+          "api/src/enforce/observations.ts",
+          "api/test/routing/registry.test.ts",
+          "api/test/routing/routes.test.ts",
+          "api/test/routing/derive.test.ts",
+          "core/dracla/routing_protocol.py",
+          "core/tests/test_routing_protocol.py",
+          "core/dracla/conformance/vectors.py"
+        ],
+        "dependencies": [
+          "m4/2",
+          "m4/4"
+        ],
+        "acceptance": [
+          "Complete snapshot validation rejects duplicate/overlapping claims, wrong owner/installation and partial inventories.",
+          "Numeric rename/transfer/install observations bind exact challenges; GitHub-created overlap quarantines only affected repositories.",
+          "Old/missing KV cannot pass a mismatching gate; key-only resigning preserves semantic digest/generation; unchanged derivation writes nothing.",
+          "Python-authored Ed25519/JCS/domain/kid/signature vectors match TS; reject forged/noncanonical/cross-domain/schema/key inputs; enforcer has verification-only keys.",
+          "Registry byte/project/repository/selector limits have exact boundary cases without partial derivation."
+        ]
+      },
+      "display": {
+        "summary": "Complete registry derivation and signed route publication",
+        "production": [
+          700,
+          1120
+        ],
+        "tests": [
+          950,
+          1500
+        ]
+      }
+    },
+    {
+      "id": "m4/6",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/6] Authenticated canonical scope continuity and control preconditions",
+        "responsibility": "Bridge registry-referenced request and terminal packages to existing M1 effective scope and M3 replay/preconditions. Supply bounded direct reads and complete control fallback. No edge history fold or last-event/coverage inference.",
+        "paths": [
+          "api/src/routing/scope.ts",
+          "api/src/routing/registry.ts",
+          "core/dracla/records/routing.py",
+          "core/dracla/records/reconcile.py",
+          "core/dracla/records/history.py",
+          "api/test/routing/scope.test.ts",
+          "core/tests/test_routing_preconditions.py"
+        ],
+        "dependencies": [
+          "m4/5"
+        ],
+        "acceptance": [
+          "Verify exact request/activation/abandonment child packages and registry predecessor continuity, including empty initial scope and every unresolved prepared request.",
+          "Activation/abandonment conflict, mismatched desired scope/prior generation, missing canonical source and stale registry proof deny routing.",
+          "Long/cold chain remains unavailable and requests pinned M3 complete replay; authenticated external preconditions satisfy existing binding types without a bypass flag."
+        ]
+      },
+      "display": {
+        "summary": "Authenticated canonical scope continuity and control preconditions",
+        "production": [
+          380,
+          640
+        ],
+        "tests": [
+          560,
+          900
+        ]
+      }
+    },
+    {
+      "id": "m4/15",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/15] Shared Worker canonical mutation and projection executor",
+        "responsibility": "Supply the missing concrete TypeScript runtime for the existing M1 prepared-cell/fence/marker/append/projection completion protocol before routing activation. Reuse pure conformance and Python M3 recovery; M5 extends this single executor rather than creating another one. Own the first-Connect independent-guard/generations-absence acquisition branch; genuine first append precedes normal coverage/derived materialization, with no fake lifecycle or second writer.",
+        "paths": [
+          "api/src/records/mutations.ts",
+          "api/src/records/preconditions.ts",
+          "api/test/records/mutations.test.ts",
+          "api/test/records/recovery.test.ts",
+          "core/tests/test_worker_mutation_recovery.py"
+        ],
+        "dependencies": [
+          "m4/2",
+          "m4/3",
+          "m4/4",
+          "m4/6",
+          "m4/16"
+        ],
+        "acceptance": [
+          "Freeze authenticated immutable input and exact side artifacts before fencing; enforce append-right CAS and one-event non-forced canonical history append.",
+          "After a landed append, verify projections, close/read back marker, CAS/read back appending to terminal(landed), release/read back fence, then clear/read back terminal cell. Prepared no-op/conflict keeps terminal-before-marker-close ordering. Three-attempt retry and no edge full replay remain.",
+          "Every common connected-operation crash/lost-write/key/CAS/terminal-child race is tested in Worker transport fixtures and recovered by the actual Python engine; no direct activation shortcut.",
+          "Profile overflow or incomplete materialization retains guards and routes exact M3 repair; no false clean/landed result.",
+          "Actual Worker executor bootstrap fixtures use independently valid idle guards, absent semantic projections and authenticated typed inputs; genuine first append precedes full normal projections. Current Python pre-Connect history remains blocked. Reuse persisted pause fixtures in M5 m5/12 actual acquisition/recovery tests; M4 does not depend on that future adapter."
+        ]
+      },
+      "display": {
+        "summary": "Shared Worker canonical mutation and projection executor",
+        "production": [
+          620,
+          980
+        ],
+        "tests": [
+          950,
+          1480
+        ]
+      }
+    },
+    {
+      "id": "m4/7",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/7] Conditional routing transitions and repair-forward coordinator",
+        "responsibility": "Compose prepared registry, pending gates, live action recheck, canonical activation, signed KV and conditional final gate transitions. Own complete diff and owner-migration/remove-before-bind behavior; M5 supplies authenticated actor/confirmation.",
+        "paths": [
+          "api/src/routing/coordinator.ts",
+          "api/src/routing/transitions.ts",
+          "api/src/portal/index.ts",
+          "api/test/routing/transitions.test.ts",
+          "api/test/routing/coordinator.test.ts"
+        ],
+        "dependencies": [
+          "m4/4",
+          "m4/5",
+          "m4/6",
+          "m4/15"
+        ],
+        "acceptance": [
+          "Every affected gate acknowledges pending before activation, including first bind and partial pending failure.",
+          "Recheck same action authority; absent/abandoned activation permits only matching restore, landed activation repairs forward; terminal children cannot both land.",
+          "Inject crash/lost response at every persisted boundary and competing registry/gate updates; stale restore/commit cannot reopen newer state."
+        ]
+      },
+      "display": {
+        "summary": "Conditional routing transitions and repair-forward coordinator",
+        "production": [
+          450,
+          740
+        ],
+        "tests": [
+          720,
+          1120
+        ]
+      }
+    },
+    {
+      "id": "m4/8",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/8] Authenticated PR checks and generic comments",
+        "responsibility": "Wire supported bounded webhook actions, exact route authorization, complete PR subjects/tree, existing coverage semantics and generic feedback. Use shared transport and limits; add no public reason lookup or alternative reset behavior.",
+        "paths": [
+          "api/src/enforce/webhook.ts",
+          "api/src/enforce/pr.ts",
+          "api/src/enforce/output.ts",
+          "api/src/enforce/index.ts",
+          "api/test/enforce/webhook.test.ts",
+          "api/test/enforce/pr.test.ts",
+          "api/test/enforce/output.test.ts"
+        ],
+        "dependencies": [
+          "m4/2",
+          "m4/3",
+          "m4/4",
+          "m4/5",
+          "m4/16"
+        ],
+        "acceptance": [
+          "Verify raw SHA-256 signatures before parsing with same-App rotation only; forged/wrong-App/oversized/unsupported events follow HLD response contract.",
+          "Opener/all resolved authors, pages through 250, head/root tree, advisory trailers and exact overrides are complete; unresolved/truncated/old-head observations cannot pass current checks.",
+          "Fixed DraCLA check/comment wording and validated authenticated links expose no private names/counts/reasons; malicious markers/URLs do not grant edit/redirect authority.",
+          "Conflict/pending/unavailable output uses only exact verified no-project capability; admin inspection never resolves a conflict.",
+          "Advisory and canonical authenticated blocking modes are tested on ordinary, queue and fallback paths; unresolved required trailer identities cannot pass, advisory detail overflow cannot become a blocking decision."
+        ]
+      },
+      "display": {
+        "summary": "Authenticated PR checks and generic comments",
+        "production": [
+          480,
+          780
+        ],
+        "tests": [
+          760,
+          1200
+        ]
+      }
+    },
+    {
+      "id": "m4/9",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/9] ALLGREEN authoritative publication and exact completion recovery",
+        "responsibility": "Map one official queue entry to one PR and compose coverage-before-route reservation, completed success creation, portal release and independent completion. Own bounded zero/one/multiple recovery and all publication crash points; no timeout unlock.",
+        "paths": [
+          "api/src/enforce/queue.ts",
+          "api/src/enforce/publication.ts",
+          "api/src/enforce/completion.ts",
+          "api/src/enforce/index.ts",
+          "api/test/enforce/queue.test.ts",
+          "api/test/enforce/publication.test.ts",
+          "api/test/enforce/completion.test.ts"
+        ],
+        "dependencies": [
+          "m4/4",
+          "m4/8"
+        ],
+        "acceptance": [
+          "Two-entry ALLGREEN fixture evaluates each exact matching head/PR; HEADGREEN, no/multiple match, build-window mismatch and truncation fail closed.",
+          "Success is created only while exact coverage and routing reservations are held; create reply releases coverage but cannot self-confirm routing.",
+          "Every lost reserve/create/release/confirm response and route/mutation race retains correct state; zero creates non-passing recovery, one verifies, multiple/incomplete remain held.",
+          "Wrong-App/ordinary/incomplete completion never calls the gate; completed queue decisions survive later record changes."
+        ]
+      },
+      "display": {
+        "summary": "ALLGREEN authoritative publication and exact completion recovery",
+        "production": [
+          450,
+          740
+        ],
+        "tests": [
+          800,
+          1250
+        ]
+      }
+    },
+    {
+      "id": "m4/10",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/10] Mode-aware default-branch fallback and bounded issues",
+        "responsibility": "Implement current official queue/rules/classic mode observation and complete push/PR association, current coverage child evaluation and generic SHA issues. Revalidate mode/route before writes. No branch-rule changes, permission expansion or persistent dedupe.",
+        "paths": [
+          "api/src/enforce/mode.ts",
+          "api/src/enforce/fallback.ts",
+          "api/src/enforce/index.ts",
+          "api/test/enforce/mode.test.ts",
+          "api/test/enforce/fallback.test.ts",
+          "api/test/live/enforcement-mode.ts"
+        ],
+        "dependencies": [
+          "m4/8",
+          "m4/9"
+        ],
+        "acceptance": [
+          "Installed-grant controlled-account driver distinguishes no queue, required ALLGREEN, classic/ruleset/organization rules and inaccessible/null/error states; fixture-only visibility is not acceptance.",
+          "Required queue suppresses post-landing reevaluation even after later revocation; HEADGREEN/unknown configuration grants no coverage read or issue.",
+          "Complete squash/rebase/direct/multi-commit cases pass; deletion/divergence/ambiguous PR/limits stay incomplete rather than covered.",
+          "Mode enable/disable and route changes before issue reclassify; disabled Issues, missing accepted permission, ambiguous creation and concurrent duplicates retain documented behavior."
+        ]
+      },
+      "display": {
+        "summary": "Mode-aware default-branch fallback and bounded issues",
+        "production": [
+          410,
+          680
+        ],
+        "tests": [
+          650,
+          1040
+        ]
+      }
+    },
+    {
+      "id": "m4/11",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/11] Lifecycle invalidation and bounded scheduled recovery",
+        "responsibility": "Drive one derivation on verified lifecycle doorbells and daily schedules, complete repository/open-PR scans, publication repair and originating-PR callback. Reuse shared clients; no durable scan cursor, queue or reverse PR index.",
+        "paths": [
+          "api/src/routing/lifecycle.ts",
+          "api/src/routing/schedule.ts",
+          "api/src/enforce/schedule.ts",
+          "api/src/enforce/observations.ts",
+          "api/src/enforce/index.ts",
+          "api/src/portal/index.ts",
+          "api/test/routing/lifecycle.test.ts",
+          "api/test/enforce/schedule.test.ts"
+        ],
+        "dependencies": [
+          "m4/7",
+          "m4/8",
+          "m4/9",
+          "m4/10"
+        ],
+        "acceptance": [
+          "Rename/transfer/delete/restore, selected-install restriction/removal, partial project transfer and missed doorbells invalidate/rematch without guessing a project.",
+          "Daily complete scans repair missing/in-progress feedback and exact publication; unchanged routes write nothing; wrong-origin PR callback denies.",
+          "Page/fan-out/RPC/provider exhaustion emits incomplete scan evidence; gate reconstruction with held success restores publication or remains unavailable.",
+          "Registry/open-PR/page/fan-out/depth/total-invocation limits stop with explicit incomplete evidence and no durable cursor/queue."
+        ]
+      },
+      "display": {
+        "summary": "Lifecycle invalidation and bounded scheduled recovery",
+        "production": [
+          400,
+          680
+        ],
+        "tests": [
+          640,
+          1040
+        ]
+      }
+    },
+    {
+      "id": "m4/12",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/12] Protected control authentication and real M3 routing recovery",
+        "responsibility": "Implement the existing protected-control integration with fixed GitHub OIDC verification, exact pinned workflow/project/run binding and typed live quarantine/publication evidence. Integrate real Python engines rather than accepting booleans/files; preserve transport App grants and secret isolation.",
+        "paths": [
+          "api/src/control/auth.ts",
+          "api/src/control/repair.ts",
+          "api/src/portal/index.ts",
+          "core/dracla/records/routing.py",
+          "core/dracla/records/append.py",
+          "core/dracla/records/reconcile.py",
+          "core/dracla/records/github.py",
+          "control/reconcile.yml",
+          "core/tests/test_routing_recovery.py",
+          "core/tests/test_control_release.py",
+          "api/test/control/auth.test.ts",
+          "api/test/control/repair.test.ts",
+          "control/control-binding.schema.json",
+          "control/routing-protocol.schema.json",
+          "control/verify_release.py",
+          "core/dracla/routing_protocol.py",
+          "core/dracla/conformance/vectors.py"
+        ],
+        "dependencies": [
+          "m4/6",
+          "m4/9",
+          "m4/11"
+        ],
+        "acceptance": [
+          "Verify issuer/signature/audience/expiry and numeric private control identity, exact pinned workflow/run/attempt/event; reject fork/PR/stale/cross-purpose/digest tampering.",
+          "Existing verified bootstrap precedes secrets; no control key goes to portal and no Checks credential goes to control.",
+          "Actual M3 success-reservation and malformed-guard fixtures remain blocked without live authenticated context; exact context plus independent check confirmation and complete replay/CAS/readback repairs safely.",
+          "Stale/newer incident, changed sources, incomplete operation inventory and lost response cannot clear/restore a different state; no CLI or file-based bypass exists.",
+          "Exact versioned request/response, OIDC body-digest audience, enrolled source and complete-set/batch records match Python-authored vectors and reject extra/missing/mismatched values.",
+          "Protected control-binding v2 parser constructs only the fixed client; release profile v1 stays unchanged, no adopter-generated profile file is an implementation owner.",
+          "Adopter execution cannot select shared-host credential scope; operator grant, complete-set join and current matching batch evidence are required before global incident restore."
+        ]
+      },
+      "display": {
+        "summary": "Protected control authentication and real M3 routing recovery",
+        "production": [
+          800,
+          1250
+        ],
+        "tests": [
+          1210,
+          1880
+        ]
+      }
+    },
+    {
+      "id": "m4/13",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/13] Credential incident containment and conditional restore integration",
+        "responsibility": "Compose actual credential reach, matching quarantine, all-token cutoff evidence, successor binding/key/history validation, M3 rebuild, held-quarantine open-PR sweep and exact restore. Reuse existing credential/engine APIs; deliver offline fault cases and explicitly gated live driver.",
+        "paths": [
+          "api/src/control/incidents.ts",
+          "api/src/control/repair.ts",
+          "api/src/enforce/schedule.ts",
+          "core/dracla/records/routing.py",
+          "core/tests/test_routing_incidents.py",
+          "api/test/control/incidents.test.ts",
+          "api/test/live/containment.ts",
+          "docs/recovery.md"
+        ],
+        "dependencies": [
+          "m4/11",
+          "m4/12"
+        ],
+        "acceptance": [
+          "Shared-App/root incidents enumerate complete affected assignments; token-only incident uses actual granted scope and cannot shrink the set.",
+          "Missing minting cutoff/unknown-token barrier/clock margin, mismatched successor/data key, untrusted backup or incomplete rebuild/sweep leaves gates unavailable.",
+          "Sweep under held matching quarantine cannot publish authoritative success; only complete matching evidence restores and a newer quarantine survives stale completion.",
+          "Live A6 driver uses real accepted assignments and separately authorized accounts; offline results never claim live all-token containment."
+        ]
+      },
+      "display": {
+        "summary": "Credential incident containment and conditional restore integration",
+        "production": [
+          360,
+          620
+        ],
+        "tests": [
+          620,
+          1020
+        ]
+      }
+    },
+    {
+      "id": "m4/14",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m4/14] Integrated M4 evidence, platform limits and operator guidance",
+        "responsibility": "Assemble source-bound end-to-end acceptance and cold encrypted budget drivers, safe accounting/error checks and shipped operational guidance. Count shared foundations once; extend the canonical capacity model and verification matrix instead of adding a second model.",
+        "paths": [
+          "api/test/integration/m4.test.ts",
+          "api/test/live/enforcement.ts",
+          "api/bench/enforcement.mjs",
+          "api/bench/README.md",
+          "api/package.json",
+          "core/capacity.py",
+          "core/tests/test_capacity.py",
+          "docs/enforcement.md",
+          "docs/recovery.md",
+          "design/verification-matrix.md"
+        ],
+        "dependencies": [
+          "m4/3",
+          "m4/7",
+          "m4/10",
+          "m4/11",
+          "m4/12",
+          "m4/13"
+        ],
+        "acceptance": [
+          "Integrated ordinary/queue/fallback/routing/recovery journeys run against actual local Workers/SQLite and deterministic GitHub failures, with bound source/config identities.",
+          "Cold all-32-shard ordinary and queue traces include token/key discovery, crypto, nested reserve/release, comments, retries and independent completion; local CPU is not hosted CPU acceptance.",
+          "Canonical capacity inputs include ignored pushes/check runs, fallback child invocations, DO reads/writes, daily scans and private Actions minutes; Free failure blocks the claim.",
+          "Operator guidance documents generic states, redelivery/no unlock, duplicate/incomplete alerts, incidents, offboarding and independent self-hosting; captured logs expose no private values.",
+          "All new route/control/policy/profile protocol vectors and authenticated old/new format recovery run through the actual assembled runtime; unsupported old writers/readers fail closed."
+        ]
+      },
+      "display": {
+        "summary": "Integrated M4 evidence, platform limits and operator guidance",
+        "production": [
+          250,
+          450
+        ],
+        "tests": [
+          650,
+          1060
+        ]
+      }
+    }
+  ]
+}

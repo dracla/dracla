@@ -24,10 +24,10 @@ implementation and returns to design review.
 | M1 — conformance kernel | [`design/lld/m1-conformance-kernel.md`](lld/m1-conformance-kernel.md) | Locked | All M1 slices through M1-19 landed; complete cross-runtime gate passed |
 | M2 — CLI and administration seams | [`design/lld/m2-cli-administration.md`](lld/m2-cli-administration.md) | Locked | All four slices merged; inspected main `11e8d0f07ef3406451dc954ecda504c3f3854877` |
 | M3 — pinned control workflow and reconciler | [`design/lld/m3-control-reconciler.md`](lld/m3-control-reconciler.md) | Locked; owner-approved 25 October 2026 | Six approved boundaries; m3/1.1 and m3/2 accepted; m3/3.1 actual-key correction pending reviewed stopped-publication admission; m3/4–6 pending |
-| M4 — enforcement and routing | `design/lld/m4-enforcement-routing.md` | Planned | Not started |
-| M5 — portal, Connect, signing, and administration | `design/lld/m5-portal-connect.md` | Planned | Not started |
-| M6 — end-to-end installer | `design/lld/m6-installer.md` | Planned | Not started |
-| M7 — product surfaces and release verification | `design/lld/m7-product-release.md` | Planned | Not started |
+| M4 — Enforcement and routing | [Package overview](m4/overview.md); [implementation plan](m4/implementation-plan.md) | Current reviewed requirements, HLD and detailed plan | Prospective delivery; canonical slices and separate production/test estimates in the package |
+| M5 — Portal, Connect, signing, and administration | [Package overview](m5/overview.md); [implementation plan](m5/implementation-plan.md) | Current reviewed requirements, HLD and detailed plan | Prospective delivery; canonical slices and separate production/test estimates in the package |
+| M6 — Installation, deployment and exact recovery | [Package overview](m6/overview.md); [implementation plan](m6/implementation-plan.md) | Current reviewed requirements, HLD and detailed plan | Prospective delivery; canonical slices and separate production/test estimates in the package |
+| M7 — Product surfaces and release verification | [Package overview](m7/overview.md); [implementation plan](m7/implementation-plan.md) | Current reviewed requirements, HLD and detailed plan | Prospective delivery; canonical slices and separate production/test estimates in the package |
 
 Only an existing, reviewed milestone document is a delivery source. A planned
 path in this table is not an instruction to infer missing detail from its name.

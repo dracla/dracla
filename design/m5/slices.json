@@ -1,0 +1,753 @@
+{
+  "schema_version": 2,
+  "slices": [
+    {
+      "id": "m5/1",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/1] Browser-bound GitHub authentication and live sessions",
+        "responsibility": "Implement the missing same-browser S256 callback and server-side live session service over M4 bounded HTTP/config. Preserve absolute token-minus-five-minutes expiry, no refresh and current GitHub identity. No private project authority follows from login. Supply the session endpoints and their observable restart/logout behavior.",
+        "paths": [
+          "api/src/portal/auth.ts",
+          "api/src/portal/sessions.ts",
+          "api/src/portal/cookies.ts",
+          "api/src/portal/contexts.ts",
+          "api/test/portal/auth.test.ts",
+          "api/test/portal/sessions.test.ts",
+          "api/src/portal/index.ts",
+          "api/src/runtime/config.ts",
+          "api/wrangler.portal.jsonc",
+          "api/package.json"
+        ],
+        "dependencies": [],
+        "acceptance": [
+          "Real Worker callback tests reject swapped code/verifier/state/browser/project/return context and duplicate code; missing expiry creates no session.",
+          "Cookie/token/KV rotation and absolute expiry match; 401 restarts, 403 denies only action, logout retains its honest eventual limit.",
+          "No token, cookie, refresh token or key appears in browser responses, captured errors or logs; initial identity login works before installation."
+        ]
+      },
+      "display": {
+        "summary": "Browser-bound GitHub authentication and live sessions",
+        "production": [
+          600,
+          900
+        ],
+        "tests": [
+          850,
+          1350
+        ]
+      }
+    },
+    {
+      "id": "m5/2",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/2] Public agreement presentation and isolated portal shell",
+        "responsibility": "Deliver the approved static shell and public agreement presentation under dashboard/portal, extending M4 portal routing. Add the one reusable real-browser harness and fixed isolated viewer. No dashboard, signer lookup, framework migration or third Worker. Ship current legal/retention labels, accessible source and no-active state.",
+        "paths": [
+          "dashboard/portal/index.html",
+          "dashboard/portal/app.ts",
+          "dashboard/portal/styles.css",
+          "dashboard/portal/agreement-viewer.ts",
+          "api/src/portal/presentation.ts",
+          "api/src/portal/assets.ts",
+          "dashboard/portal/package.json",
+          "dashboard/portal/playwright.config.ts",
+          "dashboard/portal/test/harness.ts",
+          "dashboard/portal/test/agreement.spec.ts",
+          "api/test/portal/presentation.test.ts",
+          "api/src/portal/index.ts",
+          "dashboard/portal/tsconfig.json",
+          "dashboard/portal/build.mjs",
+          "api/wrangler.portal.jsonc"
+        ],
+        "dependencies": [
+          "m5/1"
+        ],
+        "acceptance": [
+          "Both actual origins render full active agreement and accessible immutable source; hostile markup cannot reach portal APIs/cookies or parent navigation.",
+          "Build-pinned viewer script/CSP, sandbox, source-window/nonce/project/version/digest readiness and failure-disabled assent are browser tested.",
+          "Unknown API/callback routes never fall through to HTML; public allowlist/cache/rename/no-active and changed-field refresh are tested."
+        ]
+      },
+      "display": {
+        "summary": "Public agreement presentation and isolated portal shell",
+        "production": [
+          500,
+          800
+        ],
+        "tests": [
+          900,
+          1400
+        ]
+      }
+    },
+    {
+      "id": "m5/18",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/18] Current resource authority and authorized repository conflict inspection",
+        "responsibility": "Deliver the current actor/owner/named-user/App-binding acquisition foundation and closed signed enforcer observations before administrative or installed-Connect consumers. Include existing observable read-only repository conflict inspection with exact affected-repository admin. Distinguish active route, installed setup without active route and project-independent inspection; no write, reader grant, arbitrary proxy or new capability. Later team and PR slices extend this same service.",
+        "paths": [
+          "api/src/portal/authority.ts",
+          "api/src/portal/permissions.ts",
+          "api/src/enforce/portal-observations.ts",
+          "api/src/portal/conflicts.ts",
+          "dashboard/portal/conflicts.ts",
+          "api/src/portal/index.ts",
+          "api/src/enforce/index.ts",
+          "api/test/portal/authority.test.ts",
+          "api/test/enforce/portal-observations.test.ts",
+          "api/test/portal/conflicts.test.ts",
+          "dashboard/portal/test/conflicts.spec.ts"
+        ],
+        "dependencies": [
+          "m5/1",
+          "m5/2"
+        ],
+        "acceptance": [
+          "Actual Worker/HTTP providers bind live actor and exact resource/owner/installation/grants, evidence completeness and current check time; wrong App, actor, role, resource, SSO/policy ambiguity and incomplete result deny.",
+          "Closed signed permission/owner/App request and response unions reject foreign purpose/mode/context/nonce/expiry/domain/key and disclose no token/private signer evidence.",
+          "First installed Connect obtains facts before an active route exists; conflict inspection works for conflicted/no-active routes only after current exact-repository admin and reveals only permitted claims. Neither grants mutation or reader authority."
+        ]
+      },
+      "display": {
+        "summary": "Current resource authority and authorized repository conflict inspection",
+        "production": [
+          730,
+          1130
+        ],
+        "tests": [
+          910,
+          1400
+        ]
+      }
+    },
+    {
+      "id": "m5/3",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/3] Authenticated own status from bounded validated state",
+        "responsibility": "Expose session-derived own status and implement the missing exact-status adapter over M4 authenticated partial coverage. Extract one shared status core used by existing full and partial APIs without weakening complete-model validation. Derive known absence only from the authenticated selected shard; no arbitrary-subject own-read parameter.",
+        "paths": [
+          "api/src/portal/status.ts",
+          "api/src/conformance/derived.ts",
+          "api/src/records/private-status.ts",
+          "api/test/portal/status.test.ts",
+          "api/test/conformance.test.mjs",
+          "conformance/authoring/build.py",
+          "conformance/authoring/derived-v1.json",
+          "conformance/authoring/transitions.py",
+          "core/dracla/conformance/vectors.py",
+          "dashboard/portal/status.ts",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/1",
+          "m5/2"
+        ],
+        "acceptance": [
+          "Python-authored parity covers every status/basis, succeeded lifecycle, acceptance/revocation, active versions, exemptions, operation marker/fence and untouched subject.",
+          "Current canonical/event/operation evidence distinguishes recorded/taking-effect from completed; stale or unproved state is unavailable.",
+          "Recycled login, forged subject/path/ref, unread/missing shard, unrelated/project-wide mutation and no-acceptance rows cannot disclose another subject.",
+          "Extend the existing authoring inputs/build and checked derived/incremental corpus/manifest; Python and TypeScript consume the same canonical cases. No alternate generator/corpus."
+        ]
+      },
+      "display": {
+        "summary": "Authenticated own status from bounded validated state",
+        "production": [
+          300,
+          520
+        ],
+        "tests": [
+          500,
+          820
+        ]
+      }
+    },
+    {
+      "id": "m5/4",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/4] Exact assent and correction through the shared durable writer",
+        "responsibility": "Connect real acceptance/correction forms to existing M1 codecs and the M4 writer. Own common operation builders, bounded private mutation acquisition/materialization adapter and one shared form service. Reuse exact row transformations rather than full-96-shard edge replay. Later action slices extend this one service. No new canonical format or writer.",
+        "paths": [
+          "api/src/portal/forms.ts",
+          "api/src/portal/acceptance.ts",
+          "api/src/records/private-mutations.ts",
+          "api/src/conformance/derived.ts",
+          "dashboard/portal/sign.ts",
+          "api/test/portal/acceptance.test.ts",
+          "api/test/records/private-mutations.test.ts",
+          "dashboard/portal/test/sign.spec.ts",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/1",
+          "m5/2",
+          "m5/3"
+        ],
+        "acceptance": [
+          "Explicit legal assent freezes exact recipient/agreement/version/digest/required fields and supersedes; login or viewing cannot sign.",
+          "Form digest/type/session/head/key/timestamp and terminal no-op remain exact; changed payload with same nonce conflicts and lost response retries original event.",
+          "Actual Worker/HTTP write and Python recovery cover prepare/append/derived/readback failure, untouched shard digests, old key/profile and completed versus taking-effect results."
+        ]
+      },
+      "display": {
+        "summary": "Exact assent and correction through the shared durable writer",
+        "production": [
+          620,
+          1000
+        ],
+        "tests": [
+          1000,
+          1500
+        ]
+      }
+    },
+    {
+      "id": "m5/5",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/5] Revocation, fresh re-sign and exact PR continuation",
+        "responsibility": "Add exact-tuple revocation and re-sign UI/handlers plus validated originating-PR continuation. Reuse common forms, materializer and M4 callback/sweep; no new receipt or retry queue. Revocation preserves evidence/prior-rights wording and cannot be undone by restore or scope change.",
+        "paths": [
+          "api/src/portal/revocation.ts",
+          "api/src/portal/continuation.ts",
+          "dashboard/portal/revoke.ts",
+          "api/test/portal/revocation.test.ts",
+          "dashboard/portal/test/revoke.spec.ts",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/3",
+          "m5/4"
+        ],
+        "acceptance": [
+          "Acceptance landing after confirmation makes revoke stale; tuple-wide earlier acceptance cutoff and independent new assent are verified end to end.",
+          "No-op remains exact after later state changes; correction/re-sign cannot resurrect a revoked earlier acceptance.",
+          "Only verified effect invokes the bound current originating PR; wrong repository/project, callback loss and existing scheduled repair are tested."
+        ]
+      },
+      "display": {
+        "summary": "Revocation, fresh re-sign and exact PR continuation",
+        "production": [
+          300,
+          500
+        ],
+        "tests": [
+          500,
+          850
+        ]
+      }
+    },
+    {
+      "id": "m5/6",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/6] Live administrative evidence and agreement/configuration actions",
+        "responsibility": "Consume m5/18 current resource-specific authority in the common admin UI/form service and immutable publish/activate/restore/config handlers. Preserve acting-user/project-bound source reach and explicit public publication; outside-reach origins deny. M4 owns v2 policy/schema; no generic RPC, new grant or legal interpretation.",
+        "paths": [
+          "api/src/portal/admin.ts",
+          "api/src/portal/agreements.ts",
+          "api/src/portal/configuration.ts",
+          "dashboard/portal/admin.ts",
+          "api/test/portal/agreements.test.ts",
+          "dashboard/portal/test/admin.spec.ts",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/1",
+          "m5/2",
+          "m5/4",
+          "m5/18"
+        ],
+        "acceptance": [
+          "Use current m5/18 positive/wrong-resource/actor/SSO authority at issuance and submission; test public/unlisted-accessible and already-authorized private immutable origin, outside-reach denial and no credential forwarding.",
+          "Publish stores exact encrypted snapshot/metadata atomically but does not activate; ordinary/superseding activation and exact restore preserve independent revocation.",
+          "Advisory default, explicit blocking warning, current labels/config/head confirmation, immutable recipient, v1 history and incompatible v2/downgrade denial are tested."
+        ]
+      },
+      "display": {
+        "summary": "Live administrative evidence and agreement/configuration actions",
+        "production": [
+          470,
+          740
+        ],
+        "tests": [
+          780,
+          1170
+        ]
+      }
+    },
+    {
+      "id": "m5/7",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/7] Explicit exemption and reader snapshots with source withdrawal",
+        "responsibility": "Add individual/bot/human exemption and reader-source administration, default snapshot selection and source-specific withdrawal. Compute frozen identities, real shard fanout and bounds before append, then use existing guarded bulk/recovery mechanism and complete generation publication. No implicit continuous delegation or user-wide boolean. Extend m5/18 closed enforcer observation service with exact exemption-only complete team selection/membership and current App/organization/team bindings; records App remains the sole reader provider.",
+        "paths": [
+          "api/src/portal/sources.ts",
+          "api/src/portal/teams.ts",
+          "dashboard/portal/sources.ts",
+          "api/test/portal/sources.test.ts",
+          "dashboard/portal/test/sources.spec.ts",
+          "api/src/portal/index.ts",
+          "api/src/enforce/portal-observations.ts",
+          "api/src/enforce/index.ts",
+          "api/test/enforce/portal-teams.test.ts"
+        ],
+        "dependencies": [
+          "m5/4",
+          "m5/6"
+        ],
+        "acceptance": [
+          "Frozen selected numeric subset, unchanged nonce/retry, source union, exact withdrawal and basis/instrument are verified against actual materialization.",
+          "Reader teams use records App only; exemption fallback is bound and purpose-limited; incomplete/oversized observations never append a partial set.",
+          "Multi-shard bulk interrupted before final state denies stale class reads and completes through actual M3 batches; no partial success or silent split into different assent events."
+        ]
+      },
+      "display": {
+        "summary": "Explicit exemption and reader snapshots with source withdrawal",
+        "production": [
+          800,
+          1250
+        ],
+        "tests": [
+          1100,
+          1800
+        ]
+      }
+    },
+    {
+      "id": "m5/8",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/8] Continuous membership observations and missed-event recovery",
+        "responsibility": "Implement actual rule-bound team observations and automation producers over the existing M4 daily scan infrastructure. Validate raw webhook signatures before parsing and use doorbells only to request fresh observations. Apply one serialized join/departure with retained cursor, then finish its durable operation before observing another. No Actions membership poller or new scheduler/store.",
+        "paths": [
+          "api/src/portal/membership.ts",
+          "api/src/portal/automation.ts",
+          "api/test/portal/membership.test.ts",
+          "api/test/portal/automation.test.ts",
+          "dashboard/portal/test/continuous.spec.ts",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/6",
+          "m5/7"
+        ],
+        "acceptance": [
+          "Explicit delegation warning, rule identity, independent automation actor and stale/duplicate/out-of-order prior cursor are tested.",
+          "Records-only continuous readers and exemption-only fallback remain separate; active versus pending membership, rename and binding drift deny safely.",
+          "Lost doorbell/daily observation, partial listing, writer race, job interruption and actual M3 frozen-operation recovery preserve union and cannot authorize an unmaterialized new member."
+        ]
+      },
+      "display": {
+        "summary": "Continuous membership observations and missed-event recovery",
+        "production": [
+          650,
+          1050
+        ],
+        "tests": [
+          1050,
+          1700
+        ]
+      }
+    },
+    {
+      "id": "m5/9",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/9] Current reader proofs and fixed private data pages",
+        "responsibility": "Implement exact parent private-read JWS plus 32-shard source validation and fixed index/exact-subject APIs. Reuse existing selected-class validator and partial-status semantics. No bulk proof, arbitrary path/ref/decrypt endpoint, reader cache or ACL-based authorization. Supply M7 its one authorized service.",
+        "paths": [
+          "api/src/portal/readers.ts",
+          "api/src/portal/read-proofs.ts",
+          "api/src/portal/private-pages.ts",
+          "api/test/portal/readers.test.ts",
+          "api/test/portal/private-pages.test.ts",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/1",
+          "m5/3",
+          "m5/7",
+          "m5/8"
+        ],
+        "acceptance": [
+          "All32 source shards, digests and current canonical generation are required at issuance; individual/snapshot source preference and deterministic continuous source order match reference.",
+          "Every page checks same live actor/session/scope/generation and exact records-App membership; withdrawal/departure before materialization denies the next read.",
+          "Proof class/scope/key/time/canonical tampering, overflow and uniform unknown/unauthorized responses are exercised with actual encrypted HTTP data, including another independently valid source."
+        ]
+      },
+      "display": {
+        "summary": "Current reader proofs and fixed private data pages",
+        "production": [
+          600,
+          950
+        ],
+        "tests": [
+          950,
+          1550
+        ]
+      }
+    },
+    {
+      "id": "m5/10",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/10] Purpose-bound permission results and private PR disclosure tiers",
+        "responsibility": "Extend m5/18 already-delivered signed observation service with exact PR-result unions and portal disclosure tiers over M4 current route/gate/PR resolution. Reuse its permission/owner/App providers. Keep yes/no permission separate from minimal GitHub facts and reader-authorized per-subject status. Add numeric check-link context; no repository picker/proxy.",
+        "paths": [
+          "api/src/enforce/portal-observations.ts",
+          "api/src/portal/permissions.ts",
+          "api/src/portal/pr.ts",
+          "dashboard/portal/pr.ts",
+          "api/src/enforce/feedback.ts",
+          "api/test/portal/pr.test.ts",
+          "api/test/enforce/portal-observations.test.ts",
+          "dashboard/portal/test/pr.spec.ts",
+          "api/src/portal/index.ts",
+          "api/src/enforce/index.ts"
+        ],
+        "dependencies": [
+          "m5/6",
+          "m5/9",
+          "m5/18"
+        ],
+        "acceptance": [
+          "Public/self/aggregate/named responses on public/private repositories leak no extra identities, legal fields or raw evidence; reader proof/page checks run for each named private reason.",
+          "Signatures bind exact actor/resource/operation/nonce/purpose/expiry/domain; forged or substituted service/context and changed PR head/route deny.",
+          "Same PR number in two repositories, missing/forged numeric context, private observations, incomplete subjects and logout/membership loss are tested without credential transfer."
+        ]
+      },
+      "display": {
+        "summary": "Purpose-bound permission results and private PR disclosure tiers",
+        "production": [
+          400,
+          650
+        ],
+        "tests": [
+          650,
+          1100
+        ]
+      }
+    },
+    {
+      "id": "m5/11",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/11] Authenticated initial wrapping and all service live challenges",
+        "responsibility": "Implement the three closed portal-records, portal-coverage and enforcer-coverage wrapping/challenge paths. Retain existing before-install initial candidate wrapping and after-install Connect proof phases, exact actual-key fingerprints, capability roots and setup context. No stored keys, generic wrapping/decrypt API or service-to-service raw key forwarding.",
+        "paths": [
+          "api/src/portal/bootstrap.ts",
+          "api/src/portal/wrapping.ts",
+          "api/src/enforce/wrapping.ts",
+          "api/test/portal/bootstrap.test.ts",
+          "api/test/enforce/wrapping.test.ts",
+          "dashboard/portal/connect.ts",
+          "api/src/portal/index.ts",
+          "api/src/enforce/index.ts"
+        ],
+        "dependencies": [
+          "m5/1",
+          "m5/6"
+        ],
+        "acceptance": [
+          "Initial authenticated unclaimed-project candidate wrapping works before App installation but cannot read/write an existing project or assert seven-check Connect authority.",
+          "Each correct capability/wrapper succeeds independently; cross-project/purpose/wrapper/kid/fingerprint/generation/retry/expired-session inputs deny and raw material never logs or persists.",
+          "Independent portal/enforcer coverage and portal records installed-path challenges, bad actual-key bytes, predecessor/successor roots and retry/partial failure are verified."
+        ]
+      },
+      "display": {
+        "summary": "Authenticated initial wrapping and all service live challenges",
+        "production": [
+          550,
+          850
+        ],
+        "tests": [
+          850,
+          1350
+        ]
+      }
+    },
+    {
+      "id": "m5/12",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/12] Complete Connect and guarded first project activation",
+        "responsibility": "Implement seven-check installed Connect, exact bootstrap/provenance/K-B/actual-key/control proofs and initial empty-history M4-writer preconditions. Supply M6 real fixed control/installer contracts. No registry write before canonical Connect, no direct route publication and no durable keys_ready flag. Supply authenticated root/K/B/manifests and existing generations-absence/independent-guard inputs; never fabricate a complete pre-Connect projection. The same M4 executor builds full normal coverage/derived only after the genuine first event. Own the minimal initial-observation/optional-derived-ref/key-selection integration into existing history, mutation and reconciliation seams; ordinary open_history remains connected-only and there is no duplicated engine. Own the fixed authenticated missing-derived-ref to original README-root creation after genuine Connect, then existing normal projection CAS, exact frozen-operation readback and race/lost-response recovery; no pre-Connect ref/projection or generic ref creator.",
+        "paths": [
+          "api/src/portal/connect.ts",
+          "api/src/records/bootstrap.ts",
+          "api/src/control/bootstrap.ts",
+          "core/dracla/records/bootstrap.py",
+          "core/dracla/records/history.py",
+          "core/dracla/records/append.py",
+          "core/dracla/records/reconcile.py",
+          "core/dracla/records/github.py",
+          "control/reconcile.yml",
+          "api/test/portal/connect.test.ts",
+          "core/tests/test_portal_bootstrap.py",
+          "core/tests/test_records_2.py",
+          "dashboard/portal/test/connect.spec.ts",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/4",
+          "m5/6",
+          "m5/11"
+        ],
+        "acceptance": [
+          "All seven exact owner/repository/App checks and every live/control/recovery path are required; wrong binding, policy/SSO denial, moved/private/control workflow identity and missing proofs deny before activation.",
+          "Three identical manifests, exact K/B ancestry/candidate/fingerprint and configured initial key IDs precede the first private event.",
+          "Actual first append/readback, lost response/resume and concurrent claim complete once; M4 requested/activated scope publication follows separately and stays guarded until complete.",
+          "Original opaque-context digest binds both actual-data-key MAC and canonical signed ControlKeyProof; different-session/nonce/re-encrypted context and wrong job/attempt/duplicate typed log line deny.",
+          "Actual bootstrap acquisition and fixed Python recovery adapter accept only the exact initial absence/guard state or matching owned operation, reject partial/fake projection and concurrent claims, and recover every first-append/materialization pause with write-free completed repeat.",
+          "Actual Python engine uses authenticated bootstrap acquisition for zero-event idle/prepared/appending and genuine appended-but-unmaterialized states; no synthetic active before-state, reader fallback or generic provider selection. Normal strict verification and write-free repeat succeed after completion.",
+          "Actual HTTP and Worker/Python first-derived-ref initialization requires exact authenticated absence/root/first-event/package/guard bindings; lost reply and concurrent identical-root effect reuse safely, foreign/malformed/extra-file descendants or changed owner/head/guard deny, every partial batch recovers and completed repeat writes nothing."
+        ]
+      },
+      "display": {
+        "summary": "Complete Connect and guarded first project activation",
+        "production": [
+          880,
+          1390
+        ],
+        "tests": [
+          1480,
+          2450
+        ]
+      }
+    },
+    {
+      "id": "m5/13",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/13] Owner transfer, legal succession and successor key activation",
+        "responsibility": "Add existing whole-arrangement transfer, independent legal succession and data-key generation activation handlers/UI. Use current exact authorities, candidate key binding and M4 lifecycle coordinator; keep historical keys and succeeded-project maintenance allowlist. No partial transfer, recipient rewrite or claim of historical key revocation.",
+        "paths": [
+          "api/src/portal/lifecycle.ts",
+          "dashboard/portal/lifecycle.ts",
+          "api/test/portal/lifecycle.test.ts",
+          "dashboard/portal/test/lifecycle.spec.ts",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/6",
+          "m5/9",
+          "m5/12"
+        ],
+        "acceptance": [
+          "All three transferred repositories and App bindings are rechecked; partial transfer and changed authority remain unavailable without moving another claim.",
+          "Successor must be independently connected with active agreement; old revoke/source/scope/history/recovery remain usable and old project new signing denies.",
+          "Successor actual keys pass every applicable service/control/recovery challenge before activation; old ciphertext stays readable and failed/lost activation retains recoverable prior state."
+        ]
+      },
+      "display": {
+        "summary": "Owner transfer, legal succession and successor key activation",
+        "production": [
+          500,
+          820
+        ],
+        "tests": [
+          850,
+          1400
+        ]
+      }
+    },
+    {
+      "id": "m5/14",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/14] Authorized scope conflicts, exact overrides and targeted retries",
+        "responsibility": "Consume m5/18 existing read-only conflict shell/inspection and deliver separate action-specific scope, override/withdraw and retry UI/forms over M4 protocols. Each write checks its own current resources. No automatic precedence/move, quarantine bypass, new event or global rescan.",
+        "paths": [
+          "api/src/portal/scope.ts",
+          "api/src/portal/overrides.ts",
+          "dashboard/portal/scope.ts",
+          "api/test/portal/scope.test.ts",
+          "dashboard/portal/test/scope.spec.ts",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/6",
+          "m5/10",
+          "m5/12",
+          "m5/18"
+        ],
+        "acceptance": [
+          "Unauthenticated/non-admin conflict inspection leaks no matching private projects; exact affected-repository admin sees only permitted matches and each resolution write checks its own authority.",
+          "Explicit remove-then-bind, selector owner consent, concurrent overlap and pending activation run through actual coordinator/gate tests.",
+          "Maintain-only whole-grant forward withdrawal binds exact PR/tree/subject; write-only retry targets one current PR/queue entry and cannot clear another fence/quarantine."
+        ]
+      },
+      "display": {
+        "summary": "Authorized scope conflicts, exact overrides and targeted retries",
+        "production": [
+          270,
+          420
+        ],
+        "tests": [
+          590,
+          950
+        ]
+      }
+    },
+    {
+      "id": "m5/15",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/15] Authenticated protected export dispatch and real Python authority",
+        "responsibility": "Connect fixed portal dispatch and protected OIDC export context to an actual HostedExportAuthority in Python. Extend the one control parser/workflow compatibly and keep export purpose separate from recovery. Reuse M3 renderer/pairs and final gate; no operator PAT, selected provider callback or new job store.",
+        "paths": [
+          "api/src/portal/exports.ts",
+          "api/src/control/exports.ts",
+          "core/dracla/records/export_authority.py",
+          "core/dracla/records/github.py",
+          "control/reconcile.yml",
+          "api/test/portal/exports.test.ts",
+          "core/tests/test_portal_exports.py",
+          "core/dracla/records/dispatch.py",
+          "control/control-binding.schema.json",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/6",
+          "m5/9",
+          "m5/12"
+        ],
+        "acceptance": [
+          "Authentic numeric control repository/run/workflow SHA/purpose/request/source and live session/reader precede data-key access; forged OIDC/profile/context/booleans and missing adapter retain denial.",
+          "Real renderer/provider integration covers prepared/current/historical snapshots, membership loss, expiry/delayed response, unrelated mutation, concurrent request pairs and retained-pair reuse.",
+          "Request data remains inert, trigger capability stays Actions-only and no plaintext artifact/output/log/cache is produced; installed release proof and exact control config remain mandatory."
+        ]
+      },
+      "display": {
+        "summary": "Authenticated protected export dispatch and real Python authority",
+        "production": [
+          750,
+          1150
+        ],
+        "tests": [
+          1200,
+          1900
+        ]
+      }
+    },
+    {
+      "id": "m5/16",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/16] Reauthorized private JSON and CSV snapshot delivery",
+        "responsibility": "Deliver the explicit export request/status/download client and portal streaming endpoint over the existing encrypted pair. Reauthorize every download against current reader policy/membership and exact source/request identity. No public bearer URL, durable plaintext or second export renderer.",
+        "paths": [
+          "api/src/portal/export-download.ts",
+          "dashboard/portal/exports.ts",
+          "api/test/portal/export-download.test.ts",
+          "dashboard/portal/test/exports.spec.ts",
+          "api/src/portal/index.ts"
+        ],
+        "dependencies": [
+          "m5/9",
+          "m5/15"
+        ],
+        "acceptance": [
+          "JSON preserves canonical values; decrypted CSV has formula-neutralized cells; view/source OID and snapshot meaning are shown without later-freshness claims.",
+          "Former reader, expired session, cross-request/project/source, mismatched pair, incomplete result and forged path/ref cannot stream plaintext.",
+          "Encrypted/decoded/output/pair limits and midstream dependency failure do not return successful partial exports; large-work CLI guidance and no-store/log redaction are tested."
+        ]
+      },
+      "display": {
+        "summary": "Reauthorized private JSON and CSV snapshot delivery",
+        "production": [
+          350,
+          580
+        ],
+        "tests": [
+          650,
+          1050
+        ]
+      }
+    },
+    {
+      "id": "m5/17",
+      "parent": null,
+      "state": "planned",
+      "role": "implementation",
+      "intent": {
+        "title": "[m5/17] Integrated M5 acceptance, controller lifecycle and capacity evidence",
+        "responsibility": "Assemble actual local Worker/browser/HTTP/Python journeys, hostile-input/failure sensitivity, concrete cold resource traces and separately authorized live acceptance drivers. Update the one capacity model and shipped operator/portal instructions. Reuse all individual tests and M4/M3 drivers; no production effects during design or local validation.",
+        "paths": [
+          "api/test/integration/portal-m3.test.ts",
+          "dashboard/portal/test/journeys.spec.ts",
+          "core/tests/test_portal_integration.py",
+          "scripts/acceptance/portal_live.py",
+          "scripts/acceptance/portal_resources.ts",
+          "docs/portal.md",
+          "docs/security.md",
+          "docs/benchmarking.md"
+        ],
+        "dependencies": [
+          "m5/5",
+          "m5/8",
+          "m5/10",
+          "m5/13",
+          "m5/14",
+          "m5/16"
+        ],
+        "acceptance": [
+          "One complete connect/publish/activate/sign/correct/revoke/re-sign/reader/PR/export journey crosses the real local services and Python recovery, with injected failures proving guards and leakage assertions are sensitive.",
+          "Session/form/proof/wrapping rotation, controller departure/quarantine and self-hosted origin/key isolation have executable offline cases and retained actual acceptance gates.",
+          "Cold read/mutation/continuous/dispatch/download CPU, bytes, nested subrequests and shared account costs are measured by runnable drivers; no mock establishes live/OAuth/install/production completion."
+        ]
+      },
+      "display": {
+        "summary": "Integrated M5 acceptance, controller lifecycle and capacity evidence",
+        "production": [
+          300,
+          500
+        ],
+        "tests": [
+          1000,
+          1600
+        ]
+      }
+    }
+  ]
+}
